@@ -217,8 +217,21 @@ const EDITABLE_KEYS = new Set([
 const GAIN_TITLE = 'Metal OUT is more than Metal IN — check the weights'
 
 function metalLossCell(row) {
-  if (row.metalGain == null) return row.metalLossDisplay ?? formatWeight(row.metalLoss)
-  return <span style={overLimitStyle} title={GAIN_TITLE}>Gain +{formatWeight(row.metalGain)}</span>
+  const floor = row.metalGain == null
+    ? (row.metalLossDisplay ?? formatWeight(row.metalLoss))
+    : <span style={overLimitStyle} title={GAIN_TITLE}>Gain +{formatWeight(row.metalGain)}</span>
+  if (!row.alloyLossLabel) return floor
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.25 }}>
+      <span>{floor}</span>
+      <span
+        style={{ fontSize: 10, fontWeight: 700, color: '#9A3412', whiteSpace: 'nowrap' }}
+        title="Gold Alloy Update metal loss (AML) — separate from floor Metal IN − OUT"
+      >
+        {row.alloyLossLabel}
+      </span>
+    </span>
+  )
 }
 
 function timeBatchCell(row) {
@@ -266,8 +279,9 @@ function cellDisplay(row, key, lossLimitPct = null) {
   if (key === 'batch' && row.fromFloor) {
     if (row.fromGoldAlloy) {
       const mixLabel = row.alloyMixCode || row.batch || '—'
+      const aml = row.alloyLossLabel ? ` · ${row.alloyLossLabel}` : ''
       return (
-        <span style={batchCellWrap} title={`Gold Alloy mix ${mixLabel} — metal fields are read-only`}>
+        <span style={batchCellWrap} title={`Gold Alloy mix ${mixLabel}${aml} — metal fields are read-only`}>
           <span style={batchText}>{mixLabel}</span>
           <span style={alloyBadge}>Gold Alloy</span>
         </span>

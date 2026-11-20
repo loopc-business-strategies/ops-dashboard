@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../../../context/AuthContext'
 import { productionControlApi } from '../../../../api/productionControl'
 import { mgFloorBatchEntriesApi } from '../../../../api/mgFloorBatchEntries'
+import { inventoryApi } from '../../../../api/erp-accounting/inventory'
 import { LOOPC_PRODUCTION_DEPARTMENTS } from './loopcProductionDepartments'
 import ProductionSummary from './ProductionSummary'
 import ProductionFilters from './ProductionFilters'
 import DepartmentGroup from './DepartmentGroup'
+import {
+  formatAlloyMetalLossLabel,
+  indexAlloyMixJobsByCode,
+} from '../alloyMetalLossDisplay'
 import {
   EMPTY_FILTERS,
   applyDeptDateFilter,
@@ -31,7 +37,9 @@ const wrap = {
  * `showLossLimits`: MG — colour Loss % red above each department's limit set on the tablet.
  */
 export default function LoopCProductionSheets({ dashboardSource = true, mgFloorSync = false, showLossLimits = false }) {
+  const { token } = useAuth()
   const [lossLimits, setLossLimits] = useState({})
+  const [alloyJobsByCode, setAlloyJobsByCode] = useState({})
   const [syncing, setSyncing] = useState(false)
   const [syncNote, setSyncNote] = useState('')
   const [entries, setEntries] = useState([])
@@ -92,11 +100,33 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
     return () => { mounted = false }
   }, [showLossLimits])
 
+  // MG: join BMG rows to mix jobs for Alloy Update Au/Cu loss (AML), separate from floor Loss.
+  useEffect(() => {
+    if (!showLossLimits || !token) {
+      setAlloyJobsByCode({})
+      return undefined
+    }
+    let mounted = true
+    inventoryApi.listAlloyMixJobs(token, { includeClosed: true })
+      .then((data) => {
+        if (!mounted) return
+        setAlloyJobsByCode(indexAlloyMixJobsByCode(data?.jobs || []))
+      })
+      .catch(() => { if (mounted) setAlloyJobsByCode({}) })
+    return () => { mounted = false }
+  }, [showLossLimits, token, entries])
+
   const allRows = useMemo(() => {
-    const mapped = (Array.isArray(entries) ? entries : []).map(mapEntryToRow)
+    const mapped = (Array.isArray(entries) ? entries : []).map((entry) => {
+      const row = mapEntryToRow(entry)
+      const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+      const job = code ? alloyJobsByCode[code] : null
+      const alloyLossLabel = job ? formatAlloyMetalLossLabel(job) : null
+      return alloyLossLabel ? { ...row, alloyLossLabel } : row
+    })
     const drafts = Object.values(draftRows || {})
     return [...mapped, ...drafts]
-  }, [entries, draftRows])
+  }, [entries, draftRows, alloyJobsByCode])
 
   const filteredRows = useMemo(
     () => applyGlobalFilters(allRows, appliedFilters),

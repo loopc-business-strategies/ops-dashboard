@@ -355,6 +355,15 @@ async function createJobFromPostedMix({
   const reasonBase = String(postResult.reason || '').trim()
   const targetGross = toQty(postResult.targetGross)
   const metalLossGross = toQty(postResult.metalLossGross || 0)
+  const metalLossByMetal = (Array.isArray(postResult.metalLossByMetal) ? postResult.metalLossByMetal : [])
+    .map((row) => ({
+      itemId: row?.itemId || null,
+      name: String(row?.name || '').trim(),
+      label: String(row?.label || '').trim(),
+      stockCode: String(row?.stockCode || '').trim().toUpperCase(),
+      lossGross: toQty(row?.lossGross || 0),
+    }))
+    .filter((row) => row.lossGross > QTY_EPS)
   const finishedId = postResult.finishedProduct.id
   const finishedName = postResult.finishedProduct.name || ''
   const inputComponents = buildInputComponents(postResult.consumed)
@@ -447,6 +456,7 @@ async function createJobFromPostedMix({
         karat: Number(karat) || 0,
         targetGross,
         metalLossGross,
+        metalLossByMetal,
         finishedProductId: finishedId,
         finishedProductName: finishedName,
         inputComponents,
@@ -1251,6 +1261,15 @@ function serializeJob(job, {
     karat: row.karat,
     targetGross: row.targetGross,
     metalLossGross: row.metalLossGross,
+    metalLossByMetal: (Array.isArray(row.metalLossByMetal) ? row.metalLossByMetal : [])
+      .map((c) => ({
+        itemId: c.itemId ? String(c.itemId) : '',
+        name: String(c.name || '').trim(),
+        label: String(c.label || '').trim(),
+        stockCode: String(c.stockCode || '').trim().toUpperCase(),
+        lossGross: toQty(c.lossGross),
+      }))
+      .filter((c) => c.lossGross > QTY_EPS),
     finishedProductId: row.finishedProductId ? String(row.finishedProductId) : '',
     finishedProductName: row.finishedProductName || '',
     inputComponents: (Array.isArray(row.inputComponents) ? row.inputComponents : [])

@@ -41,6 +41,18 @@ const inputComponentSchema = new mongoose.Schema(
   { _id: false },
 )
 
+/** AML this-Update metal loss by metal (Gold/Copper…) — Ops / Production Dashboard. */
+const metalLossByMetalSchema = new mongoose.Schema(
+  {
+    itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem', default: null },
+    name: { type: String, trim: true, default: '' },
+    label: { type: String, trim: true, default: '' },
+    stockCode: { type: String, trim: true, uppercase: true, default: '' },
+    lossGross: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+)
+
 const alloyMixJobSchema = new mongoose.Schema(
   {
     mixCode: { type: String, required: true, trim: true, uppercase: true },
@@ -48,6 +60,7 @@ const alloyMixJobSchema = new mongoose.Schema(
     karat: { type: Number, required: true, min: 1, max: 24 },
     targetGross: { type: Number, required: true, min: 0 },
     metalLossGross: { type: Number, default: 0, min: 0 },
+    metalLossByMetal: { type: [metalLossByMetalSchema], default: [] },
     finishedProductId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'InventoryItem',

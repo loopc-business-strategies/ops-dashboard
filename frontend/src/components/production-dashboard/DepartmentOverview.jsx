@@ -3,6 +3,7 @@ import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import { minutesDown } from './useUnfixedBreakdowns'
 import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
+import { formatAlloyMetalLossLabel } from '../tabs/operations/alloyMetalLossDisplay'
 import {
   DeptIcon,
   IconEmployees,
@@ -159,7 +160,11 @@ function AlloyMixChip({ jobs = [] }) {
   if (!jobs.length) return null
   const grams = jobs.reduce((sum, j) => sum + (Number(j.targetGross) || 0), 0)
   const title = jobs
-    .map((j) => `${j.mixCode || 'MIX'} · ${j.karat || '?'}K · ${j.targetGross ?? '—'} g`)
+    .map((j) => {
+      const base = `${j.mixCode || 'MIX'} · ${j.karat || '?'}K · ${j.targetGross ?? '—'} g`
+      const aml = formatAlloyMetalLossLabel(j)
+      return aml ? `${base}\n${aml}` : base
+    })
     .join('\n')
   return (
     <span
@@ -252,6 +257,7 @@ function AlloyMixList({
             const canAlloc = typeof onAllocateMix === 'function'
               && !awaitingReceive
               && job.canAllocate !== false
+            const alloyLoss = formatAlloyMetalLossLabel(job)
             return (
             <li key={job.id || job.mixCode}>
               <span>
@@ -266,6 +272,11 @@ function AlloyMixList({
                 {job.karat ? `${job.karat}K ` : ''}
                 {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
               </strong>
+              {alloyLoss ? (
+                <span className="pd-alloy-mix-inputs" title="Gold Alloy Update metal loss (AML)">
+                  {alloyLoss}
+                </span>
+              ) : null}
               {canAlloc ? (
                 <button
                   type="button"
