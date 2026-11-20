@@ -13,6 +13,13 @@ export function defaultReportDisplayOptions(baseCurrencyCode = 'USD') {
     /** Created stock type value (`XAU::<id>::sku`) — scopes Trial Balance metal grams. Empty = all. */
     metalType: '',
     calculateClosingStock: false,
+    /** When true with Calculate Closing Stock: Net uses live MT4/market rates (gold + silver book). */
+    useLiveClosingPrice: true,
+    closingStockValue: '',
+    closingStockMetalCode: '',
+    closingStockLabel: '',
+    /** Manual USD / troy oz — used when useLiveClosingPrice is false. */
+    closingStockPriceOz: null,
     showClosedAccounts: false,
     excludeHedging: false,
     selectedGroup: '',
@@ -98,6 +105,27 @@ export function buildManualClosingStockRow(revaluation, { metalCode = 'XAU', pri
 /** Unposted gold closing-stock line at a typed USD price per troy ounce. Silver is left out. */
 export function buildManualGoldClosingStockRow(revaluation, pricePerOz) {
   return buildManualClosingStockRow(revaluation, { metalCode: 'XAU', price: pricePerOz, label: 'gold' })
+}
+
+/**
+ * Resolve the Trial Balance closing-stock Net row from live vs manual price options.
+ * Live → open metal at system/live rates (API unposted row or revaluation). Manual → one stock × entered USD/oz.
+ */
+export function resolveTrialClosingStockRow({
+  calculateClosingStock = false,
+  useLiveClosingPrice = true,
+  revaluation = null,
+  apiUnpostedRow = null,
+  metalCode = '',
+  price = null,
+  label = '',
+} = {}) {
+  if (!calculateClosingStock) return null
+  if (useLiveClosingPrice) {
+    if (apiUnpostedRow && apiUnpostedRow.unposted) return apiUnpostedRow
+    return buildClosingStockTrialRow(revaluation)
+  }
+  return buildManualClosingStockRow(revaluation, { metalCode, price, label })
 }
 
 export function reportAccountGroup(row = {}) {
