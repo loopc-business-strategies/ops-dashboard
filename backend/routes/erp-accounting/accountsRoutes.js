@@ -478,15 +478,16 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
     const resolveLineMetalCode = (line = {}) => {
       const stockText = String(line?.stockCode || '').trim().toUpperCase()
+      const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
+      // Product/narration first for copper: AML historically tagged copper loss as stockCode XAU.
+      if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
       if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
       if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
       if (stockText === 'XCU' || stockText.includes('COPP') || stockText === 'CU') return 'COPPER'
       if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
       if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
-      const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
       if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
       if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
-      if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
       if (productText.includes('platinum') || productText.includes('xpt')) return 'XPT'
       if (productText.includes('palladium') || productText.includes('xpd')) return 'XPD'
       if (productText.includes('other') || productText.includes('misc')) return 'OTHER'

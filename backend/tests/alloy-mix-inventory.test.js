@@ -572,4 +572,131 @@ describe('alloy mix inventory', () => {
     }).lean()
     expect(activeMixMoves).toHaveLength(0)
   })
+
+  test('tags copper metal-loss as XCU (not XAU) for Metal Loss metal filter', async () => {
+    const user = await User.create({
+      name: 'alloy-cu-loss-user',
+      email: 'alloy-cu-loss@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const invAcct = await ChartOfAccount.create({
+      accountName: 'Metal Inventory',
+      accountCode: '1300',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
+    const lossAcct = await ChartOfAccount.create({
+      accountName: 'Metal Loss',
+      accountCode: 'AML',
+      accountType: 'Expense',
+      createdBy: user._id,
+    })
+    await AccountMapping.create({
+      mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+      debitAccountId: lossAcct._id,
+      creditAccountId: invAcct._id,
+      isActive: true,
+      description: 'alloy metal loss',
+    })
+
+    const fineGold = await InventoryItem.create({
+      name: 'Gold Bar',
+      sku: 'AU-BAR-CU',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=1',
+      quantity: 600,
+      unit: 'grams',
+      unitCost: 50,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: fineGold._id,
+      itemName: fineGold.name,
+      change: 600,
+      quantityBefore: 0,
+      quantityAfter: 600,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const copper = await InventoryItem.create({
+      name: 'pure copper',
+      sku: 'CU-FINE',
+      category: 'mainStock=copper;metalType=copper;recordType=product;productPurity=1',
+      quantity: 100,
+      unit: 'grams',
+      unitCost: 1,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: copper._id,
+      itemName: copper.name,
+      change: 100,
+      quantityBefore: 0,
+      quantityAfter: 100,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const finished = await InventoryItem.create({
+      name: '22k alloyed gold',
+      sku: 'AU-22K-CU',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=0.9167',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+
+    const svc = createAlloyMixService({
+      InventoryItem,
+      StockMovement,
+      Ledger,
+      AccountMapping,
+      Transaction,
+      ChartOfAccount,
+      assertAccountingPeriodOpen: async () => {},
+    })
+
+    // Inputs 551.829 → finished 551.6 → loss 0.229 split by share (gold ~0.210, copper ~0.019).
+    const result = await svc.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 22,
+      targetGross: 551.6,
+      finishedProductId: finished._id,
+      lines: [
+        { itemId: fineGold._id, gross: 506.038, remainGross: 505.828, role: 'gold', label: 'gold' },
+        { itemId: copper._id, gross: 45.791, remainGross: 45.772, role: 'extra', label: 'copper' },
+      ],
+      description: 'Gold alloy mix (22K 551.6 g · updated)',
+    })
+
+    expect(result.metalLossGross).toBeCloseTo(0.229, 3)
+    const byMetal = Object.fromEntries(
+      (result.metalLossByMetal || []).map((row) => [row.stockCode, Number(row.lossGross)]),
+    )
+    expect(byMetal.XAU).toBeCloseTo(0.21, 2)
+    expect(byMetal.XCU).toBeCloseTo(0.019, 2)
+
+    const positionTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(positionTxs).toHaveLength(2)
+    const weights = Object.fromEntries(positionTxs.map((tx) => {
+      const line = tx.voucherMeta?.lineItems?.[0] || {}
+      return [String(line.stockCode || ''), Number(line.pureWeight)]
+    }))
+    expect(weights.XAU).toBeCloseTo(0.21, 2)
+    expect(weights.XCU).toBeCloseTo(0.019, 2)
+    expect(weights.XAU + weights.XCU).toBeCloseTo(0.229, 3)
+  })
 })

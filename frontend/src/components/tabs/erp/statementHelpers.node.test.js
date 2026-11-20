@@ -184,6 +184,19 @@ describe('statement helpers', () => {
     expect(resolveMetalCodeFromStockName('Other')).toBe('OTHER')
     expect(resolveStatementMetalCode({ description: 'silver bar sale' })).toBe('XAG')
     expect(resolveStatementMetalCode({ description: 'copper scrap' })).toBe('COPPER')
+    // Legacy AML copper loss was stored as metalCode XAU — narration must still filter as Copper.
+    expect(resolveStatementMetalCode({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.019 g pure copper',
+    })).toBe('COPPER')
+    expect(matchesStatementMetal({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.019 g pure copper',
+    }, 'Gold')).toBe(false)
+    expect(matchesStatementMetal({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.019 g pure copper',
+    }, 'Copper')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'XAU' }, 'Gold')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'XAG' }, 'Gold')).toBe(false)
     expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Copper')).toBe(true)
