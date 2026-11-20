@@ -8,9 +8,9 @@
   --pd-muted: #64748B;
   --pd-primary: var(--brand-primary, #1d4ed8);
   --pd-primary-soft: var(--brand-soft, #dbeafe);
-  --pd-header-bg: #004D40;
-  --pd-accent: #00A79D;
-  --pd-refresh: #00A79D;
+  --pd-header-bg: var(--brand-primary, #EA580C);
+  --pd-accent: var(--brand-accent, #F97316);
+  --pd-refresh: var(--brand-primary, #EA580C);
   --pd-mark-gold: #E8B923;
   --pd-on-header: #ffffff;
   --pd-ok: #15803d;
@@ -792,7 +792,7 @@
 
 .pd-header-mark--cube {
   background: linear-gradient(145deg, #F5D76E 0%, var(--pd-mark-gold) 45%, #C9971A 100%);
-  color: #004D40;
+  color: var(--brand-dark, #9A3412);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
@@ -1467,7 +1467,7 @@
 .pd-fullscreen-back {
   position: static;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(0, 77, 64, 0.72);
+  background: rgba(var(--brand-rgb, 234, 88, 12), 0.72);
   border-radius: 8px;
   padding: 0.25rem 0.6rem;
   font-size: 11px;
@@ -1478,7 +1478,7 @@
 }
 
 .pd-fullscreen-back:hover {
-  background: rgba(0, 77, 64, 0.9);
+  background: rgba(var(--brand-rgb, 234, 88, 12), 0.9);
 }
 
 .pd-fullscreen-body {
@@ -3337,12 +3337,12 @@
 /* -- Control Center reference layout (workable panels) -- */
 
 .pd-page {
-  --pd-header-bg: #004D40;
-  --pd-primary: #00A79D;
-  --pd-primary-soft: #CCFBF1;
+  --pd-header-bg: var(--brand-primary, #EA580C);
+  --pd-primary: var(--brand-primary, #EA580C);
+  --pd-primary-soft: var(--brand-soft, #FFF7ED);
   --pd-ok: #16A34A;
-  --pd-accent: #00A79D;
-  --pd-refresh: #00A79D;
+  --pd-accent: var(--brand-accent, #F97316);
+  --pd-refresh: var(--brand-primary, #EA580C);
   --pd-mark-gold: #E8B923;
   --pd-text: #0F2747;
   --pd-muted: #64748B;
