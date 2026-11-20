@@ -54,6 +54,16 @@ describe('metalPositionPolicy', () => {
     expect(position.silver).toBeCloseTo(-30, 6)
   })
 
+  test('keeps copper grams out of gold and silver buckets', () => {
+    const position = accumulateUnfixedMetalFromTransactions([
+      { type: 'sale', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'COPPER', pureWeight: 12 }] } },
+      { type: 'purchase', voucherMeta: { fixingType: 'non-fixing', lineItems: [{ stockCode: 'XAG', pureWeight: 5 }] } },
+    ])
+    expect(position.copper).toBeCloseTo(12, 6)
+    expect(position.gold).toBe(0)
+    expect(position.silver).toBeCloseTo(-5, 6)
+  })
+
   test('direct deal direction converts to the company side for MG reports', () => {
     expect(resolveDirectDealCompanyDirection('buy')).toBe('sell')
     expect(resolveDirectDealCompanyDirection(' Sell ')).toBe('buy')

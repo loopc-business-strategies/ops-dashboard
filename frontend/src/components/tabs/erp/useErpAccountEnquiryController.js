@@ -193,10 +193,10 @@ export function useErpAccountEnquiryController({
           department: '',
           fixStatus: '',
           foreignCurrency: '',
-          metalCommodity: '',
+          metalCommodity: 'Gold',
           showAmountIn: '',
         })
-        setStatementMetalCommodityEnabled(false)
+        setStatementMetalCommodityEnabled(true)
       }
       pushEnquiryHistory(merged.account)
       setError('')

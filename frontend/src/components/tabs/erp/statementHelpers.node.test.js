@@ -29,6 +29,7 @@ import {
   sortStatementEntriesForExport,
   sortStatementNewestFirst,
   computeStatementExportOpeningBalances,
+  buildAccountSummaryPositionMetals,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -159,16 +160,28 @@ describe('statement helpers', () => {
       { mainStock: 'Gold' },
     ])
 
-    expect(options).toEqual(['Gold', 'Copper', 'Silver', 'Platinum', 'Palladium', 'Other'])
+    expect(options).toEqual(['Gold', 'Copper', 'Silver', 'Other'])
+    expect(buildStatementMetalOptions([{ mainStock: 'Copper' }, { mainStock: 'Silver' }])[0]).toBe('Gold')
   })
 
-  test('matches selected gold, silver, and other metal entries', () => {
+  test('position metals always include Gold Silver Copper Other then created stock', () => {
+    expect(buildAccountSummaryPositionMetals([
+      { mainStock: 'Copper' },
+      { mainStock: 'Platinum' },
+    ])).toEqual(['Gold', 'Silver', 'Copper', 'Other', 'Platinum'])
+  })
+
+  test('matches selected gold, silver, copper, and other metal entries', () => {
     expect(resolveMetalCodeFromStockName('gold')).toBe('XAU')
+    expect(resolveMetalCodeFromStockName('Copper')).toBe('COPPER')
     expect(resolveMetalCodeFromStockName('Other')).toBe('OTHER')
     expect(resolveStatementMetalCode({ description: 'silver bar sale' })).toBe('XAG')
+    expect(resolveStatementMetalCode({ description: 'copper scrap' })).toBe('COPPER')
     expect(matchesStatementMetal({ metalCode: 'XAU' }, 'Gold')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'XAG' }, 'Gold')).toBe(false)
-    expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Other')).toBe(true)
+    expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Copper')).toBe(true)
+    expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Other')).toBe(false)
+    expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Silver')).toBe(false)
     expect(matchesStatementMetal({ metalSignedWeight: 2.5 }, 'Other')).toBe(true)
   })
 
@@ -176,19 +189,21 @@ describe('statement helpers', () => {
     const rows = [
       { id: 'gold', metalCode: 'XAU' },
       { id: 'silver', metalCode: 'XAG' },
+      { id: 'copper', metalCode: 'COPPER' },
       { id: 'platinum', metalCode: 'XPT' },
       { id: 'palladium', metalCode: 'XPD' },
-      { id: 'other', metalCode: 'COPPER' },
+      { id: 'other', metalCode: 'CADMIUM' },
     ]
 
     expect(rows.filter((row) => matchesStatementMetal(row, 'Gold')).map((row) => row.id)).toEqual(['gold'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Silver')).map((row) => row.id)).toEqual(['silver'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Copper')).map((row) => row.id)).toEqual(['copper'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Platinum')).map((row) => row.id)).toEqual(['platinum'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Palladium')).map((row) => row.id)).toEqual(['palladium'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Other')).map((row) => row.id)).toEqual(['other'])
   })
 
-  test('uses account balances for gold/silver and entry movements for other metals', () => {
+  test('uses account balances for gold/silver/copper and entry movements for other metals', () => {
     const entries = [
       { metalCode: 'XAU', metalSignedWeight: 1 },
       { metalCode: 'XAG', metalSignedWeight: 2 },
@@ -198,7 +213,9 @@ describe('statement helpers', () => {
 
     expect(resolveStatementMetalBalance({ goldBalance: 12, silverBalance: 8 }, 'XAU', entries)).toBe(12)
     expect(resolveStatementMetalBalance({ goldBalance: 12, silverBalance: 8 }, 'XAG', entries)).toBe(8)
-    expect(resolveStatementMetalBalance({}, 'OTHER', entries)).toBe(2.5)
+    expect(resolveStatementMetalBalance({ copperBalance: 4 }, 'COPPER', entries)).toBe(4)
+    expect(resolveStatementMetalBalance({}, 'COPPER', entries)).toBe(3)
+    expect(resolveStatementMetalBalance({}, 'OTHER', entries)).toBe(-0.5)
   })
 
   test('calculates account summary equity with signed credit exposure', () => {

@@ -23,6 +23,28 @@ function isSilverLine(stockCode = '', metalCode = '') {
   return sc.includes('XAG') || sc.includes('SILV') || mc === 'XAG'
 }
 
+function isCopperLine(stockCode = '', metalCode = '') {
+  const sc = String(stockCode || '').toUpperCase()
+  const mc = String(metalCode || '').trim().toUpperCase()
+  return sc.includes('XCU')
+    || sc.includes('COPP')
+    || sc === 'CU'
+    || mc === 'COPPER'
+    || mc === 'XCU'
+    || mc === 'CU'
+}
+
+function resolveMetalPositionBucket(stockCode = '', metalCode = '') {
+  if (isSilverLine(stockCode, metalCode)) return 'silver'
+  if (isCopperLine(stockCode, metalCode)) return 'copper'
+  const mc = String(metalCode || '').trim().toUpperCase()
+  if (mc && mc !== 'XAU' && mc !== 'GOLD' && mc !== '-' && !isSilverLine(stockCode, metalCode)) {
+    // Explicit non-gold codes (OTHER, XPT, …) stay out of gold grams.
+    if (mc === 'OTHER' || mc === 'XPT' || mc === 'XPD' || mc === 'CADMIUM') return 'other'
+  }
+  return 'gold'
+}
+
 function resolveDirectDealLineWeightGram(line = {}) {
   const qty = Number(line?.qty || 0)
   if (!Number.isFinite(qty) || qty <= 0) return 0
@@ -88,16 +110,16 @@ function resolveDirectDealLineMetalCode(line = {}) {
 }
 
 function createEmptyMetalPosition() {
-  return { gold: 0, silver: 0 }
+  return { gold: 0, silver: 0, copper: 0, other: 0 }
 }
 
 function addSignedWeightToPosition(position, signedWeight, { stockCode = '', metalCode = '' } = {}) {
   if (!signedWeight) return position
-  if (isSilverLine(stockCode, metalCode)) {
-    position.silver += signedWeight
-  } else {
-    position.gold += signedWeight
-  }
+  const bucket = resolveMetalPositionBucket(stockCode, metalCode)
+  if (bucket === 'silver') position.silver += signedWeight
+  else if (bucket === 'copper') position.copper += signedWeight
+  else if (bucket === 'other') position.other += signedWeight
+  else position.gold += signedWeight
   return position
 }
 
@@ -163,8 +185,12 @@ function addOpenUnfixedVoucherToPartyRow(row, tx = {}) {
   addOpenUnfixedVoucherWeight(valued, tx, { valuation: true })
   row.goldPosition += shown.gold
   row.silverPosition += shown.silver
+  row.copperPosition = Number(row.copperPosition || 0) + shown.copper
+  row.otherPosition = Number(row.otherPosition || 0) + shown.other
   row.goldValuationPosition += valued.gold
   row.silverValuationPosition += valued.silver
+  row.copperValuationPosition = Number(row.copperValuationPosition || 0) + valued.copper
+  row.otherValuationPosition = Number(row.otherValuationPosition || 0) + valued.other
   return true
 }
 
@@ -179,9 +205,16 @@ function addMetalTransferToPartyRow(row, tx = {}) {
   for (const line of lines) {
     const signedWeight = resolveTransferSignedPureWeight(tx.type, [line])
     if (!signedWeight) continue
-    if (isSilverLine(line?.stockCode)) {
+    const bucket = resolveMetalPositionBucket(line?.stockCode, resolveDirectDealLineMetalCode(line))
+    if (bucket === 'silver') {
       row.silverPosition += signedWeight
       row.silverValuationPosition -= signedWeight
+    } else if (bucket === 'copper') {
+      row.copperPosition = Number(row.copperPosition || 0) + signedWeight
+      row.copperValuationPosition = Number(row.copperValuationPosition || 0) - signedWeight
+    } else if (bucket === 'other') {
+      row.otherPosition = Number(row.otherPosition || 0) + signedWeight
+      row.otherValuationPosition = Number(row.otherValuationPosition || 0) - signedWeight
     } else {
       row.goldPosition += signedWeight
       row.goldValuationPosition -= signedWeight
@@ -269,9 +302,16 @@ function accumulateDirectDealMetalIntoMap(directDeals = [], positionMap = new Ma
       const signedWeight = resolveDirectDealLineSignedWeight(line)
       if (!signedWeight) continue
       const position = positionMap.get(customerId) || createEmptyPartyPositionRow()
-      if (isSilverLine(line?.stockCode, resolveDirectDealLineMetalCode(line))) {
+      const bucket = resolveMetalPositionBucket(line?.stockCode, resolveDirectDealLineMetalCode(line))
+      if (bucket === 'silver') {
         position.silverPosition -= signedWeight
         position.silverValuationPosition = Number(position.silverValuationPosition || 0) + signedWeight
+      } else if (bucket === 'copper') {
+        position.copperPosition = Number(position.copperPosition || 0) - signedWeight
+        position.copperValuationPosition = Number(position.copperValuationPosition || 0) + signedWeight
+      } else if (bucket === 'other') {
+        position.otherPosition = Number(position.otherPosition || 0) - signedWeight
+        position.otherValuationPosition = Number(position.otherValuationPosition || 0) + signedWeight
       } else {
         position.goldPosition -= signedWeight
         position.goldValuationPosition = Number(position.goldValuationPosition || 0) + signedWeight
@@ -286,6 +326,8 @@ function mergeMetalPositions(...parts) {
   return parts.reduce((acc, part) => {
     acc.gold += Number(part?.gold ?? part?.goldBalance ?? part?.goldPosition ?? 0)
     acc.silver += Number(part?.silver ?? part?.silverBalance ?? part?.silverPosition ?? 0)
+    acc.copper += Number(part?.copper ?? part?.copperBalance ?? part?.copperPosition ?? 0)
+    acc.other += Number(part?.other ?? part?.otherBalance ?? part?.otherPosition ?? 0)
     return acc
   }, createEmptyMetalPosition())
 }
@@ -294,6 +336,8 @@ function toMetalBalancePair(position = {}) {
   return {
     goldBalance: roundMetalPosition(position.gold ?? position.goldBalance ?? position.goldPosition ?? 0),
     silverBalance: roundMetalPosition(position.silver ?? position.silverBalance ?? position.silverPosition ?? 0),
+    copperBalance: roundMetalPosition(position.copper ?? position.copperBalance ?? position.copperPosition ?? 0),
+    otherBalance: roundMetalPosition(position.other ?? position.otherBalance ?? position.otherPosition ?? 0),
   }
 }
 
@@ -310,6 +354,9 @@ module.exports = {
   resolveDirectDealCompanyDirection,
   createEmptyMetalPosition,
   createEmptyPartyPositionRow,
+  isSilverLine,
+  isCopperLine,
+  resolveMetalPositionBucket,
   addSignedWeightToPosition,
   listActiveVoucherFixings,
   resolveVoucherFixedWeightByMetal,
