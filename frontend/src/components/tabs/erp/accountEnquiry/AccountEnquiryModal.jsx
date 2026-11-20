@@ -70,7 +70,7 @@ export default function AccountEnquiryModal({
   statementMetalOptions,
   statementDisplayCurrency,
   showStatementAuditIds,
-  setShowStatementAuditIds,
+  setShowStatementAuditIds: _setShowStatementAuditIds,
   statementTableRef,
   convertStatementDisplayAmount,
   resolveMetalCode,
@@ -551,158 +551,179 @@ export default function AccountEnquiryModal({
                         </div>
                       )}
                     </div>
-                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter</span>
-                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Date From</span>
-                          <input
-                            type="date"
-                            value={statementFilters.startDate}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          />
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Date To</span>
-                          <input
-                            type="date"
-                            value={statementFilters.endDate}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          />
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Types</span>
-                          <select
-                            value={statementFilters.referenceType}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
+                    <div style={{ padding: '0.45rem 0.75rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
+                      {(() => {
+                        const compactInput = {
+                          ...ERP_MODAL_INPUT_STYLE,
+                          marginBottom: 0,
+                          padding: '0.32rem 0.4rem',
+                          fontSize: '0.78rem',
+                          minWidth: 0,
+                          width: '100%',
+                          height: '2rem',
+                          boxSizing: 'border-box',
+                        }
+                        const compactLabel = {
+                          display: 'grid',
+                          gap: '0.14rem',
+                          color: '#64748B',
+                          fontSize: '0.7rem',
+                          fontWeight: '700',
+                          minWidth: 0,
+                        }
+                        return (
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '8.2rem 8.2rem minmax(5.5rem,1.1fr) minmax(5.5rem,1.1fr) minmax(6rem,1.15fr) minmax(4.5rem,0.85fr) minmax(6.5rem,1.2fr) minmax(4.5rem,0.85fr) auto',
+                              alignItems: 'end',
+                              gap: '0.4rem',
+                              width: '100%',
+                            }}
                           >
-                            <option value="">All Types</option>
-                            {statementReferenceTypes.map((type) => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Departments</span>
-                          <select
-                            value={statementFilters.department}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            <option value="">All Departments</option>
-                            {statementDepartments.map((department) => (
-                              <option key={department} value={department}>{department}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Fixing Status</span>
-                          <select
-                            value={statementFilters.fixStatus}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            <option value="">All Fixing Status</option>
-                            <option value="fixed">Fixed Only</option>
-                            <option value="unfixed">Unfixed Only</option>
-                            <option value="unknown">Unknown Only</option>
-                          </select>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: 'Gold', showAmountIn: '' })
-                            setStatementMetalCommodityEnabled(true)
-                          }}
-                          style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end', fontWeight: '600', fontSize: '0.78rem' }}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0.1rem 0 0.55rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Display</span>
-                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Foreign Currency</span>
-                          <select
-                            value={statementFilters.foreignCurrency}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            {statementFilterCurrencyOptions.map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode === 'ALL' ? '' : currencyCode}>
-                                {currencyCode === 'ALL' ? 'All' : currencyCode}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Metal/Commodities</span>
-                          <div style={{ display: 'grid', gap: '0.45rem' }}>
-                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.78rem', fontWeight: '700' }}>
+                            <label style={compactLabel}>
+                              <span>Date From</span>
                               <input
-                                type="checkbox"
-                                checked={statementMetalCommodityEnabled}
-                                onChange={(e) => {
-                                  const enabled = e.target.checked
-                                  setStatementMetalCommodityEnabled(enabled)
-                                  if (!enabled) {
-                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: '' }))
-                                  } else {
-                                    setStatementFilters((prev) => ({
-                                      ...prev,
-                                      metalCommodity: prev.metalCommodity || statementMetalOptions[0] || 'Gold',
-                                    }))
-                                  }
-                                }}
-                                style={{ cursor: 'pointer' }}
+                                type="date"
+                                value={statementFilters.startDate}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                                style={compactInput}
                               />
-                              Enable metal filter
                             </label>
-                            <select
-                              value={statementFilters.metalCommodity || (statementMetalCommodityEnabled ? 'Gold' : '')}
-                              onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
-                              style={{ ...ERP_MODAL_INPUT_STYLE, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
-                              disabled={!statementMetalCommodityEnabled}
+                            <label style={compactLabel}>
+                              <span>Date To</span>
+                              <input
+                                type="date"
+                                value={statementFilters.endDate}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                                style={compactInput}
+                              />
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Type</span>
+                              <select
+                                value={statementFilters.referenceType}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
+                                style={compactInput}
+                              >
+                                <option value="">All Types</option>
+                                {statementReferenceTypes.map((type) => (
+                                  <option key={type} value={type}>{type}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Dept</span>
+                              <select
+                                value={statementFilters.department}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
+                                style={compactInput}
+                              >
+                                <option value="">All Departments</option>
+                                {statementDepartments.map((department) => (
+                                  <option key={department} value={department}>{department}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Fixing</span>
+                              <select
+                                value={statementFilters.fixStatus}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
+                                style={compactInput}
+                              >
+                                <option value="">All Fixing Status</option>
+                                <option value="fixed">Fixed Only</option>
+                                <option value="unfixed">Unfixed Only</option>
+                                <option value="unknown">Unknown Only</option>
+                              </select>
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Currency</span>
+                              <select
+                                value={statementFilters.foreignCurrency}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
+                                style={compactInput}
+                              >
+                                {statementFilterCurrencyOptions.map((currencyCode) => (
+                                  <option key={currencyCode} value={currencyCode === 'ALL' ? '' : currencyCode}>
+                                    {currencyCode === 'ALL' ? 'All' : currencyCode}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Metal</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.22rem', minWidth: 0 }}>
+                                <input
+                                  type="checkbox"
+                                  title="Enable metal filter"
+                                  aria-label="Enable metal filter"
+                                  checked={statementMetalCommodityEnabled}
+                                  onChange={(e) => {
+                                    const enabled = e.target.checked
+                                    setStatementMetalCommodityEnabled(enabled)
+                                    if (!enabled) {
+                                      setStatementFilters((prev) => ({ ...prev, metalCommodity: '' }))
+                                    } else {
+                                      setStatementFilters((prev) => ({
+                                        ...prev,
+                                        metalCommodity: prev.metalCommodity || statementMetalOptions[0] || 'Gold',
+                                      }))
+                                    }
+                                  }}
+                                  style={{ cursor: 'pointer', flexShrink: 0 }}
+                                />
+                                <select
+                                  value={statementFilters.metalCommodity || (statementMetalCommodityEnabled ? 'Gold' : '')}
+                                  onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
+                                  style={{ ...compactInput, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
+                                  disabled={!statementMetalCommodityEnabled}
+                                >
+                                  {statementMetalOptions.map((metalOption) => (
+                                    <option key={metalOption} value={metalOption}>{metalOption}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </label>
+                            <label style={compactLabel}>
+                              <span>Amount In</span>
+                              <select
+                                value={statementFilters.showAmountIn || statementDisplayCurrency}
+                                onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
+                                style={compactInput}
+                              >
+                                {(statementDisplayCurrencyOptions.length
+                                  ? statementDisplayCurrencyOptions
+                                  : [baseCurrencyCode || 'USD']).map((currencyCode) => (
+                                  <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: 'Gold', showAmountIn: '' })
+                                setStatementMetalCommodityEnabled(true)
+                              }}
+                              style={{
+                                padding: '0 0.65rem',
+                                background: '#E5E7EB',
+                                color: C.ink,
+                                border: '1px solid #D1D5DB',
+                                borderRadius: '0.4rem',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.76rem',
+                                height: '2rem',
+                                whiteSpace: 'nowrap',
+                              }}
                             >
-                              {statementMetalOptions.map((metalOption) => (
-                                <option key={metalOption} value={metalOption}>{metalOption}</option>
-                              ))}
-                            </select>
+                              Reset
+                            </button>
                           </div>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Show Amount In</span>
-                          <select
-                            value={statementFilters.showAmountIn || statementDisplayCurrency}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            {(statementDisplayCurrencyOptions.length
-                              ? statementDisplayCurrencyOptions
-                              : [baseCurrencyCode || 'USD']).map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.82rem', fontWeight: '600', background: '#F8FAFC', border: '1px solid #D1D5DB', borderRadius: '0.5rem', padding: '0.62rem 0.7rem', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={showStatementAuditIds}
-                          onChange={(e) => setShowStatementAuditIds(e.target.checked)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        Show Transaction ID
-                      </label>
+                        )
+                      })()}
                     </div>
                     <div ref={setStatementScrollRef} tabIndex={-1} style={{ overflow: 'auto', maxHeight: statementVirtEnabled ? 480 : undefined }} data-statement-table="true">
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
