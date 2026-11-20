@@ -456,7 +456,7 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
         >
           <div
             style={{
-              width: 'min(560px, 100%)', background: '#fff', borderRadius: 14, padding: 16,
+              width: 'min(640px, 100%)', background: '#fff', borderRadius: 14, padding: 16,
               border: `1px solid ${C.border}`, boxShadow: '0 18px 40px rgba(15,23,42,.2)',
               maxHeight: '90vh', overflow: 'auto',
             }}
@@ -478,85 +478,120 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1.4fr 0.9fr 0.7fr 0.7fr auto',
-              gap: 6,
-              fontSize: 11, fontWeight: 700, color: C.t4, marginBottom: 4,
+              gridTemplateColumns: '1.35fr 1fr 1fr 0.9fr auto',
+              gap: 8,
+              alignItems: 'center',
+              padding: '8px 10px',
+              marginBottom: 8,
+              borderRadius: 8,
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
             }}
             >
-              <span>Metal</span>
-              <span>Qty (g)</span>
-              <span>Purity</span>
-              <span>Time</span>
+              {[
+                ['Metal', 'left'],
+                ['Quantity (g)', 'center'],
+                ['Purity', 'center'],
+                ['Time', 'center'],
+              ].map(([label, align]) => (
+                <span
+                  key={label}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: '#9A3412',
+                    textAlign: align,
+                  }}
+                >
+                  {label}
+                </span>
+              ))}
               <span />
             </div>
-            {metalOutLines.map((row, index) => (
-              <div
-                key={`out-line-${index}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.4fr 0.9fr 0.7fr 0.7fr auto',
-                  gap: 6,
-                  marginBottom: 6,
-                  alignItems: 'center',
-                }}
-              >
-                <input
-                  value={row.metal}
-                  disabled={Boolean(busyId)}
-                  onChange={(e) => updateMetalOutLine(index, { metal: e.target.value })}
-                  placeholder="Metal"
+            {metalOutLines.map((row, index) => {
+              const fieldStyle = {
+                width: '100%',
+                minHeight: 44,
+                borderRadius: 8,
+                border: '1px solid #CBD5E1',
+                padding: '0 10px',
+                background: '#FFFFFF',
+                color: C.t1,
+                fontSize: 15,
+                fontWeight: 700,
+                textAlign: 'center',
+                boxSizing: 'border-box',
+              }
+              return (
+                <div
+                  key={`out-line-${index}`}
                   style={{
-                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
-                    background: C.inp, fontSize: 12.5, fontWeight: 600,
+                    display: 'grid',
+                    gridTemplateColumns: '1.35fr 1fr 1fr 0.9fr auto',
+                    gap: 8,
+                    marginBottom: 8,
+                    alignItems: 'center',
+                    paddingBottom: 8,
+                    borderBottom: `1px solid ${C.border}`,
                   }}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={row.qty}
-                  disabled={Boolean(busyId)}
-                  onChange={(e) => updateMetalOutLine(index, { qty: e.target.value })}
-                  placeholder="0"
-                  style={{
-                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
-                    background: C.inp, fontSize: 12.5, fontWeight: 600,
-                  }}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={row.purity}
-                  disabled={Boolean(busyId)}
-                  onChange={(e) => updateMetalOutLine(index, { purity: e.target.value })}
-                  placeholder="—"
-                  style={{
-                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
-                    background: C.inp, fontSize: 12.5, fontWeight: 600,
-                  }}
-                />
-                <input
-                  value={row.time}
-                  disabled={Boolean(busyId)}
-                  onChange={(e) => updateMetalOutLine(index, { time: e.target.value })}
-                  placeholder="14:30"
-                  style={{
-                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
-                    background: C.inp, fontSize: 12.5, fontWeight: 600,
-                  }}
-                />
-                <button
-                  type="button"
-                  className={B.ghost}
-                  disabled={Boolean(busyId) || metalOutLines.length <= 1}
-                  onClick={() => setMetalOutLines((rows) => rows.filter((_, i) => i !== index))}
-                  aria-label="Remove line"
                 >
-                  ✕
-                </button>
-              </div>
-            ))}
+                  <input
+                    value={row.metal}
+                    disabled={Boolean(busyId)}
+                    onChange={(e) => updateMetalOutLine(index, { metal: e.target.value })}
+                    placeholder="Metal"
+                    aria-label={`Metal row ${index + 1}`}
+                    style={{ ...fieldStyle, textAlign: 'left', fontSize: 14 }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={row.qty}
+                    disabled={Boolean(busyId)}
+                    onChange={(e) => updateMetalOutLine(index, { qty: e.target.value })}
+                    placeholder="0.000"
+                    aria-label={`Quantity (g) row ${index + 1}`}
+                    style={fieldStyle}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={row.purity}
+                    disabled={Boolean(busyId)}
+                    onChange={(e) => updateMetalOutLine(index, { purity: e.target.value })}
+                    placeholder="e.g. 916"
+                    aria-label={`Purity row ${index + 1}`}
+                    style={fieldStyle}
+                  />
+                  <input
+                    value={row.time}
+                    disabled={Boolean(busyId)}
+                    onChange={(e) => updateMetalOutLine(index, { time: e.target.value })}
+                    placeholder="HH:MM"
+                    aria-label={`Time row ${index + 1}`}
+                    style={{
+                      ...fieldStyle,
+                      background: '#F3F4F6',
+                      borderColor: '#E5E7EB',
+                      color: C.t2,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={B.ghost}
+                    disabled={Boolean(busyId) || metalOutLines.length <= 1}
+                    onClick={() => setMetalOutLines((rows) => rows.filter((_, i) => i !== index))}
+                    aria-label="Remove line"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )
+            })}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               <button
