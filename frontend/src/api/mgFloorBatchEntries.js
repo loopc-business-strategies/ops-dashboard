@@ -5,6 +5,8 @@ const BASE = `${API_ORIGIN}/api/mg-floor/batch-entries`
 /** MG Floor Metal In / Out batches waiting for Floor Manager approval — MG tenant session required. */
 export const mgFloorBatchEntriesApi = {
   list: async (params) => (await axios.get(BASE, { params })).data,
+  /** Send typed Metal In / Out for Floor Manager approval (same as tablet). */
+  submit: async (body) => (await axios.post(BASE, body)).data,
   approve: async (id) => (await axios.post(`${BASE}/${encodeURIComponent(id)}/approve`, {})).data,
   reject: async (id, reason) => (await axios.post(`${BASE}/${encodeURIComponent(id)}/reject`, { reason })).data,
   /** Sends an approved batch back to the operator and takes it out of the workbook. */

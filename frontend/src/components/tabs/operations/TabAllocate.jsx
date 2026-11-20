@@ -1,13 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAlloyMixJobs } from '../../production-dashboard/useAlloyMixJobs'
 import { DASHBOARD_DEPARTMENTS } from '../../production-dashboard/departmentConfig'
 import { mgFloorAlloyMixApi } from '../../../api/mgFloorAlloyMix'
+import { mgFloorBatchEntriesApi } from '../../../api/mgFloorBatchEntries'
 import { OPS_C as C } from './operationsTabTokens'
 import { B, Badge } from './operationsTabUI'
+import {
+  blankMetalOutLine,
+  buildMetalOutPayload,
+  clockNow,
+  hasActiveMetalOut,
+  linesFromJobInputComponents,
+  localDateKey,
+} from './allocateMetalOut'
 
 /**
  * Operations › Allocate (MG): same alloy-mix custody controls as the Floor tablet —
- * allocate to another department, and Approve / Reject incoming receive requests.
+ * allocate to another department, Approve / Reject incoming receives, and Metal Out
+ * (typed OUT batch for Floor Manager approval) per department.
  */
 export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   const { jobs, byDepartment, loading, error, refresh, allocate } = useAlloyMixJobs({
@@ -18,6 +28,9 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   const [busyId, setBusyId] = useState('')
   const [allocating, setAllocating] = useState(null)
   const [allocWeight, setAllocWeight] = useState('')
+  const [metalOutJob, setMetalOutJob] = useState(null)
+  const [metalOutLines, setMetalOutLines] = useState([])
+  const [outEntries, setOutEntries] = useState([])
   const [localError, setLocalError] = useState('')
 
   const pendingIncoming = useMemo(
@@ -32,7 +45,26 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
 
   const destOptionsFor = (fromKey) => DASHBOARD_DEPARTMENTS.filter((d) => d.key !== fromKey)
 
+  const loadOutEntries = useCallback(async () => {
+    try {
+      const today = localDateKey()
+      const res = await mgFloorBatchEntriesApi.list({
+        direction: 'OUT',
+        entryDate: today,
+        limit: 200,
+      })
+      setOutEntries(Array.isArray(res?.entries) ? res.entries : [])
+    } catch {
+      setOutEntries([])
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOutEntries()
+  }, [loadOutEntries, jobs])
+
   const openAllocate = (job) => {
+    setMetalOutJob(null)
     setAllocating(job)
     setAllocWeight(String(job.targetGross ?? ''))
     setLocalError('')
@@ -43,6 +75,27 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
     setAllocating(null)
     setAllocWeight('')
     setLocalError('')
+  }
+
+  const openMetalOut = (job) => {
+    setAllocating(null)
+    const seeded = linesFromJobInputComponents(job.inputComponents)
+    const withTime = (seeded.length ? seeded : [blankMetalOutLine('Gold Bar'), blankMetalOutLine('pure copper')])
+      .map((row) => ({ ...row, time: row.time || clockNow() }))
+    setMetalOutJob(job)
+    setMetalOutLines(withTime)
+    setLocalError('')
+  }
+
+  const closeMetalOut = () => {
+    if (busyId) return
+    setMetalOutJob(null)
+    setMetalOutLines([])
+    setLocalError('')
+  }
+
+  const updateMetalOutLine = (index, patch) => {
+    setMetalOutLines((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
   }
 
   const submitAllocate = async (toDepartment) => {
@@ -82,6 +135,36 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
     }
   }
 
+  const submitMetalOut = async () => {
+    if (!metalOutJob) return
+    const { error: prepError, body } = buildMetalOutPayload({
+      job: metalOutJob,
+      lines: metalOutLines,
+    })
+    if (prepError || !body) {
+      setLocalError(prepError || 'Invalid Metal Out')
+      return
+    }
+    setBusyId(metalOutJob.id)
+    setLocalError('')
+    try {
+      await mgFloorBatchEntriesApi.submit(body)
+      setMetalOutJob(null)
+      setMetalOutLines([])
+      await loadOutEntries()
+      showToast?.(
+        'Metal Out sent',
+        `${body.batchLabel} · ${body.department} — waiting for Floor Manager approval`,
+      )
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Metal Out failed'
+      setLocalError(msg)
+      showToast?.('Metal Out failed', msg)
+    } finally {
+      setBusyId('')
+    }
+  }
+
   const onReceive = async (job, decision) => {
     setBusyId(job.id)
     setLocalError('')
@@ -101,14 +184,16 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
     }
   }
 
+  const today = localDateKey()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: C.t1 }}>Allocate</div>
-          <div style={{ fontSize: 12.5, color: C.t4, marginTop: 2, maxWidth: 640 }}>
-            After Post Mix, allocate batches department-wise and Approve / Reject incoming receives
-            (same controls as the MG Floor tablet).
+          <div style={{ fontSize: 12.5, color: C.t4, marginTop: 2, maxWidth: 720 }}>
+            After Post Mix, allocate batches department-wise, Approve / Reject incoming receives,
+            and send Metal Out (same as MG Floor tablet) for Floor Manager approval.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -126,7 +211,12 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               <option key={d.key} value={d.key}>{d.label}</option>
             ))}
           </select>
-          <button type="button" onClick={() => refresh()} className={B.ghost} disabled={loading}>
+          <button
+            type="button"
+            onClick={() => { refresh(); loadOutEntries() }}
+            className={B.ghost}
+            disabled={loading}
+          >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
@@ -228,6 +318,11 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {deptJobs.map((job) => {
                   const canAlloc = job.canAllocate !== false
+                  const outSent = hasActiveMetalOut(outEntries, {
+                    batchLabel: job.mixCode,
+                    entryDate: today,
+                    department: job.currentDepartment || dept.key,
+                  })
                   return (
                     <div
                       key={job.id || job.mixCode}
@@ -244,6 +339,9 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                           {job.hasOpenFloorDescendants ? (
                             <span style={{ fontWeight: 600, color: C.t4, marginLeft: 6 }}>· split on floor</span>
                           ) : null}
+                          {outSent ? (
+                            <span style={{ fontWeight: 600, color: C.orange, marginLeft: 6 }}>· Metal Out pending</span>
+                          ) : null}
                         </div>
                         <div style={{ fontSize: 12, color: C.t4, marginTop: 2 }}>
                           {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
@@ -257,16 +355,27 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                           </div>
                         ) : null}
                       </div>
-                      {canAlloc ? (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button
                           type="button"
-                          className={B.pri}
-                          disabled={Boolean(busyId)}
-                          onClick={() => openAllocate(job)}
+                          className={B.sec}
+                          disabled={Boolean(busyId) || outSent}
+                          title={outSent ? 'Metal Out already sent for FM approval today' : 'Send Metal Out like MG Floor tablet'}
+                          onClick={() => openMetalOut(job)}
                         >
-                          Allocate
+                          Metal Out
                         </button>
-                      ) : null}
+                        {canAlloc ? (
+                          <button
+                            type="button"
+                            className={B.pri}
+                            disabled={Boolean(busyId)}
+                            onClick={() => openAllocate(job)}
+                          >
+                            Allocate
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   )
                 })}
@@ -330,6 +439,146 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {metalOutJob ? (
+        <div
+          role="dialog"
+          aria-label={`Metal Out ${metalOutJob.mixCode || 'mix'}`}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+          onClick={closeMetalOut}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeMetalOut() }}
+        >
+          <div
+            style={{
+              width: 'min(560px, 100%)', background: '#fff', borderRadius: 14, padding: 16,
+              border: `1px solid ${C.border}`, boxShadow: '0 18px 40px rgba(15,23,42,.2)',
+              maxHeight: '90vh', overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div>
+                <strong style={{ color: C.t1 }}>Metal Out · {metalOutJob.mixCode || 'MIX'}</strong>
+                <div style={{ fontSize: 12, color: C.t4, marginTop: 2 }}>
+                  {DASHBOARD_DEPARTMENTS.find((d) => d.key === metalOutJob.currentDepartment)?.label
+                    || metalOutJob.currentDepartment}
+                  {' · '}
+                  Sends for Floor Manager approval (same as MG Floor tablet)
+                </div>
+              </div>
+              <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={closeMetalOut}>Close</button>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1.4fr 0.9fr 0.7fr 0.7fr auto',
+              gap: 6,
+              fontSize: 11, fontWeight: 700, color: C.t4, marginBottom: 4,
+            }}
+            >
+              <span>Metal</span>
+              <span>Qty (g)</span>
+              <span>Purity</span>
+              <span>Time</span>
+              <span />
+            </div>
+            {metalOutLines.map((row, index) => (
+              <div
+                key={`out-line-${index}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.4fr 0.9fr 0.7fr 0.7fr auto',
+                  gap: 6,
+                  marginBottom: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <input
+                  value={row.metal}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => updateMetalOutLine(index, { metal: e.target.value })}
+                  placeholder="Metal"
+                  style={{
+                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
+                    background: C.inp, fontSize: 12.5, fontWeight: 600,
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={row.qty}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => updateMetalOutLine(index, { qty: e.target.value })}
+                  placeholder="0"
+                  style={{
+                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
+                    background: C.inp, fontSize: 12.5, fontWeight: 600,
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={row.purity}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => updateMetalOutLine(index, { purity: e.target.value })}
+                  placeholder="—"
+                  style={{
+                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
+                    background: C.inp, fontSize: 12.5, fontWeight: 600,
+                  }}
+                />
+                <input
+                  value={row.time}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => updateMetalOutLine(index, { time: e.target.value })}
+                  placeholder="14:30"
+                  style={{
+                    height: 34, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 8px',
+                    background: C.inp, fontSize: 12.5, fontWeight: 600,
+                  }}
+                />
+                <button
+                  type="button"
+                  className={B.ghost}
+                  disabled={Boolean(busyId) || metalOutLines.length <= 1}
+                  onClick={() => setMetalOutLines((rows) => rows.filter((_, i) => i !== index))}
+                  aria-label="Remove line"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={B.ghost}
+                disabled={Boolean(busyId) || metalOutLines.length >= 8}
+                onClick={() => setMetalOutLines((rows) => [...rows, blankMetalOutLine()])}
+              >
+                + Add metal
+              </button>
+              <button
+                type="button"
+                className={B.pri}
+                disabled={Boolean(busyId)}
+                onClick={submitMetalOut}
+              >
+                {busyId === metalOutJob.id ? 'Sending…' : 'Send Metal Out'}
+              </button>
+            </div>
+            {localError ? (
+              <p role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 600, marginTop: 8 }}>{localError}</p>
+            ) : null}
           </div>
         </div>
       ) : null}
