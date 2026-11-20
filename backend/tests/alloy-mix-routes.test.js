@@ -191,6 +191,15 @@ describe('alloy-mix HTTP routes', () => {
     expect(jobsRes.body.success).toBe(true)
     expect(jobsRes.body.jobs.some((j) => j.id === jobId)).toBe(true)
 
+    const vaultBefore = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'vault_room',
+      source: 'gold_alloy',
+    }).lean()
+    expect(vaultBefore).toHaveLength(1)
+    expect(vaultBefore[0].metalIn).toBeGreaterThan(0)
+    expect(vaultBefore[0].metalOut == null).toBe(true)
+
     const allocRes = await request(app)
       .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${jobId}/allocate`)
       .set(headers)
@@ -201,12 +210,28 @@ describe('alloy-mix HTTP routes', () => {
     expect(allocRes.body.job.status).toBe('pending_receive')
     expect(allocRes.body.pendingReceive).toBe(true)
 
+    const vaultAfterOut = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'vault_room',
+      source: 'gold_alloy',
+    }).lean()
+    expect(vaultAfterOut).toHaveLength(1)
+    expect(vaultAfterOut[0].metalIn).toBe(vaultAfterOut[0].metalOut)
+
     const recvRes = await request(app)
       .post(`/api/mg-floor/alloy-mix-jobs/${jobId}/receive`)
       .set(headers)
       .send({ decision: 'APPROVED' })
     expect(recvRes.status).toBe(200)
     expect(recvRes.body.job.status).toBe('in_department')
+
+    const meltingRows = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'melting',
+      source: 'gold_alloy',
+    }).lean()
+    expect(meltingRows).toHaveLength(1)
+    expect(meltingRows[0].metalIn).toBeGreaterThan(0)
 
     const blocked = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/reverse')
@@ -220,6 +245,14 @@ describe('alloy-mix HTTP routes', () => {
       .send({ toDepartment: 'vault_room' })
     expect(backRes.status).toBe(200)
     expect(backRes.body.job.currentDepartment).toBe('vault_room')
+
+    const meltingAfterReturn = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'melting',
+      source: 'gold_alloy',
+    }).lean()
+    expect(meltingAfterReturn).toHaveLength(1)
+    expect(meltingAfterReturn[0].metalOut).toBe(meltingAfterReturn[0].metalIn)
 
     const reverseRes = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/reverse')
