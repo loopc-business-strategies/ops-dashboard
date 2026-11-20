@@ -23,41 +23,17 @@ export function filterActiveAccounts(accounts = []) {
 }
 
 /**
- * Chart accounts eligible as voucher Party Details entries when no customer/vendor master exists.
- * Includes: debtors/creditors, party-like Asset/Liability, and Expense ledgers (e.g. Payroll Expense).
- * Still excludes cash/bank/stock/income/control accounts (those stay on voucher lines).
+ * Chart accounts eligible as voucher Party Details entries.
+ * All active Chart of Accounts with a real account code (grouped by accountType in the UI).
+ * Still rejects Mongo ObjectId fallback codes.
  */
 export function isPartyEligibleChartAccount(account) {
   if (!isActiveChartAccount(account)) return false
   const code = String(account?.accountCode || account?.code || '').trim()
-  if (!isValidPartyAccountCode(code)) return false
-
-  const name = String(account?.accountName || account?.name || '').trim()
-  const type = String(account?.accountType || '').trim().toLowerCase()
-  const haystack = `${code} ${name}`.toLowerCase()
-
-  // Explicit party naming always wins (customer ledgers created in COA before master link).
-  if (/\(debtor\)|\(creditor\)|\bdebtor\b|\bcreditor\b|\bcustomer\b|\bvendor\b|\bsupplier\b|\bsundry\b/i.test(haystack)) {
-    return true
-  }
-
-  // Expense ledgers are allowed as party (payment to expense / payroll posting).
-  if (type === 'expense') return true
-
-  // Never treat operational / income / inventory / tax / equity / fixing GL as a party.
-  if (
-    /\b(cash|bank|petty|inventory|stock|vat|tax|equity|retained|depreciation|revenue|sales|income|cogs|rent|utilities|fixing|payable|receivable|equipment|property)\b/i.test(
-      haystack,
-    )
-  ) {
-    return false
-  }
-
-  // Remaining Asset/Liability ledgers with a real code may be party sub-ledgers (e.g. 1304).
-  return type === 'asset' || type === 'liability'
+  return isValidPartyAccountCode(code)
 }
 
-/** Active chart accounts suitable for voucher party dropdowns (party-eligible only). */
+/** Active chart accounts for voucher Party Details (all COA types / categories). */
 export function filterPartyAccounts(accounts = []) {
   return filterActiveAccounts(accounts).filter(isPartyEligibleChartAccount)
 }
