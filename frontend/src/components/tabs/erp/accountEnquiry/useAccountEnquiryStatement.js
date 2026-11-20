@@ -290,7 +290,10 @@ export function useAccountEnquiryStatement({
     return acc
   }, { gold: 0, silver: 0, copper: 0, other: 0 })
 
-  const resolvePreferredStatementMetalCode = (entries = [], hint = { gold: 0, silver: 0 }) => {
+  const resolvePreferredStatementMetalCode = (
+    entries = [],
+    hint = rawUnfixedStatementMetalHint,
+  ) => {
     const explicitMetal = entries.find((entry) => {
       const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
       return metalCode === 'XAU' || metalCode === 'XAG' || metalCode === 'COPPER' || metalCode === 'XCU'
