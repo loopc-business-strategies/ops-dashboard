@@ -9,6 +9,9 @@ import {
   buildClosingStockTrialRow,
   buildManualClosingStockRow,
   resolveTrialClosingStockRow,
+  applyTrialMetalPriceNets,
+  metalMarketNetFromTrialRow,
+  resolveTrialMetalPricePerGram,
   buildManualGoldClosingStockRow,
   filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
@@ -162,6 +165,50 @@ describe('report display options', () => {
       goldNet: 200,
     })
     expect(resolveTrialClosingStockRow({ calculateClosingStock: false, useLiveClosingPrice: true, revaluation })).toBeNull()
+  })
+
+  it('prices metal account Nets from live or manual USD/oz', () => {
+    const amasta = {
+      accountName: '"AMASTA" MCHJ XK (Debtor)',
+      accountCode: '1324',
+      debit: 126125.58,
+      credit: 124199.99,
+      net: 1925.59,
+      goldNet: -1000.04,
+    }
+    const bank = {
+      accountName: 'Main Bank Account',
+      accountCode: '1000',
+      debit: 100,
+      credit: 0,
+      net: 100,
+      goldNet: 0,
+    }
+    const livePrices = resolveTrialMetalPricePerGram({
+      useLiveClosingPrice: true,
+      revaluation: { metals: [{ metal: 'gold', pricePerGram: 80 }] },
+      livePrices: { gold: 81, silver: 1 },
+    })
+    expect(livePrices.gold).toBe(80)
+    expect(metalMarketNetFromTrialRow(amasta, livePrices)).toBe(-80003.2)
+
+    const liveRows = applyTrialMetalPriceNets([amasta, bank], {
+      calculateClosingStock: true,
+      useLiveClosingPrice: true,
+      revaluation: { metals: [{ metal: 'gold', pricePerGram: 80 }] },
+    })
+    expect(liveRows[0]).toMatchObject({ bookNet: 1925.59, net: -80003.2, metalPriced: true, debit: 126125.58 })
+    expect(liveRows[1].net).toBe(100)
+
+    const manualRows = applyTrialMetalPriceNets([amasta], {
+      calculateClosingStock: true,
+      useLiveClosingPrice: false,
+      metalCode: 'XAU',
+      priceOz: 3100,
+    })
+    expect(manualRows[0].net).toBe(Math.round((-1000.04 / 31.1034768) * 3100 * 100) / 100)
+
+    expect(applyTrialMetalPriceNets([amasta], { calculateClosingStock: false, useLiveClosingPrice: true })).toEqual([amasta])
   })
 
   it('keeps one trial group from the account name', () => {

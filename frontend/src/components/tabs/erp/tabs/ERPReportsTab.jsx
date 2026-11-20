@@ -15,6 +15,7 @@ import {
   reportSelectableCurrencies,
   reportMoneyColumns,
   resolveTrialClosingStockRow,
+  applyTrialMetalPriceNets,
   filterTrialMetalGramOptions,
   filterTrialRowsByGroup,
   formatReportGrams,
@@ -75,7 +76,7 @@ export default function ERPReportsTab({
 }) {
   const [reportOptionsOpen, setReportOptionsOpen] = useState(false)
   const [closingStocksLoading, setClosingStocksLoading] = useState(false)
-  const { snapshot: liveMetalSnapshot } = useErpLiveMetalSpotPrices()
+  const { snapshot: liveMetalSnapshot, goldPriceUSD, silverPriceUSD } = useErpLiveMetalSpotPrices()
   const closingStockOptions = (fixingRegisterStockTypeOptions || []).filter((option) => (
     option?.metalCode && !String(option.id || '').startsWith('metal-') && !String(option.value || '').startsWith('ALL::')
   ))
@@ -186,8 +187,16 @@ export default function ERPReportsTab({
     price: reportDisplay.closingStockPriceOz,
     label: reportDisplay.closingStockLabel,
   })
+  const pricedPostedRows = applyTrialMetalPriceNets(postedTrialRows, {
+    calculateClosingStock: reportDisplay.calculateClosingStock,
+    useLiveClosingPrice: reportDisplay.useLiveClosingPrice !== false,
+    revaluation: closingStockSource,
+    livePrices: { gold: goldPriceUSD, silver: silverPriceUSD },
+    metalCode: reportDisplay.closingStockMetalCode,
+    priceOz: reportDisplay.closingStockPriceOz,
+  })
   const trialSourceRows = filterTrialRowsByGroup(
-    closingStockRow ? [...postedTrialRows, closingStockRow] : (reportDisplay.calculateClosingStock ? postedTrialRows : (reports.trialBalance?.trialBalance || [])),
+    closingStockRow ? [...pricedPostedRows, closingStockRow] : (reportDisplay.calculateClosingStock ? pricedPostedRows : (reports.trialBalance?.trialBalance || [])),
     reportDisplay.selectedGroup,
   )
   const reportsForExport = (closingStockRow || reportDisplay.selectedGroup)
@@ -655,8 +664,8 @@ export default function ERPReportsTab({
                   {closingStockSource?.omitted
                     ? 'A period that has already ended stays on the posted books, so closing stock is left off.'
                     : reportDisplay.useLiveClosingPrice !== false
-                      ? `Closing stock Net uses the open metal position at live system price${closingStockSource?.priceSource ? ` (${closingStockSource.priceSource})` : ''}. Not posted — left out of debit/credit totals.`
-                      : `Closing stock Net is the open ${reportDisplay.closingStockLabel || 'stock'} position at ${formatClosingStockPrice(reportDisplay.closingStockPriceOz || 0)} USD per troy ounce (manual). Not posted — left out of debit/credit totals.`}
+                      ? `Metal account Nets and Closing stock use live system price${closingStockSource?.priceSource ? ` (${closingStockSource.priceSource})` : ''}. Debit/credit stay book; Closing stock is not posted.`
+                      : `Metal account Nets and Closing stock use ${reportDisplay.closingStockLabel || 'stock'} at ${formatClosingStockPrice(reportDisplay.closingStockPriceOz || 0)} USD/oz (manual). Debit/credit stay book; Closing stock is not posted.`}
                 </p>
               )}
             </div>
@@ -1192,8 +1201,8 @@ export default function ERPReportsTab({
                 </label>
                 <p style={{ margin: '0 0 0.55rem', fontSize: '0.78rem', color: C.inkSoft, lineHeight: 1.35 }}>
                   {reportDisplayDraft.useLiveClosingPrice !== false
-                    ? 'Net and closing-stock impact use the live system price for open metal (gold + silver).'
-                    : 'Enter a USD/oz price below. Net and closing-stock impact use that manual price for the selected stock.'}
+                    ? 'Account rows with metal grams and Closing stock Net use the live system price (gold + silver). Debit/credit stay book.'
+                    : 'Enter a USD/oz price below. Account rows with that metal and Closing stock Net use the manual price. Debit/credit stay book.'}
                 </p>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '0.3rem' }}>Stock</label>
                 <select
