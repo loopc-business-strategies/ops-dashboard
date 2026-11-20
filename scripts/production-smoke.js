@@ -439,7 +439,7 @@ async function verifyTenantAlloyMixAllocateRoundTrip(tenant) {
     return 'skipped: alloy-mix allocate mutate is MG-only'
   }
   if (isProductionAlloyMixApiBase(API_BASE)) {
-    throw new Error('Refusing alloy-mix allocate mutate against production API')
+    return 'skipped: alloy-mix allocate mutate blocked on production API'
   }
   if (!alloyMixMutateEnabled()) {
     return 'skipped: set SMOKE_ALLOY_MIX_MUTATE=true on staging (non-prod API)'
