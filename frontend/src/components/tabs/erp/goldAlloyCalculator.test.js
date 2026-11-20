@@ -539,24 +539,70 @@ describe('goldAlloyCalculator', () => {
     expect(consumeSum - payload.targetGross).toBeCloseTo(4.22, 2)
   })
 
-  test('resolveAlloyUpdateOriginalGross keeps first consume so 2nd Update is cumulative', () => {
+  test('resolveAlloyUpdateOriginalGross keeps first consume so vault re-consume stays full', () => {
     // After 1st Update, display gross is remain (99); vault take stays on consumeGross (100).
     expect(resolveAlloyUpdateOriginalGross({ gross: 99, consumeGross: 100 })).toBe(100)
     expect(resolveAlloyUpdateOriginalGross({ gross: 99 })).toBe(99)
-    // 2nd Update: remain 98.5 vs original consume 100 → total loss 1.5 (not only +0.5).
+    // 2nd Update: vault still consumes 100; AML lossGross is this step only (vs prior remain).
     const payload = buildAlloyMixPayload({
       karat: 14,
       targetGross: 98.5,
       finishedProductId: 'fin14',
       lines: [
-        { stockId: 'au', gross: 70, originalGross: resolveAlloyUpdateOriginalGross({ gross: 70.5, consumeGross: 71 }), role: 'gold', label: 'gold' },
-        { stockId: 'ag', gross: 28.5, originalGross: resolveAlloyUpdateOriginalGross({ gross: 28.5, consumeGross: 29 }), role: 'alloy', label: 'silver' },
+        {
+          stockId: 'au',
+          gross: 70,
+          originalGross: resolveAlloyUpdateOriginalGross({ gross: 70.5, consumeGross: 71 }),
+          priorRemainGross: 70.5,
+          role: 'gold',
+          label: 'gold',
+        },
+        {
+          stockId: 'ag',
+          gross: 28.5,
+          originalGross: resolveAlloyUpdateOriginalGross({ gross: 28.5, consumeGross: 29 }),
+          priorRemainGross: 28.5,
+          role: 'alloy',
+          label: 'silver',
+        },
       ],
     })
     const consumeSum = payload.lines.reduce((s, l) => s + l.gross, 0)
     expect(consumeSum).toBeCloseTo(100, 3)
     expect(consumeSum - payload.targetGross).toBeCloseTo(1.5, 3)
     expect(payload.lines.find((l) => l.itemId === 'au').remainGross).toBe(70)
+    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(0.5, 3)
+    expect(payload.lines.find((l) => l.itemId === 'ag').lossGross).toBe(0)
+  })
+
+  test('buildAlloyMixPayload AML lossGross matches Alloy vs-prior gold (0.082)', () => {
+    const payload = buildAlloyMixPayload({
+      karat: 22,
+      targetGross: 551.6,
+      finishedProductId: 'fin22',
+      lines: [
+        {
+          stockId: 'au',
+          gross: 505.828,
+          originalGross: 506.038,
+          priorRemainGross: 505.91,
+          role: 'gold',
+          label: 'gold',
+        },
+        {
+          stockId: 'cu',
+          gross: 45.772,
+          originalGross: 45.791,
+          priorRemainGross: 45.791,
+          role: 'extra',
+          label: 'copper',
+        },
+      ],
+    })
+    expect(payload.lines.find((l) => l.itemId === 'au').gross).toBe(506.038)
+    expect(payload.lines.find((l) => l.itemId === 'au').remainGross).toBe(505.828)
+    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(0.082, 3)
+    expect(payload.lines.find((l) => l.itemId === 'cu').lossGross).toBeCloseTo(0.019, 3)
   })
 
   test('buildPostedAlloyMixEntryFromResult keeps consumeGross when remain is encoded', () => {

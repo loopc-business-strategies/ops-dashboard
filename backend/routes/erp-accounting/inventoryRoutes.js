@@ -52,6 +52,11 @@ const alloyMixSchema = Joi.object({
     gross: Joi.number().positive().required(),
     /** Remaining grams in finished after oxidation; omit for proportional loss. */
     remainGross: Joi.number().min(0).optional(),
+    /**
+     * Metal Loss AML grams for this Update only (vs prior remain in bar).
+     * Vault still consumes `gross`; inventory oxidation uses gross − remainGross.
+     */
+    lossGross: Joi.number().min(0).optional(),
     role: Joi.string().trim().allow('').max(40).optional(),
     label: Joi.string().trim().allow('').max(80).optional(),
   })).min(1).required(),
