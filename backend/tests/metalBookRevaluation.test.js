@@ -58,7 +58,7 @@ describe('metal book revaluation', () => {
       ],
     })
 
-    expect(owed).toEqual({ gold: 20, silver: 1000 })
+    expect(owed).toEqual({ gold: 20, silver: 1000, copper: 0, other: 0 })
   })
 
   test('leaves a hedged unfixed purchase out of the open metal when hedging is excluded', () => {

@@ -245,7 +245,10 @@ describe('alloy mix floor bridge', () => {
       reason: result.reason,
     })
     expect(reversed.success).toBe(true)
-    expect(reversed.mixJobClosed).toBe(result.mixJob.mixCode)
+    // Reverse archives the live BMG code so Update can reuse it.
+    expect(String(reversed.mixJobClosed || '')).toMatch(
+      new RegExp(`^${result.mixJob.mixCode}__REV__`),
+    )
   })
 
   test('partial allocate splits child job and leaves remainder', async () => {
