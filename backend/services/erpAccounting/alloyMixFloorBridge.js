@@ -255,6 +255,11 @@ async function upsertOpsRow({
   return row
 }
 
+/**
+ * On reverse/Update: drop only *open* Ops visits (Metal IN, no Metal OUT yet).
+ * Keep completed Melting/Bangle/Vault history under the same BMG batch so
+ * Ops Production + Production Dashboard still show IN/OUT after Update.
+ */
 async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
   const code = String(mixCode || '').toUpperCase()
   if (!code) return 0
@@ -270,10 +275,14 @@ async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
   const deletedAt = new Date()
   let n = 0
   for (const row of rows || []) {
-    // Ops entries have no isDeleted — remove gold_alloy rows for this mix.
     if (String(row.source || '') !== 'gold_alloy' && !String(row.floorBatchKey || '').startsWith(`alloy:${code}:`)) {
       continue
     }
+    // Completed visit (has Metal OUT / Over time) — keep for department history.
+    const hasOut = row.metalOut != null && Number.isFinite(Number(row.metalOut))
+    const hasOver = Boolean(row.batchOverAt)
+    if (hasOut || hasOver) continue
+
     await row.deleteOne(writeOpts(session))
     n += 1
   }

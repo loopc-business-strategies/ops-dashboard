@@ -79,15 +79,15 @@ describe('DepartmentOverview Vault Room stock', () => {
     { key: 'melting', name: 'Melting', status: 'Running' },
   ]
 
-  test('hides production metrics and the batch footer on Vault Room only', () => {
+  test('Vault Room shows stock balance plus Metal IN/OUT batch history', () => {
     render(<DepartmentOverview cards={vaultCards} suppressDemo vaultInventory={{ loading: false, error: '', groups: [] }} />)
     const vault = screen.getByRole('heading', { name: 'Vault Room' }).closest('article')
     const melting = screen.getByRole('heading', { name: 'Melting' }).closest('article')
 
-    expect(vault.textContent).not.toContain('Metal IN')
-    expect(vault.textContent).not.toContain('Metal Loss')
-    expect(vault.textContent).not.toContain('Batch Started')
-    expect(vault.textContent).not.toContain('Batch Over')
+    expect(vault.textContent).toContain('Metal IN')
+    expect(vault.textContent).toContain('Metal OUT')
+    expect(vault.textContent).toContain('Metal Loss')
+    expect(vault.textContent).toContain('Batch Started')
     expect(vault.textContent).toContain('Metal Out')
     expect(vault.textContent).toContain('Metal Process')
     expect(vault.textContent).toContain('Balance')

@@ -335,6 +335,33 @@ describe('alloy-mix HTTP routes', () => {
     expect(reverseRes.status).toBe(200)
     expect(reverseRes.body.success).toBe(true)
 
+    // Update/reverse keeps completed dept visits (same BMG batch history).
+    const meltingKept = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'melting',
+      source: 'gold_alloy',
+    }).lean()
+    expect(meltingKept).toHaveLength(1)
+    expect(meltingKept[0].metalOut).toBe(meltingKept[0].metalIn)
+    expect(meltingKept[0].batchOverAt).toBeTruthy()
+
+    const bangleKept = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'bangle_area',
+      source: 'gold_alloy',
+    }).lean()
+    expect(bangleKept).toHaveLength(1)
+    expect(bangleKept[0].metalOut).toBe(bangleKept[0].metalIn)
+    expect(bangleKept[0].batchOverAt).toBeTruthy()
+
+    const vaultOpenGone = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'vault_room',
+      source: 'gold_alloy',
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    }).lean()
+    expect(vaultOpenGone).toHaveLength(0)
+
     const clearRes = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
       .set(headers)

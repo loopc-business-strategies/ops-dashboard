@@ -454,8 +454,9 @@ function DeptCard({
         </div>
       </div>
 
-      {isVault ? <VaultStock inventory={vaultInventory} /> : (
-      <>
+      {isVault ? <VaultStock inventory={vaultInventory} /> : null}
+
+      {/* Metal IN/OUT + batch history on every dept card (incl. Vault) for gold-alloy visits. */}
       <div className="pd-dept-metrics">
         <div className="pd-dept-metric pd-dept-metric--in">
           <div className="pd-dept-metric-head">
@@ -560,8 +561,6 @@ function DeptCard({
           )}
         </ul>
       </div>
-      </>
-      )}
 
       {card.longRunning ? (
         <p className="pd-dept-long-batch" role="status">
@@ -571,13 +570,12 @@ function DeptCard({
       ) : null}
       </div>
 
-      {isVault ? <VaultBalanceStrip /> : (
-        <BatchProgressBar
-          startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
-          overLabel={ui.batchOverLabel}
-          percent={ui.progressPercent}
-        />
-      )}
+      {isVault ? <VaultBalanceStrip /> : null}
+      <BatchProgressBar
+        startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
+        overLabel={ui.batchOverLabel}
+        percent={ui.progressPercent}
+      />
     </article>
   )
 }
