@@ -111,9 +111,22 @@ describe('OperationsTab smoke', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('FM (1)')).toBeTruthy()
-    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual(['Production', 'FM (1)', 'Attendance', 'Loss limits', 'Loss report', 'History', 'Offline sync'])
+    expect(screen.getAllByRole('link').map((el) => el.textContent)).toEqual([
+      'Production', 'Allocate', 'FM (1)', 'Attendance', 'Loss limits', 'Loss report', 'History', 'Offline sync',
+    ])
     expect(screen.queryByText(/kpiOverview/i)).toBeNull()
     expect(getInventory).not.toHaveBeenCalled()
+  })
+
+  it('shows the Allocate tab for MG after Production', async () => {
+    render(
+      <MemoryRouter>
+        <OperationsTab />
+      </MemoryRouter>,
+    )
+    const tabLabels = screen.getAllByRole('link').map((el) => el.textContent)
+    expect(tabLabels[0]).toBe('Production')
+    expect(tabLabels[1]).toBe('Allocate')
   })
 
   it('mounts operations tab shell', async () => {
