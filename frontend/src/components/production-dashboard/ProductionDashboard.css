@@ -4752,7 +4752,7 @@
 
 /* ── Responsive fit: phone → 4K TV (last in file so it wins the cascade) ── */
 
-/* Room for the fixed "← Ops" button so it never covers the logo/title */
+/* Room for the fixed "← Back" button so it never covers the logo/title */
 .pd-fullscreen-page .pd-header-brand {
   padding-left: calc(0.75rem + 46px);
 }
