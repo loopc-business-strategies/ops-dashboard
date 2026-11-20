@@ -531,8 +531,12 @@ export default function ERPGoldAlloyTab({
         String(row.itemId) === String(line.stockId)
         || String(row.key || '') === String(line.key)
       ))
-      // Prefer consumeGross so a 2nd Update keeps total loss (1 + 0.5 → 1.5), not only the last delta.
+      // Vault take stays on consumeGross so reverse+repost still consumes the full original.
       const originalFromPosted = resolveAlloyUpdateOriginalGross(postedConsumed)
+      // AML loss vs this Update only: remain currently in the bar (posted display gross).
+      const priorRemainFromPosted = postedConsumed != null
+        ? roundAlloyGrams(Number(postedConsumed.gross || 0))
+        : 0
       const gross = line.gross !== '' && line.gross != null ? line.gross : (prev?.gross || '')
       // Update-voucher "purity" = mix share (gross ÷ allowed wt), e.g. 0.75 / 0.13 / 0.11
       const share = computeAlloyMixShare(gross, targetGross)
@@ -541,6 +545,10 @@ export default function ERPGoldAlloyTab({
         ...line,
         stockLabel: line.stockLabel || option?.name || prev?.stockLabel || line.label || '',
         originalGross: prev?.originalGross != null ? Number(prev.originalGross) : originalFromPosted,
+        // Freeze prior remain when the modal opens so AML matches Alloy row (−0.082), not cumulative 0.21.
+        priorRemainGross: prev?.priorRemainGross != null
+          ? Number(prev.priorRemainGross)
+          : priorRemainFromPosted,
         gross,
         purityPercent: share || prev?.purityPercent || '',
         metalPurity,
@@ -551,10 +559,15 @@ export default function ERPGoldAlloyTab({
 
   const updateMetalLossTotal = useMemo(() => {
     const finishedLoss = computeAlloyMetalLoss(updateFinishedGross, updateOriginalFinishedGross)
+    // Metal Loss AML = vs prior remain in bar (this Update), not vs first vault consume.
     const metalsLoss = roundAlloyGrams(
-      (updateMetalLines || []).reduce((sum, line) => (
-        sum + computeAlloyMetalLoss(line.gross, line.originalGross)
-      ), 0),
+      (updateMetalLines || []).reduce((sum, line) => {
+        const prior = Number(line.priorRemainGross)
+        const baseline = Number.isFinite(prior) && prior > 0
+          ? prior
+          : Number(line.originalGross)
+        return sum + computeAlloyMetalLoss(line.gross, baseline)
+      }, 0),
     )
     return {
       finished: finishedLoss,

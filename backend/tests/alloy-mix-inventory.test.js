@@ -425,7 +425,7 @@ describe('alloy mix inventory', () => {
     expect(String(positionTxs[0].voucherMeta?.lineItems?.[0]?.stockCode || '')).toBe('XAU')
   })
 
-  test('splits metal loss by input share (gold 50/85.715 × 4 = 2.333)', async () => {
+  test('AML follows UI remain deltas when remainGross is set', async () => {
     const user = await User.create({
       name: 'alloy-share-user',
       email: 'alloy-share@example.com',
@@ -505,7 +505,7 @@ describe('alloy mix inventory', () => {
       assertAccountingPeriodOpen: async () => {},
     })
 
-    // UI remain skewed toward silver loss — AML must still use input-share split.
+    // UI remain skewed toward silver — AML follows remain deltas (not input-share).
     const result = await svc.postAlloyMix({
       user,
       tenant: 'mg',
@@ -535,8 +535,8 @@ describe('alloy mix inventory', () => {
     const byMetal = Object.fromEntries(
       (result.metalLossByMetal || []).map((row) => [row.stockCode, Number(row.lossGross)]),
     )
-    expect(byMetal.XAU).toBeCloseTo(2.333, 3)
-    expect(byMetal.XAG).toBeCloseTo(1.667, 3)
+    expect(byMetal.XAU).toBeCloseTo(1.195, 3)
+    expect(byMetal.XAG).toBeCloseTo(2.805, 3)
 
     const positionTxs = await Transaction.find({
       isDeleted: { $ne: true },
@@ -548,8 +548,8 @@ describe('alloy mix inventory', () => {
       const line = tx.voucherMeta?.lineItems?.[0] || {}
       return [String(line.stockCode || ''), Number(line.pureWeight)]
     }))
-    expect(weights.XAU).toBeCloseTo(2.333, 3)
-    expect(weights.XAG).toBeCloseTo(1.667, 3)
+    expect(weights.XAU).toBeCloseTo(1.195, 3)
+    expect(weights.XAG).toBeCloseTo(2.805, 3)
 
     const reversed = await svc.reverseAlloyMix({
       user,
@@ -664,7 +664,7 @@ describe('alloy mix inventory', () => {
       assertAccountingPeriodOpen: async () => {},
     })
 
-    // Inputs 551.829 → finished 551.6 → loss 0.229 split by share (gold ~0.210, copper ~0.019).
+    // Inputs 551.829 → finished 551.6 → physical 0.229; AML uses remain deltas (gold 0.21, copper 0.019).
     const result = await svc.postAlloyMix({
       user,
       tenant: 'mg',
@@ -698,5 +698,145 @@ describe('alloy mix inventory', () => {
     expect(weights.XAU).toBeCloseTo(0.21, 2)
     expect(weights.XCU).toBeCloseTo(0.019, 2)
     expect(weights.XAU + weights.XCU).toBeCloseTo(0.229, 3)
+  })
+
+  test('AML lossGross posts this-Update gold only (0.082) while vault still consumes full original', async () => {
+    const user = await User.create({
+      name: 'alloy-step-loss-user',
+      email: 'alloy-step-loss@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const invAcct = await ChartOfAccount.create({
+      accountName: 'Metal Inventory',
+      accountCode: '1300',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
+    const lossAcct = await ChartOfAccount.create({
+      accountName: 'Metal Loss',
+      accountCode: 'AML',
+      accountType: 'Expense',
+      createdBy: user._id,
+    })
+    await AccountMapping.create({
+      mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+      debitAccountId: lossAcct._id,
+      creditAccountId: invAcct._id,
+      isActive: true,
+      description: 'alloy metal loss',
+    })
+
+    const fineGold = await InventoryItem.create({
+      name: 'Gold Bar',
+      sku: 'AU-BAR-STEP',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=1',
+      quantity: 600,
+      unit: 'grams',
+      unitCost: 50,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: fineGold._id,
+      itemName: fineGold.name,
+      change: 600,
+      quantityBefore: 0,
+      quantityAfter: 600,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const copper = await InventoryItem.create({
+      name: 'pure copper',
+      sku: 'CU-STEP',
+      category: 'mainStock=copper;metalType=copper;recordType=product;productPurity=1',
+      quantity: 100,
+      unit: 'grams',
+      unitCost: 1,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: copper._id,
+      itemName: copper.name,
+      change: 100,
+      quantityBefore: 0,
+      quantityAfter: 100,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const finished = await InventoryItem.create({
+      name: '22k alloyed gold',
+      sku: 'AU-22K-STEP',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=0.9167',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+
+    const svc = createAlloyMixService({
+      InventoryItem,
+      StockMovement,
+      Ledger,
+      AccountMapping,
+      Transaction,
+      ChartOfAccount,
+      assertAccountingPeriodOpen: async () => {},
+    })
+
+    // 2nd Update: vault consume still 506.038, remain 505.828, but AML gold = this step 0.082.
+    const result = await svc.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 22,
+      targetGross: 551.6,
+      finishedProductId: finished._id,
+      lines: [
+        {
+          itemId: fineGold._id,
+          gross: 506.038,
+          remainGross: 505.828,
+          lossGross: 0.082,
+          role: 'gold',
+          label: 'gold',
+        },
+        {
+          itemId: copper._id,
+          gross: 45.791,
+          remainGross: 45.772,
+          lossGross: 0.019,
+          role: 'extra',
+          label: 'copper',
+        },
+      ],
+      description: 'Gold alloy mix (22K 551.6 g · updated)',
+    })
+
+    expect(result.metalLossGross).toBeCloseTo(0.229, 3)
+    const byMetal = Object.fromEntries(
+      (result.metalLossByMetal || []).map((row) => [row.stockCode, Number(row.lossGross)]),
+    )
+    expect(byMetal.XAU).toBeCloseTo(0.082, 3)
+    expect(byMetal.XCU).toBeCloseTo(0.019, 3)
+
+    const positionTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(positionTxs).toHaveLength(2)
+    const weights = Object.fromEntries(positionTxs.map((tx) => {
+      const line = tx.voucherMeta?.lineItems?.[0] || {}
+      return [String(line.stockCode || ''), Number(line.pureWeight)]
+    }))
+    expect(weights.XAU).toBeCloseTo(0.082, 3)
+    expect(weights.XCU).toBeCloseTo(0.019, 3)
   })
 })

@@ -248,10 +248,16 @@ function createAlloyMixService({
         const remainGross = remainRaw === '' || remainRaw == null
           ? null
           : Number(remainRaw)
+        const lossRaw = line?.lossGross
+        const lossGross = lossRaw === '' || lossRaw == null
+          ? null
+          : Number(lossRaw)
         return {
           itemId: String(line?.itemId || line?.stockId || '').trim(),
           gross,
           remainGross: Number.isFinite(remainGross) ? remainGross : null,
+          // AML this-Update grams (vs prior remain); null → use oxidation / input-share.
+          amlLossGross: Number.isFinite(lossGross) && lossGross >= 0 ? lossGross : null,
           role: String(line?.role || '').trim().toLowerCase(),
           label: String(line?.label || line?.role || '').trim(),
         }
@@ -388,7 +394,8 @@ function createAlloyMixService({
         item.updatedBy = user._id
         await item.save(writeOpts(session))
 
-        // Optional UI remain — validated below; Metal Loss grams use input-share split, not this delta.
+        // Optional UI remain — inventory oxidation = consume − remain.
+        // Optional amlLossGross — Metal Loss this Update only (vs prior remain).
         const remainGross = line.remainGross != null
           ? toQty(Math.max(0, line.remainGross))
           : null
@@ -403,6 +410,7 @@ function createAlloyMixService({
           consumeLabel,
           gross: need,
           remainGross,
+          amlLossGross: line.amlLossGross != null ? toQty(line.amlLossGross) : null,
           lossGross: null,
           unitCost,
           bookValue,
@@ -425,8 +433,8 @@ function createAlloyMixService({
         }
       }
 
-      // Metal Loss AML: always input-share × total loss (e.g. gold 50/85.715 × 4 = 2.333),
-      // not UI per-metal remain deltas. Last line absorbs rounding.
+      // Inventory oxidation: prefer UI remain (consume − remain). Else input-share.
+      // Metal Loss AML: prefer client lossGross (this Update vs prior). Else oxidation.
       const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
         ? (metalLossGross / totalInputGross)
         : 0
@@ -434,17 +442,29 @@ function createAlloyMixService({
       for (let i = 0; i < consumed.length; i += 1) {
         const row = consumed[i]
         const isLast = i === consumed.length - 1
+        const uiRemain = row.remainGross
         if (metalLossGross > GROSS_EPS) {
-          const shareLoss = isLast
-            ? toQty(metalLossGross - allocatedLoss)
-            : toQty(Number(row.gross) * lossRatio)
-          if (!isLast) allocatedLoss = toQty(allocatedLoss + shareLoss)
-          row.lossGross = shareLoss
-          row.remainGross = toQty(Number(row.gross) - shareLoss)
+          let oxidationLoss
+          if (uiRemain != null) {
+            oxidationLoss = toQty(Math.max(0, Number(row.gross) - Number(uiRemain)))
+            row.remainGross = toQty(uiRemain)
+          } else {
+            oxidationLoss = isLast
+              ? toQty(metalLossGross - allocatedLoss)
+              : toQty(Number(row.gross) * lossRatio)
+            if (!isLast) allocatedLoss = toQty(allocatedLoss + oxidationLoss)
+            row.remainGross = toQty(Number(row.gross) - oxidationLoss)
+          }
+          row.lossGross = oxidationLoss
+          // AML: this-Update grams when provided; clamp to physical oxidation.
+          const amlRaw = row.amlLossGross != null ? Number(row.amlLossGross) : oxidationLoss
+          row.amlLossGross = toQty(Math.max(0, Math.min(amlRaw, oxidationLoss)))
         } else {
           row.lossGross = 0
+          row.amlLossGross = 0
           if (row.remainGross == null) row.remainGross = row.gross
         }
+        // Cost roll uses physical oxidation (full consume − remain), not AML step grams.
         row.lineLossRatio = row.gross > GROSS_EPS ? (row.lossGross / row.gross) : 0
       }
 
@@ -530,13 +550,16 @@ function createAlloyMixService({
 
       let metalLossPositionId = null
       if (metalLossGross > GROSS_EPS && metalLossMapping?.debitAccountId) {
+        const amlLines = consumed
+          .filter((row) => Number(row.amlLossGross) > GROSS_EPS)
+          .map((row) => ({ ...row, lossGross: row.amlLossGross }))
         const positionTx = await postMetalLossPositionVoucher({
           user,
           session,
           stockDate,
           reasonBase,
           metalLossMapping,
-          lossLines: consumed.filter((row) => Number(row.lossGross) > GROSS_EPS),
+          lossLines: amlLines,
         })
         metalLossPositionId = positionTx?._id ? String(positionTx._id) : null
       }
@@ -549,12 +572,13 @@ function createAlloyMixService({
         metalLossBookValue: lossBookValue,
         metalLossPositionId,
         metalLossByMetal: consumed
-          .filter((row) => Number(row.lossGross) > GROSS_EPS)
+          .filter((row) => Number(row.amlLossGross) > GROSS_EPS)
           .map((row) => ({
             itemId: row.itemId,
             name: row.name,
             stockCode: resolveLossMetalStockCode(row),
-            lossGross: toQty(row.lossGross),
+            lossGross: toQty(row.amlLossGross),
+            oxidationLossGross: toQty(row.lossGross),
             remainGross: toQty(row.remainGross),
           })),
         finishedProduct: {
