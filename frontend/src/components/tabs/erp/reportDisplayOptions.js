@@ -128,6 +128,95 @@ export function resolveTrialClosingStockRow({
   return buildManualClosingStockRow(revaluation, { metalCode, price, label })
 }
 
+const ROW_METAL_NET_KEYS = [
+  { kind: 'gold', netKey: 'goldNet' },
+  { kind: 'silver', netKey: 'silverNet' },
+  { kind: 'platinum', netKey: 'platinumNet' },
+  { kind: 'alloy', netKey: 'alloyNet' },
+]
+
+function roundTrialMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100
+}
+
+/** USD per gram by metal for live (revaluation + spot fallback) or one manual stock. */
+export function resolveTrialMetalPricePerGram({
+  useLiveClosingPrice = true,
+  revaluation = null,
+  livePrices = null,
+  metalCode = '',
+  priceOz = null,
+} = {}) {
+  if (useLiveClosingPrice) {
+    const prices = { gold: 0, silver: 0, platinum: 0, alloy: 0 }
+    for (const row of revaluation?.metals || []) {
+      const kind = String(row?.metal || '').trim().toLowerCase()
+      const perGram = Number(row?.pricePerGram || 0)
+      if (kind && Number.isFinite(perGram) && perGram > 0) prices[kind] = perGram
+    }
+    const liveGold = Number(livePrices?.gold || 0)
+    const liveSilver = Number(livePrices?.silver || 0)
+    if (!(prices.gold > 0) && liveGold > 0) prices.gold = liveGold
+    if (!(prices.silver > 0) && liveSilver > 0) prices.silver = liveSilver
+    if (!(prices.gold > 0 || prices.silver > 0)) return null
+    return prices
+  }
+  const pricePerOz = Number(priceOz)
+  if (!Number.isFinite(pricePerOz) || pricePerOz <= 0) return null
+  const code = String(metalCode || '').trim().toUpperCase()
+  const key = CLOSING_STOCK_GRAM_KEYS[code] || String(metalCode || 'gold').trim().toLowerCase()
+  return { [key]: pricePerOz / GRAMS_PER_TROY_OZ }
+}
+
+/** Market Net for one TB row from signed metal grams × USD/g. Null when no priced metal. */
+export function metalMarketNetFromTrialRow(row = {}, pricesByMetal = {}) {
+  let total = 0
+  let priced = false
+  for (const { kind, netKey } of ROW_METAL_NET_KEYS) {
+    const grams = Number(row?.[netKey] || 0)
+    const price = Number(pricesByMetal?.[kind] || 0)
+    if (!Number.isFinite(grams) || grams === 0 || !(price > 0)) continue
+    total += grams * price
+    priced = true
+  }
+  if (!priced) return null
+  return roundTrialMoney(total)
+}
+
+/**
+ * When Calculate Closing Stock + live/manual price is on, replace Net on metal-bearing
+ * posted rows with grams × price. Debit/credit stay book so TB totals stay balanced.
+ */
+export function applyTrialMetalPriceNets(rows = [], {
+  calculateClosingStock = false,
+  useLiveClosingPrice = true,
+  revaluation = null,
+  livePrices = null,
+  metalCode = '',
+  priceOz = null,
+} = {}) {
+  if (!calculateClosingStock || revaluation?.omitted) return rows
+  const prices = resolveTrialMetalPricePerGram({
+    useLiveClosingPrice,
+    revaluation,
+    livePrices,
+    metalCode,
+    priceOz,
+  })
+  if (!prices) return rows
+  return (rows || []).map((row) => {
+    if (!row || row.unposted) return row
+    const marketNet = metalMarketNetFromTrialRow(row, prices)
+    if (marketNet == null) return row
+    return {
+      ...row,
+      bookNet: Number(row.net || 0),
+      net: marketNet,
+      metalPriced: true,
+    }
+  })
+}
+
 export function reportAccountGroup(row = {}) {
   if (row?.unposted) return ''
   const name = String(row?.accountName || '')
