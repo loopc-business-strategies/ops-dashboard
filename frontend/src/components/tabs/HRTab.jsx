@@ -320,6 +320,19 @@ const BTN_PRIMARY =
 const ACTION_BTN =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors'
 
+function formatDuplicateEmployeeError(t, { employee, field } = {}) {
+  const name = String(employee?.name || '').trim()
+  const code = String(employee?.employeeCode || '').trim()
+  if (!name && !code) return t('hrErrDuplicateEmployee')
+  const fieldLabel = field === 'phoneNumber'
+    ? t('hrDuplicateFieldPhone')
+    : t('hrDuplicateFieldId')
+  return t('hrErrDuplicateEmployeeDetail')
+    .replace('{{name}}', name || '—')
+    .replace('{{code}}', code || '—')
+    .replace('{{field}}', fieldLabel)
+}
+
 // ── Add / Edit Employee — right-side drawer ──────
 function EmployeeForm({
   onSave,
@@ -384,7 +397,7 @@ function EmployeeForm({
     })
     if (localConflict) {
       setDuplicateEmployee(localConflict.employee)
-      setError(t('hrErrDuplicateEmployee'))
+      setError(formatDuplicateEmployeeError(t, localConflict))
       return
     }
 
@@ -406,12 +419,15 @@ function EmployeeForm({
         setError(data?.message || t('hrErrArchivedEmployee'))
         setArchivedConflict(data?.existingEmployeeId ? { _id: data.existingEmployeeId } : null)
       } else if (data?.code === 'DUPLICATE_EMPLOYEE' || err.response?.status === 409) {
-        setError(data?.message || t('hrErrDuplicateEmployee'))
         const existingId = data?.existingEmployeeId
         const existing = existingId
           ? employees.find((emp) => String(emp._id) === String(existingId)) || { _id: existingId }
           : null
         setDuplicateEmployee(existing || null)
+        setError(formatDuplicateEmployeeError(t, {
+          employee: existing,
+          field: data?.field,
+        }))
       } else {
         setError(data?.message || t('hrErrSave'))
       }

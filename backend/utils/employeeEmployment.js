@@ -39,7 +39,8 @@ function isEmployedOnDate(employee, dateKey) {
 
 /**
  * Mongo filter for employees employed on asOf (YYYY-MM-DD).
- * Requires a real joiningDate.
+ * Includes missing/null joiningDate (so HR list shows people who still block duplicates).
+ * When joiningDate is set, requires joiningDate <= asOf.
  * - activeOnly: true → never include archived (Attendance Log marking roster)
  * - activeOnly: false → include archived only when deletedAt is after asOf (historical payroll)
  */
@@ -52,7 +53,11 @@ function buildEmployedAsOfFilter(asOfDateKey, { activeOnly = false } = {}) {
 
   const clauses = [
     {
-      joiningDate: { $ne: null, $exists: true, $lte: asOfEnd },
+      $or: [
+        { joiningDate: { $exists: false } },
+        { joiningDate: null },
+        { joiningDate: { $lte: asOfEnd } },
+      ],
     },
   ]
 

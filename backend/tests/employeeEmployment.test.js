@@ -34,12 +34,18 @@ describe('employeeEmployment', () => {
     }, '2026-11-05')).toBe(false)
   })
 
-  test('buildEmployedAsOfFilter requires joiningDate and returns mongo shape', () => {
+  test('buildEmployedAsOfFilter includes missing joiningDate and joined-by asOf', () => {
     const filter = buildEmployedAsOfFilter('2026-05-15')
     expect(filter).toBeTruthy()
     expect(filter.$and).toHaveLength(2)
-    expect(filter.$and[0].joiningDate.$lte).toBeInstanceOf(Date)
-    expect(filter.$and[0].joiningDate.$ne).toBeNull()
+    const joinClause = filter.$and[0].$or
+    expect(joinClause).toEqual(
+      expect.arrayContaining([
+        { joiningDate: { $exists: false } },
+        { joiningDate: null },
+        expect.objectContaining({ joiningDate: expect.objectContaining({ $lte: expect.any(Date) }) }),
+      ]),
+    )
   })
 
   test('buildEmployedAsOfFilter activeOnly excludes archived branch', () => {
