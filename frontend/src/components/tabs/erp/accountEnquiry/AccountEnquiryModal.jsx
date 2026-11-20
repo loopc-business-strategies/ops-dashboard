@@ -360,7 +360,7 @@ export default function AccountEnquiryModal({
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         <div style={{ background: AS.headerBg, padding: '0.7rem 1rem', borderBottom: `1px solid ${AS.headerEdge}` }}>
                           <span style={{ color: AS.headerFg, fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: AS.headerFg, opacity: 0.82, fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — created stock: Gold, Silver, Copper, Other)</span>
+                          <span style={{ color: AS.headerFg, opacity: 0.82, fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — created stock: Gold, Silver, Copper)</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
