@@ -296,6 +296,9 @@ async function removeDuplicateAlloyMgFloorRows() {
  */
 async function syncApprovedEntriesToWorkbook() {
   const FloorBatchEntry = require('../../models/FloorBatchEntry')
+  const { mergeSplitAlloyOpsRows } = require('../erpAccounting/alloyMixFloorBridge')
+  // Repair gold_alloy Vault/Melting rows that were split into separate IN + OUT documents.
+  const alloySplitsMerged = await mergeSplitAlloyOpsRows()
   const entries = await FloorBatchEntry.find({ status: 'APPROVED' }).sort({ decidedAt: 1 }).lean()
   const skippedDepartments = {}
   let linked = 0
@@ -315,6 +318,7 @@ async function syncApprovedEntriesToWorkbook() {
     skipped: entries.length - linked,
     skippedDepartments,
     duplicatesRemoved,
+    alloySplitsMerged,
   }
 }
 

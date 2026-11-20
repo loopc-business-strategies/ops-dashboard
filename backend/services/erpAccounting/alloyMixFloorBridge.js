@@ -82,8 +82,72 @@ function normalizeDept(raw) {
   return PRODUCTION_DEPARTMENT_KEYS.includes(key) ? key : ''
 }
 
-function opsKey(mixCode, departmentKey, side, stamp) {
-  return `alloy:${String(mixCode).toUpperCase()}:${departmentKey}:${side}:${stamp}`
+/** One workbook visit key — no in/out side (Metal IN + OUT share a single Ops row). */
+function opsKey(mixCode, departmentKey, stamp) {
+  return `alloy:${String(mixCode).toUpperCase()}:${departmentKey}:${stamp}`
+}
+
+/** Open gold_alloy visit in a department: has Metal IN, still waiting for Metal OUT. */
+async function findOpenAlloyOpsVisit({ session, mixCode, departmentKey }) {
+  const code = String(mixCode || '').toUpperCase()
+  if (!code || !departmentKey) return null
+  return withSession(
+    OperationsProductionEntry.findOne({
+      source: 'gold_alloy',
+      alloyMixCode: code,
+      departmentKey,
+      metalIn: { $ne: null },
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    }).sort({ updatedAt: -1, createdAt: -1 }),
+    session,
+  )
+}
+
+/**
+ * Merge legacy split rows (opsKey used to include :in: / :out:) onto one visit per
+ * mix + department. Safe to repeat.
+ */
+async function mergeSplitAlloyOpsRows({ session = null, mixCode = '' } = {}) {
+  const filter = {
+    source: 'gold_alloy',
+    alloyMixCode: { $nin: [null, ''] },
+    metalOut: { $ne: null },
+    $or: [{ metalIn: null }, { metalIn: { $exists: false } }],
+  }
+  const code = String(mixCode || '').toUpperCase()
+  if (code) filter.alloyMixCode = code
+
+  const outOnly = await withSession(
+    OperationsProductionEntry.find(filter).sort({ createdAt: 1 }),
+    session,
+  )
+  let merged = 0
+  for (const outRow of outOnly || []) {
+    const inRow = await withSession(
+      OperationsProductionEntry.findOne({
+        source: 'gold_alloy',
+        alloyMixCode: outRow.alloyMixCode,
+        departmentKey: outRow.departmentKey,
+        metalIn: { $ne: null },
+        $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+        _id: { $ne: outRow._id },
+      }).sort({ createdAt: 1 }),
+      session,
+    )
+    if (!inRow) continue
+    inRow.metalOut = outRow.metalOut
+    inRow.purityOut = outRow.purityOut ?? inRow.purityOut
+    inRow.fineGoldOut = outRow.fineGoldOut ?? inRow.fineGoldOut
+    inRow.batchOverAt = outRow.batchOverAt || inRow.batchOverAt
+    if (outRow.floorOutEntryId) inRow.floorOutEntryId = outRow.floorOutEntryId
+    if (inRow.metalIn != null && inRow.metalOut != null) {
+      inRow.metalLoss = Math.max(0, toQty(inRow.metalIn - inRow.metalOut))
+    }
+    await inRow.save(writeOpts(session))
+    await outRow.deleteOne(writeOpts(session))
+    merged += 1
+  }
+  return merged
 }
 
 async function upsertOpsRow({
@@ -100,15 +164,36 @@ async function upsertOpsRow({
   actor,
   stamp,
 }) {
-  const floorBatchKey = opsKey(mixCode, departmentKey, side, stamp)
-  const set = {
+  const code = String(mixCode || '').toUpperCase()
+  const setBase = {
     source: 'gold_alloy',
     departmentKey,
     date,
     batchNumber: String(batchNumber || mixCode).trim(),
     departmentManagerName: actor?.name || '',
-    alloyMixCode: String(mixCode || '').toUpperCase(),
+    alloyMixCode: code,
   }
+
+  // Metal OUT merges onto the open Metal IN visit for this mix + department.
+  if (side === 'out') {
+    const open = await findOpenAlloyOpsVisit({ session, mixCode: code, departmentKey })
+    if (open) {
+      open.metalOut = weight
+      open.purityOut = purity ?? null
+      open.fineGoldOut = fineGold ?? null
+      open.batchOverAt = new Date()
+      open.floorOutEntryId = open.floorOutEntryId || opsKey(code, departmentKey, `out-${stamp}`)
+      open.departmentManagerName = actor?.name || open.departmentManagerName
+      if (open.metalIn != null && open.metalOut != null) {
+        open.metalLoss = Math.max(0, toQty(open.metalIn - open.metalOut))
+      }
+      await open.save(writeOpts(session))
+      return open
+    }
+  }
+
+  const floorBatchKey = opsKey(code, departmentKey, stamp)
+  const set = { ...setBase }
   const setOnInsert = {
     createdById: actor?._id || null,
     createdByName: actor?.name || '',
@@ -655,6 +740,9 @@ async function allocateMixJob({
     String(note || '').trim(),
     isPartial ? `partial ${moveWeight} g` : '',
   ].filter(Boolean).join(' · ')
+
+  // Heal any pre-fix split IN/OUT rows for this mix before writing Metal OUT.
+  await mergeSplitAlloyOpsRows({ session, mixCode: job.mixCode })
 
   const action = dest === VAULT ? 'return_vault' : 'allocate'
   /** Floor dests wait for receive Approve/Reject; vault return is immediate. */
@@ -1233,6 +1321,7 @@ module.exports = {
   isAlloyMixBatchCode,
   dubaiDateKey,
   normalizeDept,
+  mergeSplitAlloyOpsRows,
   PRODUCTION_DEPARTMENT_KEYS,
   QTY_EPS,
 }

@@ -4,7 +4,38 @@ const { protect } = require('../middleware/auth')
 const { validateBody, validateQuery, validateParams } = require('../middleware/validate')
 const { requireProductionPermission } = require('../services/productionControl/permissions')
 const OperationsProductionEntry = require('../models/OperationsProductionEntry')
+const AlloyMixJob = require('../models/AlloyMixJob')
 const { PRODUCTION_DEPARTMENT_KEYS: DEPARTMENT_KEYS } = require('../constants/productionDepartments')
+
+/**
+ * Gold Alloy custody on the Ops workbook:
+ * - Only the job's current department (Vault hides once moved to Melting; Melting hides
+ *   after Metal OUT back to Vault).
+ * - Only the active visit (Metal IN without Metal OUT). Prior completed IN+OUT cycles for
+ *   the same mix stay off the sheet so one batch is one row.
+ */
+async function alloyCustodyListFilter() {
+  const jobs = await AlloyMixJob.find({
+    isDeleted: { $ne: true },
+    status: { $nin: ['closed'] },
+    mixCode: { $nin: [null, ''] },
+  })
+    .select('mixCode currentDepartment')
+    .lean()
+  if (!jobs.length) return null
+  const wrongDept = jobs.map((j) => ({
+    source: 'gold_alloy',
+    alloyMixCode: String(j.mixCode || '').toUpperCase(),
+    departmentKey: { $ne: String(j.currentDepartment || '').trim() },
+  }))
+  const completedVisit = jobs.map((j) => ({
+    source: 'gold_alloy',
+    alloyMixCode: String(j.mixCode || '').toUpperCase(),
+    departmentKey: String(j.currentDepartment || '').trim(),
+    metalOut: { $ne: null },
+  }))
+  return { $nor: [...wrongDept, ...completedVisit] }
+}
 
 const router = express.Router()
 
@@ -166,6 +197,11 @@ router.get(
         filter.date = {}
         if (dateFrom) filter.date.$gte = dateFrom
         if (dateTo) filter.date.$lte = dateTo
+      }
+
+      const custody = await alloyCustodyListFilter()
+      if (custody) {
+        filter.$and = [...(filter.$and || []), custody]
       }
 
       const rows = await OperationsProductionEntry.find(filter)
