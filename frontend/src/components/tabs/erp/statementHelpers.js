@@ -1,12 +1,11 @@
 import { toMoney } from '../../../utils/money'
 
-const STANDARD_METAL_CODES = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
+const STANDARD_METAL_CODES = new Set(['XAU', 'XAG', 'XCU', 'COPPER', 'XPT', 'XPD'])
 
 export const DEFAULT_STATEMENT_METAL_OPTIONS = [
   'Gold',
   'Silver',
-  'Platinum',
-  'Palladium',
+  'Copper',
   'Other',
 ]
 
@@ -23,6 +22,7 @@ export function resolveMetalCodeFromStockName(name) {
   const normalized = String(name || '').trim().toLowerCase()
   if (normalized === 'xau' || normalized === 'gold') return 'XAU'
   if (normalized === 'xag' || normalized === 'silver') return 'XAG'
+  if (normalized === 'xcu' || normalized === 'cu' || normalized === 'copper') return 'COPPER'
   if (normalized === 'xpt' || normalized === 'platinum') return 'XPT'
   if (normalized === 'xpd' || normalized === 'palladium') return 'XPD'
   if (normalized === 'other' || normalized === 'others' || normalized === 'misc') return 'OTHER'
@@ -31,11 +31,13 @@ export function resolveMetalCodeFromStockName(name) {
 
 export function resolveStatementMetalCode(entry = {}) {
   const explicit = String(entry?.metalCode || '').trim().toUpperCase()
+  if (explicit === 'XCU') return 'COPPER'
   if (explicit) return explicit
 
   const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
   if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
   if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
+  if (/\bxcu\b|\bcopper\b|\b\s*cu\b/.test(text)) return 'COPPER'
   if (/\bxpt\b|\bplatinum\b/.test(text)) return 'XPT'
   if (/\bxpd\b|\bpalladium\b/.test(text)) return 'XPD'
 
@@ -44,7 +46,8 @@ export function resolveStatementMetalCode(entry = {}) {
 
 export function isOtherStatementMetalCode(metalCode) {
   const normalized = String(metalCode || '').trim().toUpperCase()
-  return Boolean(normalized && normalized !== '-' && !STANDARD_METAL_CODES.has(normalized))
+  const code = normalized === 'XCU' ? 'COPPER' : normalized
+  return Boolean(code && code !== '-' && !STANDARD_METAL_CODES.has(code))
 }
 
 export function matchesStatementMetal(entry = {}, selectedMetal) {
@@ -52,6 +55,7 @@ export function matchesStatementMetal(entry = {}, selectedMetal) {
   if (!selected) return true
   const entryMetalCode = resolveStatementMetalCode(entry)
   if (selected === 'OTHER') return isOtherStatementMetalCode(entryMetalCode)
+  if (selected === 'COPPER') return entryMetalCode === 'COPPER'
   return entryMetalCode === selected
 }
 
@@ -59,11 +63,37 @@ export function resolveStatementMetalBalance(metals = {}, selectedMetalCode, ent
   const metalCode = String(selectedMetalCode || '').trim().toUpperCase()
   if (metalCode === 'XAG') return Number(metals?.silverBalance || 0)
   if (metalCode === 'XAU') return Number(metals?.goldBalance || 0)
+  if (metalCode === 'COPPER' || metalCode === 'XCU') {
+    const apiCopper = Number(metals?.copperBalance)
+    if (Number.isFinite(apiCopper) && metals && Object.prototype.hasOwnProperty.call(metals, 'copperBalance')) {
+      return apiCopper
+    }
+  }
 
   return entries.reduce((sum, entry) => {
     if (!matchesStatementMetal(entry, metalCode)) return sum
     return sum + Number(entry?.metalSignedWeight || 0)
   }, 0)
+}
+
+/** Position labels from created stock types, always including Gold / Silver / Copper / Other. */
+export function buildAccountSummaryPositionMetals(stockTypeOptions = []) {
+  const created = Array.from(new Map(
+    (stockTypeOptions || [])
+      .map((stock) => String(stock?.mainStock || stock?.label || '').trim())
+      .filter(Boolean)
+      .map((name) => [name.toLowerCase(), name.replace(/\b\w/g, (ch) => ch.toUpperCase())]),
+  ).values())
+
+  const preferred = ['Gold', 'Silver', 'Copper', 'Other']
+  const ordered = []
+  for (const name of preferred) {
+    if (!ordered.some((item) => item.toLowerCase() === name.toLowerCase())) ordered.push(name)
+  }
+  for (const name of created) {
+    if (!ordered.some((item) => item.toLowerCase() === name.toLowerCase())) ordered.push(name)
+  }
+  return ordered
 }
 
 export function normalizeStatementCurrencyCode(value = '') {
@@ -164,8 +194,9 @@ export function buildStatementMetalOptions(stockTypeOptions = []) {
       .map((mainStock) => [mainStock.toLowerCase(), mainStock]),
   ).values())
 
+  // Prefer Gold first (Account Summary default), then created stock, then remaining defaults.
   return Array.from(new Map(
-    [...inventoryOptions, ...DEFAULT_STATEMENT_METAL_OPTIONS]
+    ['Gold', ...inventoryOptions, ...DEFAULT_STATEMENT_METAL_OPTIONS]
       .map((name) => [String(name).trim().toLowerCase(), String(name).trim()])
       .filter(([, name]) => Boolean(name)),
   ).values())

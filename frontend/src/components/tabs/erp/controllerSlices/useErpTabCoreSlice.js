@@ -214,10 +214,10 @@ export function useErpTabCoreSlice(props) {
     department: '',
     fixStatus: '',
     foreignCurrency: '',
-    metalCommodity: '',
+    metalCommodity: 'Gold',
     showAmountIn: '',
   })
-  const [statementMetalCommodityEnabled, setStatementMetalCommodityEnabled] = useState(false)
+  const [statementMetalCommodityEnabled, setStatementMetalCommodityEnabled] = useState(true)
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const { snapshot: liveMetalSnapshot, error: liveMetalContextError } = useLiveMetalRates()

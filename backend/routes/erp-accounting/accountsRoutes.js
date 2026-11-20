@@ -347,6 +347,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     // Do NOT derive metal position from cash balance — that produces fabricated metal positions.
     let goldBalance = 0
     let silverBalance = 0
+    let copperBalance = 0
+    let otherBalance = 0
 
     const [customerMetalTxs, vendorMetalTxs] = await Promise.all([
       linkedCustomer
@@ -370,6 +372,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const unfixedVendorMetal = accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
     goldBalance += unfixedCustomerMetal.gold + unfixedVendorMetal.gold
     silverBalance += unfixedCustomerMetal.silver + unfixedVendorMetal.silver
+    copperBalance += Number(unfixedCustomerMetal.copper || 0) + Number(unfixedVendorMetal.copper || 0)
+    otherBalance += Number(unfixedCustomerMetal.other || 0) + Number(unfixedVendorMetal.other || 0)
     const unfixedMetalValuation = accumulateUnfixedMetalFromTransactions(
       [...customerMetalTxs, ...vendorMetalTxs],
       { valuation: true },
@@ -377,6 +381,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     // Valuation grams differ from the shown balance only for open unfixed vouchers.
     let goldValuationBalance = unfixedMetalValuation.gold
     let silverValuationBalance = unfixedMetalValuation.silver
+    let copperValuationBalance = Number(unfixedMetalValuation.copper || 0)
+    let otherValuationBalance = Number(unfixedMetalValuation.other || 0)
 
     const ledgerStatementMatch = {
       isDeleted: { $ne: true },
@@ -457,11 +463,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         const stockText = String(line?.stockCode || '').trim().toUpperCase()
         if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
         if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+        if (stockText === 'XCU' || stockText.includes('COPP') || stockText === 'CU') return 'COPPER'
         if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
         if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
         const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
         if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
         if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+        if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
         if (productText.includes('platinum') || productText.includes('xpt')) return 'XPT'
         if (productText.includes('palladium') || productText.includes('xpd')) return 'XPD'
         if (productText.includes('other') || productText.includes('misc')) return 'OTHER'
@@ -472,11 +480,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const stockText = String(line?.stockCode || '').trim().toUpperCase()
       if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
       if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+      if (stockText === 'XCU' || stockText.includes('COPP') || stockText === 'CU') return 'COPPER'
       if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
       if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
       const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
       if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
       if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+      if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
       if (productText.includes('platinum') || productText.includes('xpt')) return 'XPT'
       if (productText.includes('palladium') || productText.includes('xpd')) return 'XPD'
       if (productText.includes('other') || productText.includes('misc')) return 'OTHER'
@@ -511,10 +521,21 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           const isSilver = metalCode === 'XAG'
             || sc.includes('XAG')
             || sc.includes('SILV')
+          const isCopper = metalCode === 'COPPER'
+            || metalCode === 'XCU'
+            || sc.includes('XCU')
+            || sc.includes('COPP')
+            || sc === 'CU'
           // Like unfixed vouchers: a receipt (Cr) is metal the party is owed, a payment (Dr) settles it.
           if (isSilver) {
             silverBalance += signedWeight
             silverValuationBalance -= signedWeight
+          } else if (isCopper) {
+            copperBalance += signedWeight
+            copperValuationBalance -= signedWeight
+          } else if (metalCode === 'OTHER' || metalCode === 'XPT' || metalCode === 'XPD') {
+            otherBalance += signedWeight
+            otherValuationBalance -= signedWeight
           } else {
             goldBalance += signedWeight
             goldValuationBalance -= signedWeight
@@ -535,8 +556,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const directDealMetal = accumulateDirectDealMetalForCustomer(customerDirectDeals, linkedCustomer._id)
       goldBalance -= directDealMetal.gold
       silverBalance -= directDealMetal.silver
+      copperBalance -= Number(directDealMetal.copper || 0)
+      otherBalance -= Number(directDealMetal.other || 0)
       goldValuationBalance += directDealMetal.gold
       silverValuationBalance += directDealMetal.silver
+      copperValuationBalance += Number(directDealMetal.copper || 0)
+      otherValuationBalance += Number(directDealMetal.other || 0)
     }
 
     const resolveDirectDealLineType = (line = {}) => {
@@ -1184,6 +1209,26 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
+      {
+        key: 'copper',
+        type: 'Copper Equivalent',
+        limitValue: 0,
+        balance: Number(copperBalance || 0),
+        price: 0,
+        currentValue: 0,
+        valueCurrency: rates.priceCurrency,
+        unit: 'gram',
+      },
+      {
+        key: 'other',
+        type: 'Other Equivalent',
+        limitValue: 0,
+        balance: Number(otherBalance || 0),
+        price: 0,
+        currentValue: 0,
+        valueCurrency: rates.priceCurrency,
+        unit: 'gram',
+      },
     ]
 
     const enquiryPayload = {
@@ -1221,8 +1266,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         updatedAt: rates.updatedAt,
         goldBalance,
         silverBalance,
+        copperBalance,
+        otherBalance,
         goldValuationBalance,
         silverValuationBalance,
+        copperValuationBalance,
+        otherValuationBalance,
         suppressMetalSpotMtm,
         bookedUnfixedRevaluation,
       },

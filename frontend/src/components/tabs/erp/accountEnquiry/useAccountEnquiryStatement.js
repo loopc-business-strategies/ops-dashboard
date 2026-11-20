@@ -5,6 +5,7 @@ import { erpTabNeedsLiveMetalRates } from '../erpTabUtils'
 import { useErpLiveMetalSpotPrices } from '../useErpLiveMetalSpotPrices'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
+  buildAccountSummaryPositionMetals,
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
@@ -13,6 +14,7 @@ import {
   resolveMetalCodeFromStockName,
   resolveStatementDisplayCurrency,
   resolveConvertibleStatementDisplayCurrency,
+  resolveStatementMetalBalance,
   resolveStatementMetalCode,
   isMetalStatementEntry,
   resolveUnfixedOpenWeight,
@@ -173,9 +175,11 @@ function deriveStatementUnfixedMetalBalances(entries) {
     if (!Number.isFinite(w) || w === 0) return acc
     const mc = resolveStatementMetalCode(entry)
     if (mc === 'XAG') acc.silver += w
+    else if (mc === 'COPPER') acc.copper += w
+    else if (mc === 'OTHER' || mc === 'XPT' || mc === 'XPD') acc.other += w
     else if (mc && mc !== '-') acc.gold += w
     return acc
-  }, { gold: 0, silver: 0 })
+  }, { gold: 0, silver: 0, copper: 0, other: 0 })
 }
 
 function buildPureWeightRunningBalancesByEntryKey(entries, selectedMetalCode) {
@@ -280,25 +284,30 @@ export function useAccountEnquiryStatement({
     }
     const mc = resolveStatementMetalCode(entry)
     if (mc === 'XAG') acc.silver += w
+    else if (mc === 'COPPER') acc.copper += w
+    else if (mc === 'OTHER' || mc === 'XPT' || mc === 'XPD') acc.other += w
     else if (mc && mc !== '-') acc.gold += w
     return acc
-  }, { gold: 0, silver: 0 })
+  }, { gold: 0, silver: 0, copper: 0, other: 0 })
 
   const resolvePreferredStatementMetalCode = (entries = [], hint = { gold: 0, silver: 0 }) => {
     const explicitMetal = entries.find((entry) => {
       const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      return metalCode === 'XAU' || metalCode === 'XAG'
+      return metalCode === 'XAU' || metalCode === 'XAG' || metalCode === 'COPPER' || metalCode === 'XCU'
     })
-    if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
+    if (explicitMetal?.metalCode) {
+      const code = String(explicitMetal.metalCode).trim().toUpperCase()
+      return code === 'XCU' ? 'COPPER' : code
+    }
     const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0)) || Math.abs(hint.gold || 0)
     const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0)) || Math.abs(hint.silver || 0)
     return silverAbs > goldAbs ? 'XAG' : 'XAU'
   }
 
-  const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries, rawUnfixedStatementMetalHint)
+  // Account Summary defaults to Gold filter; Pure WT uses that metal only.
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
-    : defaultStatementMetalCode
+    : 'XAU'
   const spotMetalQuoteCurrency = normalizeStatementCurrencyCode(
     accountEnquiryData?.metals?.priceCurrency || 'USD',
   ).trim().toUpperCase()
@@ -391,11 +400,19 @@ export function useAccountEnquiryStatement({
   const statementUnfixedMetalBalances = deriveStatementUnfixedMetalBalances(statementEntries)
   const apiGoldBal = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
   const apiSilverBal = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
+  const apiCopperBal = accountEnquiryData ? Number(accountEnquiryData.metals?.copperBalance || 0) : 0
+  const apiOtherBal = accountEnquiryData ? Number(accountEnquiryData.metals?.otherBalance || 0) : 0
   // 0 is a valid closed position (e.g. alloy loss offset by a fixing deal). Do not
   // fall back to statement-unfixed grams when the enquiry API already returned metals.
   const hasApiMetalBalances = Boolean(accountEnquiryData?.metals)
   const xauBalance = hasApiMetalBalances ? apiGoldBal : statementUnfixedMetalBalances.gold
   const xagBalance = hasApiMetalBalances ? apiSilverBal : statementUnfixedMetalBalances.silver
+  const copperBalance = hasApiMetalBalances
+    ? apiCopperBal
+    : Number(statementUnfixedMetalBalances.copper || 0)
+  const otherMetalBalance = hasApiMetalBalances
+    ? apiOtherBal
+    : Number(statementUnfixedMetalBalances.other || 0)
   const { gold: xauValuationBalance, silver: xagValuationBalance } = resolveEnquiryValuationBalances(
     accountEnquiryData?.metals,
     { gold: xauBalance, silver: xagBalance },
@@ -461,26 +478,56 @@ export function useAccountEnquiryStatement({
     return convertStatementDisplayAmount(bookedValue)
   }
 
-  const modalPositionRows = enquiryComputationEnabled && accountEnquiryData ? [
-    {
-      key: 'xau',
-      type: 'XAU',
-      limits: 0,
-      balance: xauBalance,
-      price: convertMetalSpotDisplayAmount(goldPriceUSD),
-      currentValue: displayModalPositionCurrentValue(xauSpotValue, statementUnfixedVoucherRevaluationByMetal.gold),
-      breakEven: displayBreakEven(xauValuationBalance),
-    },
-    {
-      key: 'xag',
-      type: 'XAG',
-      limits: 0,
-      balance: xagBalance,
-      price: convertMetalSpotDisplayAmount(silverPriceUSD),
-      currentValue: displayModalPositionCurrentValue(xagSpotValue, statementUnfixedVoucherRevaluationByMetal.silver),
-      breakEven: displayBreakEven(xagValuationBalance),
-    },
-  ] : []
+  const positionMetalLabels = buildAccountSummaryPositionMetals(inventoryStockTypeOptions)
+  const resolvePositionBalanceForLabel = (label) => {
+    const code = resolveMetalCodeFromStockName(label)
+    if (code === 'XAU') return xauBalance
+    if (code === 'XAG') return xagBalance
+    if (code === 'COPPER') {
+      if (hasApiMetalBalances && accountEnquiryData?.metals
+        && Object.prototype.hasOwnProperty.call(accountEnquiryData.metals, 'copperBalance')) {
+        return copperBalance
+      }
+      return resolveStatementMetalBalance({}, 'COPPER', statementEntries)
+    }
+    if (code === 'OTHER') {
+      if (hasApiMetalBalances && accountEnquiryData?.metals
+        && Object.prototype.hasOwnProperty.call(accountEnquiryData.metals, 'otherBalance')) {
+        return otherMetalBalance
+      }
+      return resolveStatementMetalBalance({}, 'OTHER', statementEntries)
+    }
+    return resolveStatementMetalBalance(accountEnquiryData?.metals || {}, code, statementEntries)
+  }
+  const modalPositionRows = enquiryComputationEnabled && accountEnquiryData
+    ? positionMetalLabels.map((label) => {
+      const code = resolveMetalCodeFromStockName(label)
+      const balance = resolvePositionBalanceForLabel(label)
+      const isGold = code === 'XAU'
+      const isSilver = code === 'XAG'
+      return {
+        key: String(label).trim().toLowerCase() || code,
+        type: label,
+        limits: 0,
+        balance,
+        price: isGold
+          ? convertMetalSpotDisplayAmount(goldPriceUSD)
+          : isSilver
+            ? convertMetalSpotDisplayAmount(silverPriceUSD)
+            : 0,
+        currentValue: isGold
+          ? displayModalPositionCurrentValue(xauSpotValue, statementUnfixedVoucherRevaluationByMetal.gold)
+          : isSilver
+            ? displayModalPositionCurrentValue(xagSpotValue, statementUnfixedVoucherRevaluationByMetal.silver)
+            : 0,
+        breakEven: isGold
+          ? displayBreakEven(xauValuationBalance)
+          : isSilver
+            ? displayBreakEven(xagValuationBalance)
+            : null,
+      }
+    })
+    : []
 
   const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(statementEntries, statementSelectedMetalCode)
   const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
@@ -520,7 +567,12 @@ export function useAccountEnquiryStatement({
       if (entryCurrency !== selectedCurrency) return false
     }
     if (statementMetalCommodityEnabled && statementFilters.metalCommodity) {
-      if (!matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
+      // Keep cash / non-metal rows; only restrict metal trade / weight lines to the selected metal.
+      const metalCode = resolveStatementMetalCode(entry)
+      const isMetalRow = isMetalStatementEntry(entry)
+        || Boolean(String(entry?.metalCode || '').trim())
+        || (metalCode !== '-' && Number(entry?.metalSignedWeight || 0) !== 0)
+      if (isMetalRow && !matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
     }
     return true
   })

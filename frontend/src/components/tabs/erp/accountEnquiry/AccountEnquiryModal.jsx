@@ -43,7 +43,7 @@ export default function AccountEnquiryModal({
   formatStatementValue,
   getSignedColor,
   formatDirectionalBalance,
-  unfixedMetalEntries,
+  unfixedMetalEntries: _unfixedMetalEntries,
   formatStatementDate,
   modalTotalFundsDisplay,
   modalRevaluationDisplay,
@@ -356,11 +356,11 @@ export default function AccountEnquiryModal({
                           )}
                         </div>
                       </div>
-                      {/* Metal position (grams) + unfixed activity */}
+                      {/* Metal position (grams) by created stock */}
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         <div style={{ background: AS.headerBg, padding: '0.7rem 1rem', borderBottom: `1px solid ${AS.headerEdge}` }}>
                           <span style={{ color: AS.headerFg, fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: AS.headerFg, opacity: 0.82, fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed trades, direct deals, and metal transfers)</span>
+                          <span style={{ color: AS.headerFg, opacity: 0.82, fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — created stock: Gold, Silver, Copper, Other)</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -392,42 +392,6 @@ export default function AccountEnquiryModal({
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementNullableValue(row.breakEven, 4)}</td>
                                 </tr>
                               ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div style={{ borderTop: '1px solid #CBD5E0', background: '#FAFBFC', padding: '0.55rem 0.75rem' }}>
-                          <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '0.82rem' }}>Unfixed metal sales & purchases</p>
-                          <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Vouchers with grams still waiting for a price, using the same filters as the statement. Amounts are absolute signed cash effect.</p>
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ background: AS.tableHeadBg, borderBottom: `2px solid ${AS.softPanelBorder}` }}>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Voucher</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Open (g)</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
-                                <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
-                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{row.sourceTransactionNumber || row.receiptNo || '-'}</td>
-                                  <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
-                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.openWeight, 3)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(convertStatementDisplayAmount(row.amount), 2)}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td colSpan={6} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
-                                    No open unfixed sales or purchases match the selected filters.
-                                  </td>
-                                </tr>
-                              )}
                             </tbody>
                           </table>
                         </div>
@@ -653,8 +617,8 @@ export default function AccountEnquiryModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: '', showAmountIn: '' })
-                            setStatementMetalCommodityEnabled(false)
+                            setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: 'Gold', showAmountIn: '' })
+                            setStatementMetalCommodityEnabled(true)
                           }}
                           style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end', fontWeight: '600', fontSize: '0.78rem' }}
                         >
@@ -692,8 +656,11 @@ export default function AccountEnquiryModal({
                                   setStatementMetalCommodityEnabled(enabled)
                                   if (!enabled) {
                                     setStatementFilters((prev) => ({ ...prev, metalCommodity: '' }))
-                                  } else if (!statementFilters.metalCommodity) {
-                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: 'Gold' }))
+                                  } else {
+                                    setStatementFilters((prev) => ({
+                                      ...prev,
+                                      metalCommodity: prev.metalCommodity || statementMetalOptions[0] || 'Gold',
+                                    }))
                                   }
                                 }}
                                 style={{ cursor: 'pointer' }}
@@ -701,12 +668,11 @@ export default function AccountEnquiryModal({
                               Enable metal filter
                             </label>
                             <select
-                              value={statementFilters.metalCommodity || ''}
+                              value={statementFilters.metalCommodity || (statementMetalCommodityEnabled ? 'Gold' : '')}
                               onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
                               style={{ ...ERP_MODAL_INPUT_STYLE, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
                               disabled={!statementMetalCommodityEnabled}
                             >
-                              <option value="">All Metals</option>
                               {statementMetalOptions.map((metalOption) => (
                                 <option key={metalOption} value={metalOption}>{metalOption}</option>
                               ))}
