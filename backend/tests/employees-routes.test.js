@@ -478,7 +478,8 @@ describe('HR employees routes', () => {
       .query({ asOf: '2026-11-01' })
       .set('Authorization', `Bearer ${token}`)
     expect(blankAsOf.status).toBe(200)
-    expect((blankAsOf.body.employees || []).map((e) => e.name)).not.toContain('No Join Date')
+    // Missing joiningDate stays on the HR as-of list (duplicate / incomplete records).
+    expect((blankAsOf.body.employees || []).map((e) => e.name)).toContain('No Join Date')
   })
 
   test('next-code skips archived EMP numbers', async () => {
