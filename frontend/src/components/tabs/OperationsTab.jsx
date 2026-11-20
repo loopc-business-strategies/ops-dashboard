@@ -57,6 +57,7 @@ const TabLossLimits = lazy(() => import('./operations/TabLossLimits'))
 const TabLossReport = lazy(() => import('./operations/TabLossReport'))
 const TabBatchHistory = lazy(() => import('./operations/TabBatchHistory'))
 const TabSyncLog = lazy(() => import('./operations/TabSyncLog'))
+const TabAllocate = lazy(() => import('./operations/TabAllocate'))
 
 function OpsSubTabFallback() {
   return (
@@ -95,8 +96,12 @@ function LegacyOperationsTab({ tenantKey }) {
   const fmPending = fmAccess.canDecide ? fmAccess.pending : null
   const floorOnly = Boolean(perms.canApproveMgFloor) && !perms.canViewModule('operations')
   const TABS = useMemo(
-    () => getOpsTabs(t, { fm: fmPending == null ? null : { pending: fmPending }, floorOnly }),
-    [t, fmPending, floorOnly],
+    () => getOpsTabs(t, {
+      fm: fmPending == null ? null : { pending: fmPending },
+      floorOnly,
+      mg: tenantKey === 'mg',
+    }),
+    [t, fmPending, floorOnly, tenantKey],
   )
   const allowedIdsKey = TABS.map((tabItem) => tabItem.id).join(',')
   const allowedSubIds = useMemo(() => allowedIdsKey.split(','), [allowedIdsKey])
@@ -513,6 +518,11 @@ function LegacyOperationsTab({ tenantKey }) {
             mgFloorSync={fmAccess.canDecide}
             showLossLimits={tenantKey === 'mg'}
           />
+        </Suspense>
+      )}
+      {activeTab === 'allocate' && tenantKey === 'mg' && (
+        <Suspense fallback={<OpsSubTabFallback />}>
+          <TabAllocate showToast={showToast} tenantKey={tenantKey} />
         </Suspense>
       )}
       {activeTab === 'kpi' && (
