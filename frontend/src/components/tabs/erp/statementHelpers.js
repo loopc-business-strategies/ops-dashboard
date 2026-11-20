@@ -6,8 +6,12 @@ export const DEFAULT_STATEMENT_METAL_OPTIONS = [
   'Gold',
   'Silver',
   'Copper',
-  'Other',
 ]
+
+function isExcludedStatementMetalOption(name = '') {
+  const normalized = String(name || '').trim().toLowerCase()
+  return !normalized || normalized === 'other' || normalized === 'others' || normalized === 'misc'
+}
 
 export function isMetalStatementEntry(entry = {}) {
   const sourceType = String(entry?.sourceTransactionType || entry?.referenceType || entry?.metalDealType || '').toLowerCase()
@@ -76,16 +80,16 @@ export function resolveStatementMetalBalance(metals = {}, selectedMetalCode, ent
   }, 0)
 }
 
-/** Position labels from created stock types, always including Gold / Silver / Copper / Other. */
+/** Position labels from created stock types (Gold / Silver / Copper — never Other). */
 export function buildAccountSummaryPositionMetals(stockTypeOptions = []) {
   const created = Array.from(new Map(
     (stockTypeOptions || [])
       .map((stock) => String(stock?.mainStock || stock?.label || '').trim())
-      .filter(Boolean)
+      .filter((name) => !isExcludedStatementMetalOption(name))
       .map((name) => [name.toLowerCase(), name.replace(/\b\w/g, (ch) => ch.toUpperCase())]),
   ).values())
 
-  const preferred = ['Gold', 'Silver', 'Copper', 'Other']
+  const preferred = ['Gold', 'Silver', 'Copper']
   const ordered = []
   for (const name of preferred) {
     if (!ordered.some((item) => item.toLowerCase() === name.toLowerCase())) ordered.push(name)
@@ -190,15 +194,19 @@ export function buildStatementMetalOptions(stockTypeOptions = []) {
   const inventoryOptions = Array.from(new Map(
     (stockTypeOptions || [])
       .map((stock) => String(stock?.mainStock || '').trim())
-      .filter(Boolean)
+      .filter((mainStock) => !isExcludedStatementMetalOption(mainStock))
       .map((mainStock) => [mainStock.toLowerCase(), mainStock]),
   ).values())
 
-  // Prefer Gold first (Account Summary default), then created stock, then remaining defaults.
+  // Created stock only (no Other). Fall back to Gold/Silver/Copper when none created yet.
+  const source = inventoryOptions.length
+    ? inventoryOptions
+    : DEFAULT_STATEMENT_METAL_OPTIONS
+
   return Array.from(new Map(
-    ['Gold', ...inventoryOptions, ...DEFAULT_STATEMENT_METAL_OPTIONS]
+    ['Gold', ...source]
       .map((name) => [String(name).trim().toLowerCase(), String(name).trim()])
-      .filter(([, name]) => Boolean(name)),
+      .filter(([, name]) => !isExcludedStatementMetalOption(name)),
   ).values())
 }
 

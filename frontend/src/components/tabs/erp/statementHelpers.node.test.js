@@ -153,22 +153,29 @@ describe('statement helpers', () => {
     })).toBe('USD')
   })
 
-  test('always includes standard and other metal choices', () => {
+  test('shows created metals only and never Other', () => {
     const options = buildStatementMetalOptions([
       { mainStock: 'Gold' },
       { mainStock: 'Copper' },
       { mainStock: 'Gold' },
+      { mainStock: 'Other' },
     ])
 
-    expect(options).toEqual(['Gold', 'Copper', 'Silver', 'Other'])
-    expect(buildStatementMetalOptions([{ mainStock: 'Copper' }, { mainStock: 'Silver' }])[0]).toBe('Gold')
+    expect(options).toEqual(['Gold', 'Copper'])
+    expect(buildStatementMetalOptions([{ mainStock: 'Copper' }, { mainStock: 'Silver' }])).toEqual([
+      'Gold',
+      'Copper',
+      'Silver',
+    ])
+    expect(buildStatementMetalOptions([])).toEqual(['Gold', 'Silver', 'Copper'])
   })
 
-  test('position metals always include Gold Silver Copper Other then created stock', () => {
+  test('position metals include Gold Silver Copper then created stock, never Other', () => {
     expect(buildAccountSummaryPositionMetals([
       { mainStock: 'Copper' },
       { mainStock: 'Platinum' },
-    ])).toEqual(['Gold', 'Silver', 'Copper', 'Other', 'Platinum'])
+      { mainStock: 'Other' },
+    ])).toEqual(['Gold', 'Silver', 'Copper', 'Platinum'])
   })
 
   test('matches selected gold, silver, copper, and other metal entries', () => {
