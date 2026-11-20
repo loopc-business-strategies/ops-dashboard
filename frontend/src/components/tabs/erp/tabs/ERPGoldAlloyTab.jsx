@@ -812,6 +812,14 @@ export default function ERPGoldAlloyTab({
         })
       }
 
+      // Capture batch before reverse so Update reuses BMG-0001 instead of minting BMG-0002.
+      const reuseMixCode = String(
+        mixJobsByReason[String(updatePosted.reason || '').trim()]?.mixCode
+        || updatePosted.mixCode
+        || updatePosted.batchNumber
+        || '',
+      ).trim().toUpperCase()
+
       if (!historyOnly) {
         const reversed = await reversePostedMix(updatePosted, { skipConfirm: true })
         if (!reversed) return
@@ -827,6 +835,7 @@ export default function ERPGoldAlloyTab({
           targetGross: nextTarget,
           status: 'updated',
         }),
+        reuseMixCode,
       })
       const result = await erpAccountingAPI.postAlloyMix(token, payload)
       if (typeof showNotification === 'function') {
@@ -935,6 +944,15 @@ export default function ERPGoldAlloyTab({
     }
     try {
       setPosting(true)
+      // Capture batch before reverse so Edit keeps the same BMG number.
+      const reuseMixCode = editingPosted
+        ? String(
+          mixJobsByReason[String(editingPosted.reason || '').trim()]?.mixCode
+          || editingPosted.mixCode
+          || editingPosted.batchNumber
+          || '',
+        ).trim().toUpperCase()
+        : ''
       // Active Edit reverses first. History Edit is already reversed — skip reverse.
       if (editingPosted && !editingPosted.isHistory) {
         const reversed = await reversePostedMix(editingPosted, { skipConfirm: true })
@@ -954,6 +972,7 @@ export default function ERPGoldAlloyTab({
               targetGross,
               status: 'posted',
             }),
+            reuseMixCode,
           }
           : {}),
       })

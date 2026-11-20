@@ -283,23 +283,49 @@ async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
   return n
 }
 
-/** Next mix/batch code: BMG-0001, BMG-0002, … continuing in order across days. */
+/** Archive a live BMG code so Update can reuse the same batch number. */
+function archiveMixCode(mixCode = '') {
+  const code = String(mixCode || '').trim().toUpperCase()
+  if (!code) return code
+  if (code.includes('__REV__')) return code
+  return `${code}__REV__${Date.now()}`
+}
+
+function parseMixCodeSequence(mixCode = '', prefix = MIX_CODE_PREFIX) {
+  const m = String(mixCode || '').trim().toUpperCase()
+    .match(new RegExp(`^${prefix}(\\d+)`, 'i'))
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Next mix/batch code: BMG-0001, BMG-0002, … (counts archived __REV__ codes too). */
 async function nextMixCode(session) {
   const prefix = MIX_CODE_PREFIX
-  const last = await withSession(
-    AlloyMixJob.findOne({ mixCode: new RegExp(`^${prefix}\\d+$`, 'i') })
-      .sort({ mixCode: -1 })
+  const rows = await withSession(
+    AlloyMixJob.find({ mixCode: new RegExp(`^${prefix}\\d+`, 'i') })
       .select('mixCode')
       .lean(),
     session,
   )
   let seq = 1
-  if (last?.mixCode) {
-    const part = String(last.mixCode).split('-').pop()
-    const n = parseInt(part, 10)
-    if (Number.isFinite(n)) seq = n + 1
+  for (const row of rows || []) {
+    const n = parseMixCodeSequence(row?.mixCode, prefix)
+    if (n != null) seq = Math.max(seq, n + 1)
   }
   return `${prefix}${String(seq).padStart(4, '0')}`
+}
+
+async function resolveMixCode({ session, preferredMixCode = '' } = {}) {
+  const preferred = String(preferredMixCode || '').trim().toUpperCase()
+  if (preferred && parseMixCodeSequence(preferred) != null) {
+    const clash = await withSession(
+      AlloyMixJob.findOne({ mixCode: preferred }).select('_id').lean(),
+      session,
+    )
+    if (!clash) return preferred
+  }
+  return nextMixCode(session)
 }
 
 /**
@@ -311,6 +337,7 @@ async function createJobFromPostedMix({
   postResult,
   karat,
   finishedPurity = null,
+  preferredMixCode = '',
 } = {}) {
   if (!postResult?.success || !postResult?.finishedProduct?.id) {
     return null
@@ -325,7 +352,8 @@ async function createJobFromPostedMix({
   const actorId = user?._id || null
   const actorName = user?.name || ''
 
-  const mixCode = await nextMixCode(session)
+  // Update mix passes preferredMixCode so the same BMG batch is reused.
+  const mixCode = await resolveMixCode({ session, preferredMixCode })
   const purityLabel = finishedPurity != null && Number(finishedPurity) > 0
     ? String(Math.round(Number(finishedPurity) * 1000) / 10)
     : ''
@@ -514,12 +542,26 @@ async function closeSingleJobRecord(job, {
 } = {}) {
   if (!job || job.isDeleted || job.status === 'closed') return job
 
+  const liveMixCode = String(job.mixCode || '').trim().toUpperCase()
+  const archivedCode = archiveMixCode(liveMixCode)
+
   if (job.stockLotId) {
     const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
     if (lot && String(lot.status || '') !== 'CANCELLED') {
       const fromStatus = lot.status
       lot.status = 'CANCELLED'
-      lot.remarks = `${lot.remarks || ''} | Reversed alloy mix ${job.mixCode}`.trim()
+      // Free stockCode so Update can recreate a vault lot under the same BMG batch.
+      if (archivedCode && archivedCode !== liveMixCode
+        && String(lot.stockCode || '').toUpperCase() === liveMixCode) {
+        lot.stockCode = archivedCode
+        if (String(lot.batchNumber || '').toUpperCase() === liveMixCode) {
+          lot.batchNumber = archivedCode
+        }
+        if (String(lot.purchaseRef || '').toUpperCase() === liveMixCode) {
+          lot.purchaseRef = archivedCode
+        }
+      }
+      lot.remarks = `${lot.remarks || ''} | Reversed alloy mix ${liveMixCode}`.trim()
       await lot.save(writeOpts(session))
       await ProductionStockStatusEvent.create(
         [
@@ -528,7 +570,7 @@ async function closeSingleJobRecord(job, {
             stockCode: lot.stockCode,
             fromStatus,
             toStatus: 'CANCELLED',
-            reason: `Alloy mix reversed ${job.mixCode}`,
+            reason: `Alloy mix reversed ${liveMixCode}`,
             actorId: user?._id || null,
             actorName: user?.name || '',
           },
@@ -540,17 +582,25 @@ async function closeSingleJobRecord(job, {
 
   await softDeleteOpsForMix({
     session,
-    mixCode: job.mixCode,
+    mixCode: liveMixCode,
     actor: user,
-    reason: reason || `Reversed ${job.mixCode}`,
+    reason: reason || `Reversed ${liveMixCode}`,
   })
+
+  // Free BMG-#### for Update mix reuse (unique index). Keep archive for audit / nextMixCode.
+  if (archivedCode && archivedCode !== liveMixCode) {
+    job.mixCode = archivedCode
+    if (job.stockCode && String(job.stockCode).toUpperCase() === liveMixCode) {
+      job.stockCode = archivedCode
+    }
+  }
 
   job.status = 'closed'
   job.closedAt = new Date()
   job.isDeleted = true
   job.deletedAt = new Date()
   job.deletedBy = user?._id || null
-  job.deleteReason = reason ? `Reversed: ${reason}` : `Reversed: ${job.mixCode}`
+  job.deleteReason = reason ? `Reversed: ${reason}` : `Reversed: ${liveMixCode}`
   job.updatedById = user?._id || null
   job.updatedByName = user?.name || ''
   job.history.push({
@@ -558,7 +608,9 @@ async function closeSingleJobRecord(job, {
     action: 'close',
     fromDepartment: job.currentDepartment,
     toDepartment: '',
-    note,
+    note: archivedCode !== liveMixCode
+      ? `${note} · archived ${liveMixCode} → ${archivedCode}`
+      : note,
     actorId: user?._id || null,
     actorName: user?.name || '',
   })

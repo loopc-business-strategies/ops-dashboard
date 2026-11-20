@@ -56,6 +56,8 @@ const alloyMixSchema = Joi.object({
     label: Joi.string().trim().allow('').max(80).optional(),
   })).min(1).required(),
   description: Joi.string().trim().allow('').max(1000).optional(),
+  /** Update/Edit: reuse prior BMG batch instead of minting BMG-0002. */
+  reuseMixCode: Joi.string().trim().uppercase().pattern(/^BMG-\d+$/).allow('', null).optional(),
 })
 const alloyMixReverseSchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).required(),
@@ -454,6 +456,7 @@ function registerInventoryRoutes(deps) {
         finishedProductId: req.body.finishedProductId,
         lines: req.body.lines,
         description: req.body.description,
+        reuseMixCode: req.body.reuseMixCode,
       })
       emitAlloyMixProductionUpdate(req, 'alloy-mix-post', {
         mixCode: result?.mixJob?.mixCode || null,
