@@ -27,15 +27,16 @@ const pane = {
 const scrollBox = {
   maxHeight: TABLE_VIEWPORT_H,
   overflowY: 'auto',
-  overflowX: 'auto',
+  overflowX: 'hidden',
 }
 
+/** Fit every column in the viewport — no horizontal scroll; clip overflow inside cells. */
 const table = {
   width: '100%',
-  minWidth: 2340,
+  tableLayout: 'fixed',
   borderCollapse: 'separate',
   borderSpacing: 0,
-  fontSize: '0.88rem',
+  fontSize: '0.8rem',
   color: '#0F172A',
 }
 
@@ -46,29 +47,36 @@ const thBase = {
   background: '#E2E8F0',
   borderBottom: '1px solid #94A3B8',
   borderRight: '1px solid #CBD5E1',
-  padding: '0.45rem 0.55rem',
+  padding: '0.32rem 0.22rem',
   fontWeight: 700,
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
+  lineHeight: 1.2,
+  hyphens: 'auto',
   textAlign: 'left',
   userSelect: 'none',
+  overflow: 'hidden',
 }
 
 const tdBase = {
   borderBottom: '1px solid #E2E8F0',
   borderRight: '1px solid #E2E8F0',
-  padding: '0.3rem 0.35rem',
+  padding: '0.28rem 0.22rem',
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  maxWidth: 0,
 }
 
 const inputStyle = {
   width: '100%',
-  minWidth: 72,
+  minWidth: 0,
+  maxWidth: '100%',
   boxSizing: 'border-box',
   border: '1px solid #CBD5E1',
   borderRadius: 4,
-  padding: '0.25rem 0.35rem',
-  fontSize: '0.85rem',
+  padding: '0.2rem 0.25rem',
+  fontSize: '0.78rem',
   fontFamily: 'inherit',
   color: '#0F172A',
   background: '#FFFFFF',
@@ -77,27 +85,51 @@ const inputStyle = {
 const btnBase = {
   border: '1px solid #94A3B8',
   borderRadius: 4,
-  padding: '0.2rem 0.45rem',
-  fontSize: '0.75rem',
+  padding: '0.15rem 0.32rem',
+  fontSize: '0.7rem',
   fontWeight: 700,
   cursor: 'pointer',
   background: '#F8FAFC',
   color: '#0F172A',
-  marginRight: 4,
+  marginRight: 0,
+  flexShrink: 0,
 }
 
 const actionsTh = {
   ...thBase,
-  width: 190,
-  minWidth: 190,
+  width: '9%',
   whiteSpace: 'nowrap',
 }
 
 const actionsTd = {
   ...tdBase,
-  width: 190,
-  minWidth: 190,
-  whiteSpace: 'nowrap',
+  width: '9%',
+  maxWidth: 'none',
+  textOverflow: 'clip',
+  overflow: 'hidden',
+}
+
+/** Compact header labels so columns fit with readable body text. */
+const SHORT_HEADERS = {
+  date: 'Date',
+  batch: 'Batch',
+  metalIn: 'IN',
+  purity: 'Pur IN',
+  fineGold: 'FG IN',
+  metalOut: 'OUT',
+  purityOut: 'Pur OUT',
+  fineGoldOut: 'FG OUT',
+  metalLoss: 'Loss',
+  lossPct: 'Loss%',
+  fineLoss: 'FG Loss',
+  timeBatch: 'Time',
+  batchStarted: 'Start',
+  batchOver: 'Over',
+  departmentManager: 'Mgr',
+  employee: 'Emp',
+  rating: 'Rate',
+  breakdown: 'Brk',
+  requests: 'Req',
 }
 
 const footerBar = {
@@ -110,14 +142,16 @@ const footerBar = {
 }
 
 const floorBadge = {
-  marginLeft: 6,
-  padding: '0.05rem 0.35rem',
+  flexShrink: 0,
+  marginLeft: 4,
+  padding: '0.05rem 0.3rem',
   borderRadius: 999,
   background: '#FFEDD5',
   border: '1px solid #FDBA74',
   color: '#9A3412',
-  fontSize: '0.68rem',
+  fontSize: '0.65rem',
   fontWeight: 800,
+  whiteSpace: 'nowrap',
 }
 
 const alloyBadge = {
@@ -125,6 +159,31 @@ const alloyBadge = {
   background: '#FFFBEB',
   border: '1px solid #F59E0B',
   color: '#92400E',
+}
+
+const batchCellWrap = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  maxWidth: '100%',
+  minWidth: 0,
+  overflow: 'hidden',
+  verticalAlign: 'middle',
+}
+
+const batchText = {
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  minWidth: 0,
+}
+
+const actionsRow = {
+  display: 'flex',
+  flexWrap: 'nowrap',
+  alignItems: 'center',
+  gap: 3,
+  maxWidth: '100%',
+  overflow: 'hidden',
 }
 
 const totalTd = {
@@ -208,15 +267,15 @@ function cellDisplay(row, key, lossLimitPct = null) {
     if (row.fromGoldAlloy) {
       const mixLabel = row.alloyMixCode || row.batch || '—'
       return (
-        <span title={`Gold Alloy mix ${mixLabel} — metal fields are read-only`}>
-          {mixLabel}
+        <span style={batchCellWrap} title={`Gold Alloy mix ${mixLabel} — metal fields are read-only`}>
+          <span style={batchText}>{mixLabel}</span>
           <span style={alloyBadge}>Gold Alloy</span>
         </span>
       )
     }
     return (
-      <span title="From an approved MG Floor batch — metal, times and names are read-only">
-        {row.batch ?? '—'}
+      <span style={batchCellWrap} title="From an approved MG Floor batch — metal, times and names are read-only">
+        <span style={batchText}>{row.batch ?? '—'}</span>
         <span style={floorBadge}>MG Floor</span>
       </span>
     )
@@ -469,7 +528,7 @@ export default function DepartmentTable({
           max="100"
           step="0.01"
           aria-label={key === 'purity' ? 'Purity IN %' : 'Purity OUT %'}
-          style={{ ...inputStyle, textAlign: 'right', minWidth: 72 }}
+          style={{ ...inputStyle, textAlign: 'right' }}
           value={draft[key] == null ? '' : draft[key]}
           onChange={(e) => {
             const v = e.target.value
@@ -496,7 +555,7 @@ export default function DepartmentTable({
           type="number"
           min="0"
           step="0.01"
-          style={{ ...inputStyle, textAlign: 'right', minWidth: 88 }}
+          style={{ ...inputStyle, textAlign: 'right' }}
           value={draft[key] == null ? '' : draft[key]}
           onChange={(e) => {
             const v = e.target.value
@@ -510,7 +569,7 @@ export default function DepartmentTable({
       return (
         <input
           type="datetime-local"
-          style={{ ...inputStyle, minWidth: 160 }}
+          style={inputStyle}
           value={toDatetimeLocal(draft.batchStartedRaw)}
           onChange={(e) => setField(row, { batchStartedRaw: fromDatetimeLocal(e.target.value) })}
         />
@@ -521,7 +580,7 @@ export default function DepartmentTable({
       return (
         <input
           type="datetime-local"
-          style={{ ...inputStyle, minWidth: 160 }}
+          style={inputStyle}
           value={toDatetimeLocal(draft.batchOverRaw)}
           onChange={(e) => setField(row, { batchOverRaw: fromDatetimeLocal(e.target.value) })}
         />
@@ -543,7 +602,7 @@ export default function DepartmentTable({
     return (
       <input
         type="text"
-        style={{ ...inputStyle, minWidth: key === 'breakdown' || key === 'requests' ? 120 : 90 }}
+        style={inputStyle}
         value={display}
         onChange={(e) => setField(row, { [field]: e.target.value })}
       />
@@ -561,46 +620,59 @@ export default function DepartmentTable({
         key={row.id || idx}
         style={{ background: rowBg }}
       >
-        {SHEET_COLUMNS.map((col) => (
-          <td
-            key={col.key}
-            style={{
-              ...tdBase,
-              textAlign: col.align || 'left',
-              fontWeight: 500,
-              fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
-            }}
-          >
-            {editing ? renderEditableCell(row, col) : cellDisplay(displayRow, col.key, lossLimitPct)}
-          </td>
-        ))}
+        {SHEET_COLUMNS.map((col) => {
+          const text = editing ? null : cellDisplay(displayRow, col.key, lossLimitPct)
+          const longTextKeys = new Set([
+            'date', 'batch', 'batchStarted', 'batchOver',
+            'departmentManager', 'employee', 'breakdown', 'requests',
+          ])
+          const tip = !editing && longTextKeys.has(col.key) && (typeof text === 'string' || typeof text === 'number')
+            ? String(text)
+            : undefined
+          return (
+            <td
+              key={col.key}
+              title={tip}
+              style={{
+                ...tdBase,
+                textAlign: col.align || 'left',
+                fontWeight: 500,
+                fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
+              }}
+            >
+              {editing ? renderEditableCell(row, col) : text}
+            </td>
+          )
+        })}
         {editable ? (
           <td style={actionsTd}>
-            <button
-              type="button"
-              style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
-              disabled={busy || editing}
-              onClick={() => startEdit(row)}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
-              disabled={busy || !editing}
-              onClick={() => handleSave(row)}
-            >
-              {busy ? '…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B', marginRight: 0 }}
-              disabled={busy || row.fromFloor}
-              title={row.fromFloor ? 'Rows from approved MG Floor batches cannot be deleted' : undefined}
-              onClick={() => onDeleteRow?.(row)}
-            >
-              Del
-            </button>
+            <div style={actionsRow}>
+              <button
+                type="button"
+                style={{ ...btnBase, background: '#DBEAFE', borderColor: '#93C5FD' }}
+                disabled={busy || editing}
+                onClick={() => startEdit(row)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                style={{ ...btnBase, background: '#DCFCE7', borderColor: '#86EFAC' }}
+                disabled={busy || !editing}
+                onClick={() => handleSave(row)}
+              >
+                {busy ? '…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                style={{ ...btnBase, background: '#FEE2E2', borderColor: '#FECACA', color: '#991B1B' }}
+                disabled={busy || row.fromFloor}
+                title={row.fromFloor ? 'Rows from approved MG Floor batches cannot be deleted' : undefined}
+                onClick={() => onDeleteRow?.(row)}
+              >
+                Del
+              </button>
+            </div>
           </td>
         ) : null}
       </tr>
@@ -616,12 +688,13 @@ export default function DepartmentTable({
               {SHEET_COLUMNS.map((col) => (
                 <th
                   key={col.key}
+                  title={col.label}
                   style={{ ...thBase, textAlign: col.align || 'left', cursor: col.sortable ? 'pointer' : 'default' }}
                   onClick={() => col.sortable && toggleSort(col.key)}
                 >
-                  {col.label}
+                  {SHORT_HEADERS[col.key] || col.label}
                   {col.sortable ? (
-                    <span style={{ marginLeft: 4, opacity: sortKey === col.key ? 1 : 0.35, fontSize: '0.7rem' }}>
+                    <span style={{ marginLeft: 2, opacity: sortKey === col.key ? 1 : 0.35, fontSize: '0.65rem' }}>
                       {sortKey === col.key ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
                     </span>
                   ) : null}

@@ -11,7 +11,7 @@ const groupWrap = {
 
 const headerBar = {
   display: 'flex',
-  flexWrap: 'nowrap',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: '0.55rem 0.75rem',
   width: '100%',
@@ -21,7 +21,7 @@ const headerBar = {
   background: '#F1F5F9',
   padding: '0.55rem 0.85rem',
   color: '#0F172A',
-  overflowX: 'auto',
+  overflowX: 'hidden',
 }
 
 const headerBarOpen = {
