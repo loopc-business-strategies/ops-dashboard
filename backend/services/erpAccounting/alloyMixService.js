@@ -220,6 +220,7 @@ function createAlloyMixService({
     finishedProductId,
     lines = [],
     description = '',
+    reuseMixCode = '',
   } = {}) {
     const tenantKey = String(tenant || '').trim().toLowerCase()
     if (!allowedTenants.includes(tenantKey)) {
@@ -575,6 +576,7 @@ function createAlloyMixService({
           postResult: erpResult,
           karat: karatNum,
           finishedPurity,
+          preferredMixCode: reuseMixCode,
         })
         if (bridged?.job) {
           mixJob = {

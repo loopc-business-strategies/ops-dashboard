@@ -531,7 +531,9 @@ export function buildAlloyMixPayload({
   finishedProductId,
   lines = [],
   description = '',
+  reuseMixCode = '',
 } = {}) {
+  const reuse = String(reuseMixCode || '').trim().toUpperCase()
   return {
     karat: Number(karat),
     targetGross: Number(targetGross),
@@ -555,6 +557,7 @@ export function buildAlloyMixPayload({
       return payload
     }),
     ...(description ? { description: String(description) } : {}),
+    ...(reuse ? { reuseMixCode: reuse } : {}),
   }
 }
 

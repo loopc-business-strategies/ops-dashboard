@@ -407,6 +407,64 @@ describe('alloy-mix HTTP routes', () => {
     expect(clearRes.status).toBe(200)
   })
 
+  test('update reuses same BMG batch; new mix gets next number', async () => {
+    const { user, fineGold, silver, finished } = await seedHttpFixture()
+    const headers = authHeader(user)
+
+    const post1 = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix')
+      .set(headers)
+      .send({
+        karat: 14,
+        targetGross: 80,
+        finishedProductId: String(finished._id),
+        lines: [
+          { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+          { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+        ],
+      })
+    expect(post1.status).toBe(201)
+    expect(post1.body.mixJob?.mixCode).toBe('BMG-0001')
+    const reason1 = post1.body.reason
+
+    const reverse1 = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix/reverse')
+      .set(headers)
+      .send({ reason: reason1 })
+    expect(reverse1.status).toBe(200)
+
+    const updatePost = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix')
+      .set(headers)
+      .send({
+        karat: 14,
+        targetGross: 80,
+        finishedProductId: String(finished._id),
+        reuseMixCode: 'BMG-0001',
+        lines: [
+          { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+          { itemId: String(silver._id), gross: 35, role: 'silver', label: 'silver' },
+        ],
+      })
+    expect(updatePost.status).toBe(201)
+    expect(updatePost.body.mixJob?.mixCode).toBe('BMG-0001')
+
+    const post2 = await request(app)
+      .post('/api/erp-accounting/inventory/alloy-mix')
+      .set(headers)
+      .send({
+        karat: 14,
+        targetGross: 40,
+        finishedProductId: String(finished._id),
+        lines: [
+          { itemId: String(fineGold._id), gross: 25, role: 'gold', label: 'gold' },
+          { itemId: String(silver._id), gross: 18, role: 'silver', label: 'silver' },
+        ],
+      })
+    expect(post2.status).toBe(201)
+    expect(post2.body.mixJob?.mixCode).toBe('BMG-0002')
+  })
+
   test('forbidden without inventory write role', async () => {
     const viewer = await User.create({
       name: 'alloy-viewer',
