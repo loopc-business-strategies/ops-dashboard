@@ -218,6 +218,16 @@ describe('alloy-mix HTTP routes', () => {
     expect(vaultAfterOut).toHaveLength(1)
     expect(vaultAfterOut[0].metalIn).toBe(vaultAfterOut[0].metalOut)
 
+    // Melting shows Metal IN as soon as Vault allocates (before receive Approve).
+    const meltingBeforeRecv = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'melting',
+      source: 'gold_alloy',
+    }).lean()
+    expect(meltingBeforeRecv).toHaveLength(1)
+    expect(meltingBeforeRecv[0].metalIn).toBeGreaterThan(0)
+    expect(meltingBeforeRecv[0].metalOut == null).toBe(true)
+
     const recvRes = await request(app)
       .post(`/api/mg-floor/alloy-mix-jobs/${jobId}/receive`)
       .set(headers)
@@ -230,6 +240,7 @@ describe('alloy-mix HTTP routes', () => {
       departmentKey: 'melting',
       source: 'gold_alloy',
     }).lean()
+    // Receive must not create a second Melting visit.
     expect(meltingRows).toHaveLength(1)
     expect(meltingRows[0].metalIn).toBeGreaterThan(0)
 
@@ -253,6 +264,69 @@ describe('alloy-mix HTTP routes', () => {
     }).lean()
     expect(meltingAfterReturn).toHaveLength(1)
     expect(meltingAfterReturn[0].metalOut).toBe(meltingAfterReturn[0].metalIn)
+
+    const vaultAfterReturn = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'vault_room',
+      source: 'gold_alloy',
+    }).lean()
+    expect(vaultAfterReturn).toHaveLength(2)
+    const openVault = vaultAfterReturn.find((r) => r.metalOut == null)
+    expect(openVault?.metalIn).toBeGreaterThan(0)
+
+    const toBangle = await request(app)
+      .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${jobId}/allocate`)
+      .set(headers)
+      .send({ toDepartment: 'bangle_area' })
+    expect(toBangle.status).toBe(200)
+    expect(toBangle.body.job.currentDepartment).toBe('bangle_area')
+
+    // Melting visit history stays after Vault → Bangle.
+    const meltingAfterBangle = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'melting',
+      source: 'gold_alloy',
+    }).lean()
+    expect(meltingAfterBangle).toHaveLength(1)
+    expect(meltingAfterBangle[0].metalOut).toBe(meltingAfterBangle[0].metalIn)
+
+    const bangleRows = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'bangle_area',
+      source: 'gold_alloy',
+    }).lean()
+    expect(bangleRows).toHaveLength(1)
+    expect(bangleRows[0].metalIn).toBeGreaterThan(0)
+    expect(bangleRows[0].metalOut == null).toBe(true)
+
+    const recvBangle = await request(app)
+      .post(`/api/mg-floor/alloy-mix-jobs/${jobId}/receive`)
+      .set(headers)
+      .send({ decision: 'APPROVED' })
+    expect(recvBangle.status).toBe(200)
+    expect(recvBangle.body.job.status).toBe('in_department')
+    const bangleAfterRecv = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'bangle_area',
+      source: 'gold_alloy',
+    }).lean()
+    expect(bangleAfterRecv).toHaveLength(1)
+
+    // Return to vault so reverse is allowed (active floor custody blocks reverse).
+    const backVault = await request(app)
+      .post(`/api/erp-accounting/inventory/alloy-mix/jobs/${jobId}/allocate`)
+      .set(headers)
+      .send({ toDepartment: 'vault_room' })
+    expect(backVault.status).toBe(200)
+    expect(backVault.body.job.currentDepartment).toBe('vault_room')
+
+    const bangleClosed = await OperationsProductionEntry.find({
+      alloyMixCode: 'BMG-0001',
+      departmentKey: 'bangle_area',
+      source: 'gold_alloy',
+    }).lean()
+    expect(bangleClosed).toHaveLength(1)
+    expect(bangleClosed[0].metalOut).toBe(bangleClosed[0].metalIn)
 
     const reverseRes = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/reverse')
