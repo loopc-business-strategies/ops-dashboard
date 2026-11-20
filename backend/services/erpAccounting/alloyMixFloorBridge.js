@@ -103,6 +103,14 @@ async function findOpenAlloyOpsVisit({ session, mixCode, departmentKey }) {
   )
 }
 
+/** Drop an open dest visit (allocate wrote IN; receive was rejected). */
+async function removeOpenAlloyOpsVisit({ session, mixCode, departmentKey }) {
+  const open = await findOpenAlloyOpsVisit({ session, mixCode, departmentKey })
+  if (!open) return null
+  await open.deleteOne(writeOpts(session))
+  return open
+}
+
 /**
  * Merge legacy split rows (opsKey used to include :in: / :out:) onto one visit per
  * mix + department. Safe to repeat.
@@ -745,7 +753,8 @@ async function allocateMixJob({
   await mergeSplitAlloyOpsRows({ session, mixCode: job.mixCode })
 
   const action = dest === VAULT ? 'return_vault' : 'allocate'
-  /** Floor dests wait for receive Approve/Reject; vault return is immediate. */
+  /** Floor dests wait for receive Approve/Reject; vault return is immediate.
+   * Ops Metal IN is written for every dest at allocate so visit history shows. */
   const offerReceive = dest !== VAULT
   const childStatus = dest === VAULT ? 'in_vault' : 'pending_receive'
 
@@ -856,22 +865,21 @@ async function allocateMixJob({
       actor: user,
       stamp,
     })
-    // Dest Metal IN / lot touch wait until receive Approve (except vault).
-    if (!offerReceive) {
-      await upsertOpsRow({
-        session,
-        mixCode: child.mixCode,
-        departmentKey: dest,
-        date,
-        batchNumber: child.mixCode,
-        side: 'in',
-        weight: moveWeight,
-        purity: purityPct,
-        fineGold,
-        actor: user,
-        stamp,
-      })
-    }
+    // Dest Metal IN always — every department keeps a visit row (Vault, Melting, Bangle…).
+    // Floor still waits for receive Approve before status becomes in_department.
+    await upsertOpsRow({
+      session,
+      mixCode: child.mixCode,
+      departmentKey: dest,
+      date,
+      batchNumber: child.mixCode,
+      side: 'in',
+      weight: moveWeight,
+      purity: purityPct,
+      fineGold,
+      actor: user,
+      stamp,
+    })
 
     job.targetGross = remainWeight
     job.inputComponents = remainInputs
@@ -904,21 +912,21 @@ async function allocateMixJob({
     actor: user,
     stamp,
   })
-  if (!offerReceive) {
-    await upsertOpsRow({
-      session,
-      mixCode: job.mixCode,
-      departmentKey: dest,
-      date,
-      batchNumber: job.mixCode,
-      side: 'in',
-      weight: moveWeight,
-      purity: purityPct,
-      fineGold,
-      actor: user,
-      stamp,
-    })
-  }
+  // Dest Metal IN always — Melting/Bangle/etc keep the visit as soon as metal is sent,
+  // same as Vault return. Receive Approve no longer creates a second IN.
+  await upsertOpsRow({
+    session,
+    mixCode: job.mixCode,
+    departmentKey: dest,
+    date,
+    batchNumber: job.mixCode,
+    side: 'in',
+    weight: moveWeight,
+    purity: purityPct,
+    fineGold,
+    actor: user,
+    stamp,
+  })
 
   job.history.push({
     at: new Date(),
@@ -952,9 +960,9 @@ async function allocateMixJob({
 
 /**
  * Destination department Accept/Reject an offered alloy mix (pending_receive).
- * Approve → in_department + gold_alloy Ops IN + seed Metal In for FM approval
- * (FM approve attaches to that Ops row — does not create a second Melting Metal IN).
- * Reject → return to pendingFromDepartment (usually vault).
+ * Allocate already wrote dest gold_alloy Ops Metal IN (visit ledger). Approve →
+ * in_department + seed Metal In for FM (attaches to that Ops row — no second IN).
+ * Reject → return to pendingFromDepartment and drop the open dest Ops visit.
  */
 async function receiveMixJob({
   user,
@@ -997,6 +1005,11 @@ async function receiveMixJob({
   const noteText = String(note || '').trim()
 
   if (decided === 'REJECTED') {
+    await removeOpenAlloyOpsVisit({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: dest,
+    })
     job.history.push({
       at: new Date(),
       action: 'receive_reject',
@@ -1023,19 +1036,28 @@ async function receiveMixJob({
     return { job, decision: decided, metalInEntry: null }
   }
 
-  await upsertOpsRow({
+  // Metal IN was written at allocate so Melting/Bangle already show the visit.
+  // Only create IN if missing (older allocate path / heal).
+  const openDestVisit = await findOpenAlloyOpsVisit({
     session,
     mixCode: job.mixCode,
     departmentKey: dest,
-    date,
-    batchNumber: job.mixCode,
-    side: 'in',
-    weight,
-    purity: purityPct,
-    fineGold,
-    actor: user,
-    stamp,
   })
+  if (!openDestVisit) {
+    await upsertOpsRow({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: dest,
+      date,
+      batchNumber: job.mixCode,
+      side: 'in',
+      weight,
+      purity: purityPct,
+      fineGold,
+      actor: user,
+      stamp,
+    })
+  }
 
   job.history.push({
     at: new Date(),
