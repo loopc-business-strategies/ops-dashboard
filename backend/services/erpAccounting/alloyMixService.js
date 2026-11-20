@@ -64,7 +64,8 @@ function resolveLossMetalStockCode({ role = '', label = '', name = '', category 
   if (/\b(silv|xag|ag)\b/.test(blob) || blob.includes('silver')) return 'XAG'
   if (/\b(plat|xpt)\b/.test(blob) || blob.includes('platinum')) return 'XPT'
   if (/\b(pall|xpd)\b/.test(blob) || blob.includes('palladium')) return 'XPD'
-  // Copper / base alloy — still tracked as gold bucket unless clearly silver.
+  // Copper must stay XCU so Metal Loss Gold/Copper filters and Position split correctly.
+  if (/\b(copp|xcu|cu)\b/.test(blob) || blob.includes('copper')) return 'XCU'
   return 'XAU'
 }
 

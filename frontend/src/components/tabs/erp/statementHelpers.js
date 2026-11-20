@@ -35,13 +35,14 @@ export function resolveMetalCodeFromStockName(name) {
 
 export function resolveStatementMetalCode(entry = {}) {
   const explicit = String(entry?.metalCode || '').trim().toUpperCase()
+  const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
+  // Narration wins for copper when AML historically tagged copper loss as metalCode XAU.
+  if (/\bxcu\b|\bcopper\b/.test(text)) return 'COPPER'
   if (explicit === 'XCU') return 'COPPER'
   if (explicit) return explicit
 
-  const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
   if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
   if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
-  if (/\bxcu\b|\bcopper\b|\b\s*cu\b/.test(text)) return 'COPPER'
   if (/\bxpt\b|\bplatinum\b/.test(text)) return 'XPT'
   if (/\bxpd\b|\bpalladium\b/.test(text)) return 'XPD'
 
