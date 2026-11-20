@@ -46,8 +46,17 @@ function canDecide(user) {
   return hasProductionPermission(user, 'approvePass')
 }
 
+function isSuperAdmin(user) {
+  return String(user?.role || '').toLowerCase() === 'super_admin'
+}
+
 function isSameUser(a, b) {
   return a != null && b != null && String(a) === String(b)
+}
+
+/** Floor/Production managers cannot self-approve; Super Admin may for demo / cover. */
+function blocksSelfDecision(user, entryEmployeeId) {
+  return isSameUser(entryEmployeeId, user?._id) && !isSuperAdmin(user)
 }
 
 function batchExistsError({ batchLabel, direction, entryDate }) {
@@ -271,7 +280,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
   }
   const current = await FloorBatchEntry.findById(id).lean()
   if (!current) throw new ProductionError('Entry not found', 404)
-  if (isSameUser(current.employeeId, user?._id)) {
+  if (blocksSelfDecision(user, current.employeeId)) {
     throw new ProductionError('You cannot approve or reject a batch you sent yourself', 403)
   }
   if (current.status !== 'PENDING') {
@@ -504,7 +513,7 @@ async function undoApproval(req, id, reason = '') {
   }
   const current = await FloorBatchEntry.findById(id).lean()
   if (!current) throw new ProductionError('Entry not found', 404)
-  if (isSameUser(current.employeeId, user?._id)) {
+  if (blocksSelfDecision(user, current.employeeId)) {
     throw new ProductionError('You cannot undo a batch you sent yourself', 403)
   }
   if (current.status !== 'APPROVED') {

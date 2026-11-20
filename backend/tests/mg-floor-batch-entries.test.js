@@ -365,11 +365,12 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     expect(list.body.entries).toHaveLength(1)
   })
 
-  test('10. self-approval and operator approval are blocked; production manager may decide', async () => {
+  test('10. self-approval and operator approval are blocked; production manager may decide; super_admin may self-approve', async () => {
     const op = await createOperator()
     const otherOp = await createOperator()
     const fm = await createFloorManager()
     const pm = await createUser('mg', { role: 'management', productionRole: 'production_manager' })
+    const sa = await createUser('mg', { role: 'super_admin', productionRole: 'production_manager', floorDepartment: 'melting' })
 
     const sent = await submit(op, batchBody())
     expect((await approve(otherOp, sent.body.entry._id)).status).toBe(403)
@@ -383,6 +384,12 @@ describe('MG Floor batch entries (manual entry + Floor Manager approval)', () =>
     const byPm = await approve(pm, fmOwn.body.entry._id)
     expect(byPm.status).toBe(200)
     expect(byPm.body.entry.decidedByName).toBe(pm.name)
+
+    const saOwn = await submit(sa, batchBody({ batchLabel: '3', direction: 'OUT', lines: [{ metal: 'Gold', qty: 10, purity: 99, time: '10:00' }] }))
+    expect(saOwn.status).toBe(201)
+    const saApprove = await approve(sa, saOwn.body.entry._id)
+    expect(saApprove.status).toBe(200)
+    expect(saApprove.body.entry.decidedByName).toBe(sa.name)
   })
 
   test('11. approved batch is immutable: no re-approve, reject or resubmit', async () => {
