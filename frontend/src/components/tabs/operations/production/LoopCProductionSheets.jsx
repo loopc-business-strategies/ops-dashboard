@@ -122,17 +122,28 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       const jobDept = String(job?.currentDepartment || '').trim().toLowerCase()
       const jobLive = Boolean(job) && String(job.status || '') !== 'closed'
       const openVisit = row.metalOut == null || row.metalOut === ''
+      const deptKey = String(row.deptKey || '').toLowerCase()
+      const floorLoss = Number(row.metalLoss)
+      // AML / alloy-loss text: only on floor Metal Out visits where OUT < IN.
+      // Never show on Vault (Post / return / Updated Mix stock rows).
+      const showAlloyLoss = Boolean(
+        alloyLossLabel
+        && deptKey
+        && deptKey !== 'vault_room'
+        && Number.isFinite(floorLoss)
+        && floorLoss > 0.0005,
+      )
       // Highlight the open Ops visit in the department that currently holds the mix.
       const alloyCurrentHere = Boolean(
         row.fromGoldAlloy
         && openVisit
         && jobLive
         && jobDept
-        && String(row.deptKey || '').toLowerCase() === jobDept,
+        && deptKey === jobDept,
       )
       return {
         ...row,
-        ...(alloyLossLabel ? { alloyLossLabel } : {}),
+        ...(showAlloyLoss ? { alloyLossLabel } : {}),
         alloyCurrentHere,
         alloyCurrentDept: alloyCurrentHere ? jobDept : '',
       }

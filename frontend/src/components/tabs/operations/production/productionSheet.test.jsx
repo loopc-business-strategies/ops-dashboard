@@ -319,6 +319,11 @@ describe('Production workbook purity and MG Floor rows', () => {
       alloyMixCode: 'BMG-0001',
       transferFromDepartment: 'post_mix',
       transferToDepartment: 'melting',
+      metalIn: 552.304,
+      metalOut: 552.304,
+      metalLoss: 0,
+      batchStartedAt: '2026-11-21T06:24:14.000Z',
+      batchOverAt: '2026-11-21T07:35:30.000Z',
     })
     const vaultB = mapEntryToRow({
       ...floorEntry,
@@ -328,6 +333,11 @@ describe('Production workbook purity and MG Floor rows', () => {
       batchNumber: 'BMG-0001',
       alloyMixCode: 'BMG-0001',
       transferFromDepartment: 'melting',
+      metalIn: 551.61,
+      metalOut: null,
+      metalLoss: null,
+      batchStartedAt: '2026-11-21T10:54:52.000Z',
+      batchOverAt: null,
     })
     const melting = mapEntryToRow({
       ...floorEntry,
@@ -338,12 +348,22 @@ describe('Production workbook purity and MG Floor rows', () => {
       alloyMixCode: 'BMG-0001',
       transferFromDepartment: 'vault_room',
       transferToDepartment: 'vault_room',
+      metalIn: 552.304,
+      metalOut: 551.61,
+      metalLoss: 0.694,
+      batchStartedAt: '2026-11-21T07:35:30.000Z',
+      batchOverAt: '2026-11-21T10:54:52.000Z',
     })
     const dept = computeDepartmentTotals([vaultA, vaultB])
     expect(dept).toMatchObject({ batches: 1, alloySequences: 2, visits: 2 })
     expect(formatDepartmentBatchTotal(dept)).toBe('1 batch · 2 sequences')
 
-    expect(computeSummary([vaultA, vaultB, melting]).totalBatches).toBe(1)
+    const summary = computeSummary([vaultA, vaultB, melting])
+    expect(summary.totalBatches).toBe(1)
+    // Top cards: Post Mix gross once — not Vault+Melting+Vault visit sum.
+    expect(summary.totalMetalIn).toBe(552.304)
+    expect(summary.totalMetalOut).toBe(551.61)
+    expect(summary.totalMetalLoss).toBe(0.694)
 
     render(<DepartmentTable rows={[vaultA, vaultB]} />)
     expect(within(screen.getByTestId('department-total-row')).getByText('1 batch · 2 sequences')).toBeTruthy()

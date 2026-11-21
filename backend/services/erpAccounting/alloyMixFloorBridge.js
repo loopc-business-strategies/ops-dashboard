@@ -346,8 +346,12 @@ async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
     const fromDept = normalizeDept(fromRaw) || (
       fromRaw === 'post_mix' || fromRaw === 'update_mix' ? fromRaw : ''
     )
-    // Keep Vault history after Update Mix: close open IN as OUT=IN instead of delete
-    // (from Melting/Rolling/… returns, and prior Post Mix / Updated Mix stock rows).
+    // Vault return from Melting/Rolling/… after Metal Out: leave open so Updated Mix
+    // can promote that same row (Post → Melting OUT → one back-to-Vault visit).
+    if (dept === VAULT && fromDept && fromDept !== 'post_mix' && fromDept !== 'update_mix') {
+      continue
+    }
+    // Keep Vault Post Mix / prior Updated Mix history: close open IN as OUT=IN.
     if (dept === VAULT && fromDept) {
       const inn = row.metalIn != null && Number.isFinite(Number(row.metalIn)) ? toQty(row.metalIn) : null
       if (inn != null) {
@@ -576,6 +580,43 @@ async function createJobFromPostedMix({
 
   const date = dubaiDateKey()
   const isUpdate = /updated/i.test(String(reasonBase || ''))
+
+  // After Melting Metal Out → return to Vault, reuse that open "from Melting" visit
+  // instead of adding a second Updated Mix Vault row for the same stock.
+  if (isUpdate) {
+    const openVault = await findOpenAlloyOpsVisit({
+      session,
+      mixCode,
+      departmentKey: VAULT,
+    })
+    if (openVault) {
+      const fromRaw = String(openVault.transferFromDepartment || '').trim().toLowerCase()
+      const fromFloor = normalizeDept(fromRaw)
+      openVault.metalIn = targetGross
+      openVault.purity = purityPct ?? openVault.purity ?? null
+      openVault.fineGold = fineGold ?? openVault.fineGold ?? null
+      openVault.metalOut = null
+      openVault.purityOut = null
+      openVault.fineGoldOut = null
+      openVault.metalLoss = null
+      openVault.batchOverAt = null
+      openVault.floorOutEntryId = null
+      openVault.date = date
+      openVault.batchNumber = mixCode
+      openVault.alloyMixCode = mixCode
+      openVault.departmentManagerName = user?.name || openVault.departmentManagerName || ''
+      // Keep physical "from Melting/…" chip; only retag ERP-only stock rows.
+      if (!fromFloor) {
+        openVault.transferFromDepartment = 'update_mix'
+      }
+      if (openVault.metalIn != null && openVault.fineGold == null && openVault.purity != null) {
+        openVault.fineGold = toQty(openVault.metalIn * (Number(openVault.purity) / 100))
+      }
+      await openVault.save(writeOpts(session))
+      return { job, lot, mixCode }
+    }
+  }
+
   // Unique stamp so each Post/Update Mix is its own Vault row (OUT then merges onto that open IN).
   const stamp = isUpdate ? `update-${Date.now()}` : `post-${Date.now()}`
   await upsertOpsRow({
