@@ -10,6 +10,7 @@ const {
   receiveMixJob,
   listMixJobs,
   serializeJob,
+  autoUpdateAlloyMixAfterMetalOut,
 } = require('../services/erpAccounting/alloyMixFloorBridge')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
@@ -413,5 +414,84 @@ describe('alloy mix floor bridge', () => {
 
     const totalMetalIn = meltingAfter.reduce((s, r) => s + Number(r.metalIn || 0), 0)
     expect(totalMetalIn).toBe(80)
+  })
+
+  test('FM Metal Out gross < target stamps Melting OUT and auto Updated Mix + AML', async () => {
+    const { applyApprovedEntryToWorkbook } = require('../services/mgFloor/workbookLink')
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const result = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 100,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 75, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 25, role: 'silver', label: 'silver' },
+      ],
+      reuseMixCode: 'BMG-0099',
+    })
+    const mixCode = result.mixJob.mixCode
+    expect(mixCode).toBe('BMG-0099')
+
+    await allocateMixJob({ user, mixId: result.mixJob.id, toDepartment: 'melting' })
+    await receiveMixJob({
+      user,
+      mixId: result.mixJob.id,
+      decision: 'APPROVED',
+      actorDepartment: 'melting',
+    })
+
+    const meltingOpen = await OperationsProductionEntry.findOne({
+      departmentKey: 'melting',
+      alloyMixCode: mixCode,
+      metalIn: { $ne: null },
+      metalOut: null,
+    })
+    expect(meltingOpen).toBeTruthy()
+    expect(Number(meltingOpen.metalIn)).toBe(100)
+
+    const floorOut = {
+      direction: 'OUT',
+      status: 'APPROVED',
+      department: 'melting',
+      batchLabel: mixCode,
+      entryId: 'floor-out-bmg-0099',
+      entryDate: '2026-11-21',
+      decidedByName: 'Floor Manager',
+      decidedById: user._id,
+      decidedAt: new Date('2026-11-21T12:00:00.000Z'),
+      lines: [{ metal: '14k alloyed gold', qty: 99.3, purity: 58.5 }],
+    }
+    const linked = await applyApprovedEntryToWorkbook(floorOut)
+    expect(Number(linked.metalOut)).toBe(99.3)
+    expect(Number(linked.metalLoss)).toBeCloseTo(0.7, 5)
+    expect(Number(linked.purityOut)).toBe(58.5)
+
+    await allocateMixJob({
+      user,
+      mixId: result.mixJob.id,
+      toDepartment: 'vault_room',
+    })
+    const meltingAfterReturn = await OperationsProductionEntry.findById(linked._id).lean()
+    // Floor OUT preserved (not overwritten by full allocate targetGross).
+    expect(Number(meltingAfterReturn.metalOut)).toBe(99.3)
+    expect(Number(meltingAfterReturn.metalLoss)).toBeCloseTo(0.7, 5)
+
+    const updated = await autoUpdateAlloyMixAfterMetalOut({
+      user,
+      batchLabel: mixCode,
+      outGross: 99.3,
+      tenant: 'mg',
+    })
+    expect(updated?.success).toBe(true)
+    expect(Number(updated.targetGross)).toBe(99.3)
+    expect(Number(updated.metalLossGross)).toBeCloseTo(0.7, 5)
+    expect(updated.reason).toMatch(/updated/i)
+    expect(updated.mixJob?.mixCode).toBe(mixCode)
+
+    const liveJob = await AlloyMixJob.findOne({ mixCode, isDeleted: { $ne: true }, status: 'in_vault' }).lean()
+    expect(liveJob).toBeTruthy()
+    expect(Number(liveJob.targetGross)).toBe(99.3)
   })
 })

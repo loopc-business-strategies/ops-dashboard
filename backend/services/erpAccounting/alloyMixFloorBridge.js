@@ -231,10 +231,17 @@ async function upsertOpsRow({
   if (side === 'out') {
     const open = await findOpenAlloyOpsVisit({ session, mixCode: code, departmentKey })
     if (open) {
-      open.metalOut = weight
-      open.purityOut = purity ?? null
-      open.fineGoldOut = fineGold ?? null
-      open.batchOverAt = new Date()
+      // FM-approved Floor Metal Out already stamped OUT gross + Post Mix purity —
+      // keep those weights (do not replace with full allocate targetGross).
+      const floorOutLocked = Boolean(open.floorOutEntryId)
+        && open.metalOut != null
+        && Number.isFinite(Number(open.metalOut))
+      if (!floorOutLocked) {
+        open.metalOut = weight
+        open.purityOut = purity ?? null
+        open.fineGoldOut = fineGold ?? null
+      }
+      open.batchOverAt = open.batchOverAt || new Date()
       open.floorOutEntryId = open.floorOutEntryId || opsKey(code, departmentKey, `out-${stamp}`)
       open.departmentManagerName = actor?.name || open.departmentManagerName
       if (toDept) open.transferToDepartment = toDept
@@ -1494,6 +1501,91 @@ async function serializeReceiveResult(result, session = null) {
   }
 }
 
+/**
+ * After FM approves Floor/Allocate Metal Out with OUT gross < mix target:
+ * reverse + re-post as Updated Mix (AML → alloy_metal_loss / ~5500), reuse BMG code.
+ * Call only once the job is back in vault.
+ */
+async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, tenant = 'mg' } = {}) {
+  const code = String(batchLabel || '').trim().toUpperCase()
+  if (!isAlloyMixBatchCode(code)) return null
+  const nextTarget = toQty(outGross)
+  if (!(nextTarget > QTY_EPS)) return null
+
+  const job = await AlloyMixJob.findOne({
+    mixCode: code,
+    isDeleted: { $ne: true },
+    status: 'in_vault',
+  })
+  if (!job || !job.finishedProductId || !job.reasonBase) return null
+
+  const priorTarget = toQty(job.targetGross)
+  if (!(priorTarget > QTY_EPS)) return null
+  // No oxidation when Floor OUT matches (or exceeds) the posted mix target.
+  if (nextTarget + 0.0005 >= priorTarget) return null
+
+  const priorInputs = normalizeInputComponentsToTarget(job.inputComponents || [], priorTarget)
+    .filter((row) => row.itemId && row.gross > QTY_EPS)
+  if (!priorInputs.length) return null
+
+  const ratio = nextTarget / priorTarget
+  let allocatedRemain = 0
+  const lines = priorInputs.map((c, index) => {
+    const priorRemain = toQty(c.gross)
+    const isLast = index === priorInputs.length - 1
+    const remain = isLast
+      ? toQty(nextTarget - allocatedRemain)
+      : toQty(priorRemain * ratio)
+    if (!isLast) allocatedRemain = toQty(allocatedRemain + remain)
+    return {
+      itemId: String(c.itemId),
+      gross: priorRemain,
+      remainGross: remain,
+      lossGross: toQty(Math.max(0, priorRemain - remain)),
+      role: c.role || '',
+      label: c.label || c.role || '',
+    }
+  }).filter((line) => line.itemId && line.gross > QTY_EPS)
+
+  const InventoryItem = require('../../models/InventoryItem')
+  const StockMovement = require('../../models/StockMovement')
+  const Ledger = require('../../models/Ledger')
+  const AccountMapping = require('../../models/AccountMapping')
+  const Transaction = require('../../models/Transaction')
+  const ChartOfAccount = require('../../models/ChartOfAccount')
+  const { createAlloyMixService } = require('./alloyMixService')
+
+  const svc = createAlloyMixService({
+    InventoryItem,
+    StockMovement,
+    Ledger,
+    AccountMapping,
+    Transaction,
+    ChartOfAccount,
+  })
+
+  const karat = Number(job.karat) || 18
+  const tenantKey = String(tenant || user?.company || 'mg').trim().toLowerCase() || 'mg'
+  await svc.reverseAlloyMix({
+    user,
+    tenant: tenantKey,
+    reason: job.reasonBase,
+  })
+
+  const description = `Gold alloy mix (${karat}K ${nextTarget} g · updated)`
+  const result = await svc.postAlloyMix({
+    user,
+    tenant: tenantKey,
+    karat,
+    targetGross: nextTarget,
+    finishedProductId: String(job.finishedProductId),
+    lines,
+    description,
+    reuseMixCode: code,
+  })
+  return result
+}
+
 module.exports = {
   VAULT,
   MIX_CODE_PREFIX,
@@ -1510,6 +1602,8 @@ module.exports = {
   serializeReceiveResult,
   buildInputComponents,
   scaleInputComponents,
+  normalizeInputComponentsToTarget,
+  autoUpdateAlloyMixAfterMetalOut,
   jobInVaultCustody,
   hasOpenFloorDescendant,
   isAlloyMixBatchCode,
