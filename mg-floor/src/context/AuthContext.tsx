@@ -184,8 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             appVersion: Constants.expoConfig?.version || '1.0.0',
             os: Platform.OS,
             model: Platform.OS,
-            department:
-              (await getSelectedDepartment()) || session.user.floorDepartment || session.user.department || '',
+            department: session.user.floorDepartment || session.user.department || (await getSelectedDepartment()) || '',
           })
         })().catch(() => {})
       }

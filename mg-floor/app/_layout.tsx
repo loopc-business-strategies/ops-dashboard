@@ -3,7 +3,7 @@ import 'react-native-gesture-handler'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
@@ -12,7 +12,6 @@ import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ErrorBoundary } from '@/src/components/ErrorBoundary'
 import { startAutoSync } from '@/src/offline/sync'
 import { BigButton, LoadingBlock, Screen } from '@/src/components/ui'
-import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
 import { API_CONFIG_ERROR } from '@/src/config/env'
 import { colors } from '@/src/theme'
 
@@ -37,33 +36,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { loading, token, hydrateError, retryHydrate } = useAuth()
   const segments = useSegments()
   const router = useRouter()
-  const [deptReady, setDeptReady] = useState(false)
-  const [hasDepartment, setHasDepartment] = useState(false)
 
   useEffect(() => {
     if (loading) return
-    let cancelled = false
-    ;(async () => {
-      const dept = await getSelectedDepartment()
-      if (cancelled) return
-      const hasDept = Boolean(dept)
-      setHasDepartment(hasDept)
-      setDeptReady(true)
+    const seg0 = segments[0]
+    const onLogin = seg0 === 'login'
+    const onDepartment = seg0 === 'department'
 
-      const seg0 = segments[0]
-      const onDepartment = seg0 === 'department'
-      const onLogin = seg0 === 'login'
-
-      if (!hasDept && !onDepartment) {
-        router.replace('/department')
-        return
-      }
-      if (token && onLogin) {
-        router.replace('/')
-      }
-    })()
-    return () => {
-      cancelled = true
+    // Department pick is retired — send anyone who lands there to employee login.
+    if (onDepartment) {
+      router.replace('/login')
+      return
+    }
+    if (token && onLogin) {
+      router.replace('/')
     }
   }, [loading, segments, token, router])
 
@@ -77,11 +63,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [token])
 
   useEffect(() => {
-    if (loading || !deptReady) return
+    if (loading) return
     SplashScreen.hideAsync().catch(() => {})
-  }, [loading, deptReady])
+  }, [loading])
 
-  if (loading || !deptReady) {
+  if (loading) {
     return (
       <Screen>
         <LoadingBlock label="Starting MG Floor…" />
@@ -96,9 +82,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <Text style={styles.configBody}>{hydrateError}</Text>
         <BigButton label="RETRY" onPress={() => retryHydrate()} />
         <BigButton label="SIGN IN" onPress={() => router.replace('/login')} tone="neutral" />
-        {hasDepartment ? (
-          <BigButton label="CONTINUE TO HOME" onPress={() => router.replace('/')} tone="neutral" />
-        ) : null}
+        <BigButton label="CONTINUE TO HOME" onPress={() => router.replace('/')} tone="neutral" />
       </Screen>
     )
   }

@@ -1,4 +1,3 @@
-import { floorDepartmentLabel, normalizeFloorDepartment } from '@/src/config/floorDepartments'
 import type { LoginMethod } from '@/src/api/auth'
 
 export type FloorUser = {
@@ -56,15 +55,11 @@ export function primarySession(list: FloorSession[]): FloorSession | null {
 }
 
 /**
- * Operators may only join a tablet already working for their own department.
- * Returns an error message, or null when the login is allowed.
+ * Any department employee may log in on any tablet (username/password).
+ * Kept for call-site compatibility; always allows the login.
  */
-export function departmentMismatch(candidate: FloorSession, tabletDepartment: string): string | null {
-  if (isManagerSession(candidate)) return null
-  const tablet = normalizeFloorDepartment(tabletDepartment)
-  const own = normalizeFloorDepartment(candidate.user.floorDepartment)
-  if (!tablet || !own || tablet === own) return null
-  return `${candidate.user.name} works in ${floorDepartmentLabel(own)}, but this tablet is on ${floorDepartmentLabel(tablet)}.`
+export function departmentMismatch(_candidate: FloorSession, _tabletDepartment: string): string | null {
+  return null
 }
 
 export function sameLocalDay(a: string | Date, b: string | Date = new Date()) {

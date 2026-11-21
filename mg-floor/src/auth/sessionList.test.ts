@@ -36,9 +36,9 @@ describe('multi-employee session list', () => {
     expect(primarySession([...ops, session('fm', { manager: true, dept: '' })])?.user.id).toBe('fm')
   })
 
-  test('operators from another department cannot join; managers always can', () => {
+  test('any department employee may join any tablet', () => {
     expect(departmentMismatch(session('a', { dept: 'melting' }), 'melting')).toBeNull()
-    expect(departmentMismatch(session('a', { dept: 'rolling' }), 'melting')).toMatch(/Rolling.*Melting/)
+    expect(departmentMismatch(session('a', { dept: 'rolling' }), 'melting')).toBeNull()
     expect(departmentMismatch(session('fm', { dept: 'rolling', manager: true }), 'melting')).toBeNull()
     expect(departmentMismatch(session('a', { dept: 'rolling' }), '')).toBeNull()
     expect(departmentMismatch(session('a', { dept: '' }), 'melting')).toBeNull()
