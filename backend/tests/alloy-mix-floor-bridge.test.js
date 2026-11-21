@@ -175,10 +175,11 @@ describe('alloy mix floor bridge', () => {
     const jobs = await listMixJobs({ department: 'vault_room' })
     expect(jobs).toHaveLength(1)
     expect(serializeJob(jobs[0]).canUpdateMix).toBe(true)
+    // Prefer remain grams in the finished bar (target 80; consume 85 → metal loss scaled).
     const inputs = serializeJob(jobs[0]).inputComponents
     expect(inputs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Gold 24K Bar', gross: 50 }),
-      expect.objectContaining({ name: 'Fine Silver', gross: 35 }),
+      expect.objectContaining({ name: 'Gold 24K Bar', gross: 47.059 }),
+      expect.objectContaining({ name: 'Fine Silver', gross: 32.941 }),
     ]))
 
     const lots = await ProductionStockLot.find({ inventoryItemId: finished._id })
@@ -366,10 +367,14 @@ describe('alloy mix floor bridge', () => {
     })
     expect(metalInEntry).toBeTruthy()
     expect(metalInEntry.status).toBe('PENDING')
-    expect(metalInEntry.lines).toEqual(expect.arrayContaining([
-      expect.objectContaining({ metal: 'Gold 24K Bar', qty: 50 }),
-      expect.objectContaining({ metal: 'Fine Silver', qty: 35 }),
-    ]))
+    // Seed one finished-alloy line (Post Mix product), not Gold/Silver inputs.
+    expect(metalInEntry.lines).toEqual([
+      expect.objectContaining({
+        metal: expect.stringMatching(/alloyed gold/i),
+        qty: 80,
+        purity: 58.5,
+      }),
+    ])
 
     const meltingBefore = await OperationsProductionEntry.find({
       departmentKey: 'melting',
