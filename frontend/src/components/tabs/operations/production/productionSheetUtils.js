@@ -471,28 +471,106 @@ export function applyColumnFilters(rows, columnFilters) {
   })
 }
 
+/**
+ * Gold Alloy metals for one mix across Vault + floor visits.
+ * IN = Post Mix gross (first create). LOSS = floor Metal Out loss only (not Vault).
+ * OUT = latest floor Metal Out, or Post Mix − loss when loss exists.
+ */
+export function alloyBatchMetals(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const fromKey = (r) => String(r?.transferFromDepartment || '').trim().toLowerCase()
+  const isVault = (r) => String(r?.deptKey || '').toLowerCase() === 'vault_room'
+  const byStart = (a, b) => {
+    const ta = a?.batchStartedRaw ? new Date(a.batchStartedRaw).getTime() : 0
+    const tb = b?.batchStartedRaw ? new Date(b.batchStartedRaw).getTime() : 0
+    if (ta !== tb) return ta - tb
+    return String(a?.id || '').localeCompare(String(b?.id || ''))
+  }
+
+  const post = list.find((r) => fromKey(r) === 'post_mix')
+  const vaults = list.filter(isVault).sort(byStart)
+  const floor = list.filter((r) => r?.deptKey && !isVault(r))
+
+  let metalIn = Number.isFinite(post?.metalIn) ? post.metalIn : null
+  if (metalIn == null && vaults.length && Number.isFinite(vaults[0].metalIn)) {
+    metalIn = vaults[0].metalIn
+  }
+  if (metalIn == null) {
+    const ins = list.map((r) => r.metalIn).filter((n) => Number.isFinite(n))
+    metalIn = ins.length ? Math.max(...ins) : 0
+  }
+
+  let metalLoss = 0
+  floor.forEach((r) => {
+    if (Number.isFinite(r.metalLoss) && r.metalLoss > 0) metalLoss += r.metalLoss
+  })
+  metalLoss = round3(metalLoss)
+
+  const floorOuts = floor
+    .filter((r) => Number.isFinite(r.metalOut))
+    .sort((a, b) => {
+      const ta = a?.batchOverRaw ? new Date(a.batchOverRaw).getTime()
+        : (a?.batchStartedRaw ? new Date(a.batchStartedRaw).getTime() : 0)
+      const tb = b?.batchOverRaw ? new Date(b.batchOverRaw).getTime()
+        : (b?.batchStartedRaw ? new Date(b.batchStartedRaw).getTime() : 0)
+      return ta - tb
+    })
+  let metalOut = 0
+  if (floorOuts.length) {
+    metalOut = floorOuts[floorOuts.length - 1].metalOut
+  } else if (metalLoss > 0 && Number.isFinite(metalIn)) {
+    metalOut = Math.max(0, round3(metalIn - metalLoss))
+  }
+
+  return {
+    metalIn: Number.isFinite(metalIn) ? round3(metalIn) : 0,
+    metalOut: Number.isFinite(metalOut) ? round3(metalOut) : 0,
+    metalLoss,
+  }
+}
+
+/** Top cards: metals counted once per batch (Gold Alloy = Post Mix IN, floor OUT/loss). */
 export function computeSummary(rows) {
-  const deptsWithRows = new Set(rows.map((r) => r.deptKey).filter(Boolean))
+  const list = Array.isArray(rows) ? rows : []
+  const deptsWithRows = new Set(list.map((r) => r.deptKey).filter(Boolean))
   const employees = new Set(
-    rows.map((r) => r.employee).filter((e) => e && e !== '—'),
+    list.map((r) => r.employee).filter((e) => e && e !== '—'),
   )
-  const batches = new Set(rows.map(summaryBatchIdentity).filter(Boolean))
+  const byBatch = new Map()
+  list.forEach((r) => {
+    const id = summaryBatchIdentity(r)
+    if (!id) return
+    const group = byBatch.get(id) || []
+    group.push(r)
+    byBatch.set(id, group)
+  })
+
   let metalIn = 0
   let metalOut = 0
   let metalLoss = 0
-  rows.forEach((r) => {
-    if (Number.isFinite(r.metalIn)) metalIn += r.metalIn
-    if (Number.isFinite(r.metalOut)) metalOut += r.metalOut
-    if (Number.isFinite(r.metalLoss)) metalLoss += r.metalLoss
+  byBatch.forEach((group, id) => {
+    if (String(id).startsWith('alloy:')) {
+      const m = alloyBatchMetals(group)
+      metalIn += m.metalIn
+      metalOut += m.metalOut
+      metalLoss += m.metalLoss
+      return
+    }
+    group.forEach((r) => {
+      if (Number.isFinite(r.metalIn)) metalIn += r.metalIn
+      if (Number.isFinite(r.metalOut)) metalOut += r.metalOut
+      if (Number.isFinite(r.metalLoss)) metalLoss += r.metalLoss
+    })
   })
+
   return {
     totalDepartments: deptsWithRows.size || LOOPC_PRODUCTION_DEPARTMENTS.length,
     departmentsWithData: deptsWithRows.size,
     totalEmployees: employees.size,
-    totalBatches: batches.size,
-    totalMetalIn: metalIn,
-    totalMetalOut: metalOut,
-    totalMetalLoss: metalLoss,
+    totalBatches: byBatch.size,
+    totalMetalIn: round3(metalIn),
+    totalMetalOut: round3(metalOut),
+    totalMetalLoss: round3(metalLoss),
   }
 }
 
