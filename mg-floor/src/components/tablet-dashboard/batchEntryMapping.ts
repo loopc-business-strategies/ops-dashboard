@@ -179,8 +179,9 @@ function mixComponentsForShare(job: {
     if (/^alloy$/i.test(name) || /alloyed\s+gold/i.test(name)) continue
     rows.push({ name, gross })
   }
-  const target = Number(job?.targetGross) > 0
-    ? Number(job.targetGross)
+  const targetGross = Number(job?.targetGross)
+  const target = targetGross > 0
+    ? targetGross
     : rows.reduce((sum, row) => sum + row.gross, 0)
   const sum = rows.reduce((acc, row) => acc + row.gross, 0)
   if (!(target > 0) || !(sum > target + 0.0005)) {

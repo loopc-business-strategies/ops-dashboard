@@ -553,7 +553,6 @@ const styles = StyleSheet.create({
     color: td.text,
     fontWeight: '800',
     fontSize: 12,
-    fontVariantNumeric: 'tabular-nums',
   },
   compositionChipText: {
     color: '#94A3B8',
