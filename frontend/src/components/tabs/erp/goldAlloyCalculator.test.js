@@ -28,6 +28,8 @@ import {
   alloyMixStatusFromReason,
   buildAlloyMixReasonBase,
   buildAlloyMixPayload,
+  normalizeAlloyMixBatchNo,
+  suggestNextAlloyMixBatchNo,
   computeCalculatedGrossFromGoldWeight,
   computeAlloyMetalLoss,
   computeAlloyMixShare,
@@ -518,6 +520,28 @@ describe('goldAlloyCalculator', () => {
     expect(sum).toBe(9.5)
     expect(computeAlloyMetalLoss(9.5, 10)).toBe(-0.5)
     expect(computeAlloyMixShare(scaled.find((l) => l.key === 'gold').gross, 9.5)).toBe('0.75')
+  })
+
+  test('normalize + suggest next BMG batch no', () => {
+    expect(normalizeAlloyMixBatchNo('1')).toBe('BMG-0001')
+    expect(normalizeAlloyMixBatchNo('0002')).toBe('BMG-0002')
+    expect(normalizeAlloyMixBatchNo('bmg-12')).toBe('BMG-0012')
+    expect(normalizeAlloyMixBatchNo('BMG-0001')).toBe('BMG-0001')
+    expect(normalizeAlloyMixBatchNo('')).toBe('')
+    expect(suggestNextAlloyMixBatchNo([])).toBe('BMG-0001')
+    expect(suggestNextAlloyMixBatchNo(['BMG-0001', 'BMG-0001__REV__9'])).toBe('BMG-0002')
+    expect(suggestNextAlloyMixBatchNo(['BMG-0003'])).toBe('BMG-0004')
+  })
+
+  test('buildAlloyMixPayload includes reuseMixCode for chosen batch', () => {
+    const payload = buildAlloyMixPayload({
+      karat: 22,
+      targetGross: 100,
+      finishedProductId: 'fin',
+      reuseMixCode: 'bmg-1',
+      lines: [{ stockId: 'au', gross: 91.6, role: 'gold', label: 'gold' }],
+    })
+    expect(payload.reuseMixCode).toBe('BMG-0001')
   })
 
   test('buildAlloyMixPayload consumes originalGross when oxidation reduced the line', () => {

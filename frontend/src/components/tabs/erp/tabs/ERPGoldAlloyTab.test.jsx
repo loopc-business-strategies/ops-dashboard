@@ -111,6 +111,31 @@ describe('ERPGoldAlloyTab custody + purge', () => {
     expect(listAlloyMixJobs).toHaveBeenCalledWith('t', expect.objectContaining({ includeClosed: true }))
   })
 
+  test('New mix dialog shows editable Batch No starting at BMG-0001', async () => {
+    listAlloyMixJobs.mockResolvedValue({ jobs: [] })
+    render(
+      <ERPGoldAlloyTab
+        activeTab="gold-alloy"
+        token="t"
+        tenantKey="mg"
+        inventoryProducts={[]}
+        mappings={[]}
+        loadInventory={vi.fn()}
+        showNotification={vi.fn()}
+        setError={vi.fn()}
+      />,
+    )
+
+    const newMix = await screen.findByRole('button', { name: '+ New mix' })
+    fireEvent.click(newMix)
+
+    const batch = await screen.findByLabelText('Batch number')
+    expect(batch.value).toBe('BMG-0001')
+    fireEvent.change(batch, { target: { value: '2' } })
+    fireEvent.blur(batch)
+    expect(batch.value).toBe('BMG-0002')
+  })
+
   test('history purge toast includes deletedCount', async () => {
     const showNotification = vi.fn()
     getStockLedger.mockResolvedValue(ledgerFixture({ isHistory: true }))
