@@ -18,6 +18,7 @@ import {
   dayTag,
   editableBatch,
   formatBatchTotalLabel,
+  isAlloyMixBatchCode,
   localDateKey,
   type BatchChoice,
 } from './batchEntryMapping'
@@ -181,9 +182,10 @@ export function MetalEntryModal({
   const setField = (idx: number, key: keyof MetalLineEdit, value: string) =>
     setLines((current) => current.map((line, i) => (i === idx ? { ...line, [key]: value } : line)))
 
+  const alloyFinishedOut = direction === 'OUT' && isAlloyMixBatchCode(choice.batchLabel)
   const usedMetals = new Set(lines.map((l) => l.metal))
   const available = metalOptions.filter((m) => !usedMetals.has(m))
-  const canAddMetal = available.length > 0 && lines.length < MAX_BATCH_LINES
+  const canAddMetal = !alloyFinishedOut && available.length > 0 && lines.length < MAX_BATCH_LINES
 
   const addMetal = (metal: string) => {
     setLines((current) => [...current, { metal, qty: '', purity: '', time: '' }])
@@ -259,6 +261,11 @@ export function MetalEntryModal({
                 </View>
               </View>
             ) : null}
+            {alloyFinishedOut ? (
+              <Text style={styles.checkNote}>
+                Finished product from Post Mix — enter Gross (Qty) only. Purity/share matches View mix and stays fixed if gross changes.
+              </Text>
+            ) : null}
             {batchOptions.length > 1 ? (
               <View style={styles.batchPick}>
                 <Text style={styles.label}>Batch (Metal In batches not closed yet)</Text>
@@ -304,17 +311,44 @@ export function MetalEntryModal({
                   autoFocus={idx === 0}
                   editable={!busy}
                 />
-                <TextInput
-                  accessibilityLabel={`${title} ${line.metal} Purity`}
-                  style={[styles.input, styles.colField]}
-                  value={line.purity}
-                  onChangeText={(v) => setField(idx, 'purity', cleanNumberInput(v, PURITY_MAX_LENGTH))}
-                  placeholder="--"
-                  placeholderTextColor={td.textMuted}
-                  keyboardType="decimal-pad"
-                  maxLength={PURITY_MAX_LENGTH}
-                  editable={!busy}
-                />
+                {alloyFinishedOut && Array.isArray(line.compositionParts) && line.compositionParts.length ? (
+                  <View
+                    accessible
+                    accessibilityLabel={`${title} ${line.metal} Purity ${line.purity}`}
+                    style={[styles.colField, styles.compositionStack]}
+                  >
+                    {line.compositionParts.map((part) => (
+                      <View
+                        key={`${part.label}-${part.shareText}`}
+                        style={[
+                          styles.compositionChip,
+                          part.label === 'finished' ? styles.compositionChipFinished : null,
+                        ]}
+                      >
+                        <Text style={styles.compositionShareText}>
+                          {part.shareText}
+                        </Text>
+                        <Text style={styles.compositionChipText}>{part.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <TextInput
+                    accessibilityLabel={`${title} ${line.metal} Purity`}
+                    style={[
+                      styles.input,
+                      styles.colField,
+                      alloyFinishedOut && styles.inputLocked,
+                    ]}
+                    value={line.purity}
+                    onChangeText={(v) => setField(idx, 'purity', cleanNumberInput(v, PURITY_MAX_LENGTH))}
+                    placeholder="--"
+                    placeholderTextColor={td.textMuted}
+                    keyboardType="decimal-pad"
+                    maxLength={PURITY_MAX_LENGTH}
+                    editable={!busy && !alloyFinishedOut}
+                  />
+                )}
                 <View
                   accessible
                   accessibilityLabel={`${title} ${line.metal} Time ${now}`}
@@ -323,7 +357,7 @@ export function MetalEntryModal({
                   <Text style={styles.clockText}>{now}</Text>
                 </View>
                 <View style={styles.colRemove}>
-                  {lines.length > 1 ? (
+                  {!alloyFinishedOut && lines.length > 1 ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Remove ${line.metal}`}
@@ -491,6 +525,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     minWidth: 0,
+  },
+  inputLocked: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    color: td.textMuted,
+  },
+  compositionStack: {
+    gap: 4,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  compositionChip: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    alignItems: 'flex-end',
+  },
+  compositionChipFinished: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  compositionShareText: {
+    color: td.text,
+    fontWeight: '800',
+    fontSize: 12,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  compositionChipText: {
+    color: '#94A3B8',
+    fontWeight: '700',
+    fontSize: 9,
+    textTransform: 'lowercase',
   },
   clock: {
     backgroundColor: '#F3F4F6',

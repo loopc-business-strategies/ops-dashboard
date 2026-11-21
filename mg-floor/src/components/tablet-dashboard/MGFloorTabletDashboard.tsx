@@ -27,6 +27,8 @@ import {
   batchStatusView,
   dayTag,
   editableBatch,
+  finishedMetalOutLineFromJob,
+  isAlloyMixBatchCode,
   linesFromMixInputComponents,
   localDateKey,
   metalInChoices,
@@ -171,13 +173,17 @@ export function MGFloorTabletDashboard() {
     return batch ? batch.lines : null
   }
 
-  /** Alloy mix product grams, or Metal In lines when closing Metal Out. */
+  /** Gold Alloy OUT → one finished product row (Post Mix purity). Else Metal In mirror / mix inputs. */
   const resolveLinesForChoice = (choice: BatchChoice, direction: BatchDirection) => {
+    const job = openMixJobs.find((j) => sameMixLabel(j.mixCode || j.batchNumber || '', choice.batchLabel))
+    if (direction === 'OUT' && isAlloyMixBatchCode(choice.batchLabel) && job) {
+      const finished = finishedMetalOutLineFromJob(job)
+      if (finished.length) return { lines: finished, preferSeedOnly: true }
+    }
     if (direction === 'OUT') {
       const inLines = metalInLines(choice)
       if (inLines?.length) return { lines: inLines, preferSeedOnly: true }
     }
-    const job = openMixJobs.find((j) => sameMixLabel(j.mixCode || j.batchNumber || '', choice.batchLabel))
     const mixLines = linesFromMixInputComponents(job?.inputComponents)
     if (mixLines.length) return { lines: mixLines, preferSeedOnly: true }
     return { lines: undefined, preferSeedOnly: false }

@@ -58,7 +58,11 @@ export function prepareBatchLines(batch: MetalBatchEdit, now = new Date()): { li
   const lines: BatchEntryLine[] = []
   for (const line of batch.lines) {
     const qty = parseNumber(line.qty)
-    const purity = parseNumber(line.purity)
+    const purityFromValue = line.purityValue != null && String(line.purityValue).trim() !== ''
+      ? parseNumber(line.purityValue)
+      : null
+    const purityLooksLikeText = !purityFromValue && /%|[A-Za-z]/.test(String(line.purity || ''))
+    const purity = purityFromValue || (purityLooksLikeText ? { empty: true, value: null } : parseNumber(line.purity))
     const time = line.time.trim()
     if (qty.empty && purity.empty && !time) continue
     if (qty.empty) return { lines: [], error: `Enter Qty for ${line.metal}` }
@@ -128,6 +132,148 @@ export function metalOptionsFor(direction: BatchDirection) {
 
 export function defaultMetalsFor(direction: BatchDirection) {
   return direction === 'OUT' ? DEFAULT_METALS.filter((m) => !IN_ONLY_METALS.includes(m)) : DEFAULT_METALS
+}
+
+const ALLOY_MIX_BATCH_RE = /^(?:BMG|AMX)-/i
+
+export function isAlloyMixBatchCode(value: string | null | undefined) {
+  return ALLOY_MIX_BATCH_RE.test(String(value || '').trim())
+}
+
+export function shortMixMetalLabel(name = '') {
+  const n = String(name || '').trim().toLowerCase()
+  if (!n) return ''
+  if (/gold|xau|au\b/.test(n)) return 'Gold'
+  if (/copper|cu\b/.test(n)) return 'Copper'
+  if (/silver|xag|ag\b/.test(n)) return 'Silver'
+  if (/platinum|xpt|pt\b/.test(n)) return 'Platinum'
+  if (/palladium|xpd|pd\b/.test(n)) return 'Palladium'
+  return String(name || '').trim()
+}
+
+export type MixCompositionPart = { label: string; share: number; shareText: string }
+
+function roundMixShare(value: number, places = 6) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 0
+  const f = 10 ** places
+  return Math.round(n * f) / f
+}
+
+function roundMixGrams(value: number, places = 3) {
+  return roundMixShare(value, places)
+}
+
+/** Scale consume grams down to finished target when Update metal loss left stale inputs. */
+function mixComponentsForShare(job: {
+  purity?: number | null
+  targetGross?: number | null
+  inputComponents?: Array<{ name?: string; label?: string; gross?: number }> | null
+} | null | undefined): { target: number; rows: Array<{ name: string; gross: number }> } {
+  const components = Array.isArray(job?.inputComponents) ? job.inputComponents : []
+  const rows: Array<{ name: string; gross: number }> = []
+  for (const row of components) {
+    const name = String(row?.name || row?.label || '').trim()
+    const gross = Number(row?.gross)
+    if (!name || !(gross > 0)) continue
+    if (/^alloy$/i.test(name) || /alloyed\s+gold/i.test(name)) continue
+    rows.push({ name, gross })
+  }
+  const target = Number(job?.targetGross) > 0
+    ? Number(job.targetGross)
+    : rows.reduce((sum, row) => sum + row.gross, 0)
+  const sum = rows.reduce((acc, row) => acc + row.gross, 0)
+  if (!(target > 0) || !(sum > target + 0.0005)) {
+    return { target, rows }
+  }
+  let allocated = 0
+  const scaled = rows.map((row, index) => {
+    const isLast = index === rows.length - 1
+    const remain = isLast
+      ? roundMixGrams(target - allocated)
+      : roundMixGrams(row.gross * (target / sum))
+    if (!isLast) allocated = roundMixGrams(allocated + remain)
+    return { ...row, gross: remain }
+  }).filter((row) => row.gross > 0)
+  return { target, rows: scaled }
+}
+
+/**
+ * Same purity/share numbers as Gold Alloy View mix (finished 0.76, Gold / Copper shares).
+ * Fixed from Post Mix — does not change when Metal Out gross changes.
+ */
+export function postMixCompositionParts(job: {
+  purity?: number | null
+  targetGross?: number | null
+  inputComponents?: Array<{ name?: string; label?: string; gross?: number }> | null
+} | null | undefined): MixCompositionPart[] {
+  const { target, rows } = mixComponentsForShare(job)
+  const parts: MixCompositionPart[] = []
+  const purityPct = job?.purity != null && Number(job.purity) > 0 ? Number(job.purity) : null
+  if (purityPct != null) {
+    const finishedFrac = purityPct > 1.2 && purityPct <= 100 ? purityPct / 100 : purityPct
+    if (finishedFrac > 0 && finishedFrac <= 1.2) {
+      const share = roundMixShare(finishedFrac, 2)
+      parts.push({ label: 'finished', share, shareText: share.toFixed(2) })
+    }
+  }
+  for (const row of rows) {
+    const share = target > 0 ? roundMixShare(row.gross / target, 6) : 0
+    if (!(share > 0)) continue
+    parts.push({
+      label: shortMixMetalLabel(row.name),
+      share,
+      shareText: String(share),
+    })
+  }
+  return parts
+}
+
+/** Joined label for titles/tests. */
+export function postMixCompositionLabel(job: {
+  purity?: number | null
+  targetGross?: number | null
+  inputComponents?: Array<{ name?: string; label?: string; gross?: number }> | null
+} | null | undefined): string {
+  return postMixCompositionParts(job)
+    .map(({ label, shareText }) => `${label} ${shareText}`)
+    .join(' · ')
+}
+
+export type AlloyFinishedSeedLine = BatchEntryLine & {
+  /** Post Mix Gold/Copper share text for the Purity column. */
+  purityDisplay?: string
+  compositionParts?: MixCompositionPart[]
+}
+
+/**
+ * One Metal Out line for a Gold Alloy batch: finished product name.
+ * Display purity = Post Mix composition (Gold % · Copper %); API uses finished %.
+ */
+export function finishedMetalOutLineFromJob(job: {
+  finishedProductName?: string | null
+  karat?: number | null
+  purity?: number | null
+  targetGross?: number | null
+  inputComponents?: Array<{ name?: string; label?: string; gross?: number }> | null
+} | null | undefined): AlloyFinishedSeedLine[] {
+  if (!job) return []
+  const karat = Number(job.karat)
+  const metal = String(job.finishedProductName || '').trim()
+    || (Number.isFinite(karat) && karat > 0 ? `${karat}K alloyed gold` : 'Alloyed gold')
+  const finishedPurity = job.purity != null && Number(job.purity) > 0
+    ? Math.round(Number(job.purity) * 1000) / 1000
+    : null
+  const compositionParts = postMixCompositionParts(job)
+  const composition = compositionParts.map(({ label, shareText }) => `${label} ${shareText}`).join(' · ')
+  return [{
+    metal,
+    qty: null,
+    purity: finishedPurity,
+    time: '',
+    ...(composition ? { purityDisplay: composition } : {}),
+    ...(compositionParts.length ? { compositionParts } : {}),
+  }]
 }
 
 /** Prefill Metal In/Out from Post Mix Inputs (OUT) product + grams. */
@@ -261,16 +407,20 @@ export function metalOutChoices(metalIn: BatchChoice[], metalOut: BatchChoice[],
  * When `preferSeedOnly` is set (alloy mix product lines), show those rows as-is.
  */
 export function withDefaultMetals(
-  lines: BatchEntryLine[] = [],
+  lines: Array<BatchEntryLine | AlloyFinishedSeedLine> = [],
   direction: BatchDirection = 'IN',
   preferSeedOnly = false,
-): BatchEntryLine[] {
+): AlloyFinishedSeedLine[] {
   if (preferSeedOnly && lines.length) {
     return lines.map((l) => ({
       metal: l.metal,
       qty: l.qty ?? null,
       purity: l.purity ?? null,
       time: l.time || '',
+      ...('purityDisplay' in l && l.purityDisplay ? { purityDisplay: l.purityDisplay } : {}),
+      ...('compositionParts' in l && Array.isArray(l.compositionParts) && l.compositionParts.length
+        ? { compositionParts: l.compositionParts }
+        : {}),
     }))
   }
   const defaultMetals = defaultMetalsFor(direction)
@@ -283,19 +433,25 @@ export function withDefaultMetals(
 /** Popup rows for a new batch, or for a rejected batch being fixed (its sent lines filled in). */
 export function editableBatch(
   { entryDate, batchLabel }: BatchChoice,
-  lines?: BatchEntryLine[],
+  lines?: Array<BatchEntryLine | AlloyFinishedSeedLine>,
   direction: BatchDirection = 'IN',
   opts: { preferSeedOnly?: boolean } = {},
 ): MetalBatchEdit {
   return {
     batchLabel,
     entryDate,
-    lines: withDefaultMetals(lines, direction, Boolean(opts.preferSeedOnly)).map((l) => ({
-      metal: l.metal,
-      qty: show(l.qty),
-      purity: show(l.purity),
-      time: l.time || '',
-    })),
+    lines: withDefaultMetals(lines, direction, Boolean(opts.preferSeedOnly)).map((l) => {
+      const composition = 'purityDisplay' in l ? String(l.purityDisplay || '').trim() : ''
+      const parts = 'compositionParts' in l && Array.isArray(l.compositionParts) ? l.compositionParts : []
+      return {
+        metal: l.metal,
+        qty: show(l.qty),
+        purity: composition || show(l.purity),
+        time: l.time || '',
+        ...(composition && l.purity != null ? { purityValue: show(l.purity) } : {}),
+        ...(parts.length ? { compositionParts: parts } : {}),
+      }
+    }),
   }
 }
 
