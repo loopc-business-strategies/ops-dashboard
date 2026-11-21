@@ -493,5 +493,18 @@ describe('alloy mix floor bridge', () => {
     const liveJob = await AlloyMixJob.findOne({ mixCode, isDeleted: { $ne: true }, status: 'in_vault' }).lean()
     expect(liveJob).toBeTruthy()
     expect(Number(liveJob.targetGross)).toBe(99.3)
+
+    // Post Mix vault + one back-from-Melting vault (promoted) — no extra Updated Mix row.
+    const vaultRows = await OperationsProductionEntry.find({
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      alloyMixCode: mixCode,
+    }).sort({ batchStartedAt: 1 }).lean()
+    expect(vaultRows).toHaveLength(2)
+    const openVault = vaultRows.find((r) => r.metalOut == null)
+    expect(openVault).toBeTruthy()
+    expect(Number(openVault.metalIn)).toBeCloseTo(99.3, 5)
+    expect(String(openVault.transferFromDepartment || '').toLowerCase()).toBe('melting')
+    expect(vaultRows.filter((r) => String(r.transferFromDepartment || '').toLowerCase() === 'update_mix')).toHaveLength(0)
   })
 })

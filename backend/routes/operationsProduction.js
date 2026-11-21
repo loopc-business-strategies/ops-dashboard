@@ -12,6 +12,8 @@ const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
 const dateKeySchema = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/)
 
+const transferDeptSchema = Joi.string().allow('', null).max(80)
+
 const entryBodySchema = Joi.object({
   departmentKey: Joi.string().valid(...DEPARTMENT_KEYS).required(),
   batchNumber: Joi.string().allow('', null).max(120),
@@ -28,6 +30,9 @@ const entryBodySchema = Joi.object({
   breakdown: Joi.string().allow('', null).max(2000),
   requests: Joi.string().allow('', null).max(2000),
   date: dateKeySchema.required(),
+  /** Gold Alloy from/to chips (Vault Post Mix, from Melting, to Vault, …). */
+  transferFromDepartment: transferDeptSchema,
+  transferToDepartment: transferDeptSchema,
 }).unknown(false)
 
 const entryPatchSchema = entryBodySchema.fork(
@@ -128,6 +133,12 @@ function normalizePayload(body, { partial = false } = {}) {
   }
   if (!partial || body.date !== undefined) {
     out.date = String(body.date || '').trim()
+  }
+  if (!partial || body.transferFromDepartment !== undefined) {
+    out.transferFromDepartment = String(body.transferFromDepartment || '').trim().toLowerCase()
+  }
+  if (!partial || body.transferToDepartment !== undefined) {
+    out.transferToDepartment = String(body.transferToDepartment || '').trim().toLowerCase()
   }
 
   const lossSource = body.metalLoss
