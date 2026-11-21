@@ -325,14 +325,24 @@ async function nextMixCode(session) {
   return `${prefix}${String(seq).padStart(4, '0')}`
 }
 
+function formatMixCode(sequence) {
+  const n = Number(sequence)
+  if (!Number.isFinite(n) || n < 1) return ''
+  return `${MIX_CODE_PREFIX}${String(n).padStart(4, '0')}`
+}
+
 async function resolveMixCode({ session, preferredMixCode = '' } = {}) {
-  const preferred = String(preferredMixCode || '').trim().toUpperCase()
-  if (preferred && parseMixCodeSequence(preferred) != null) {
+  const raw = String(preferredMixCode || '').trim().toUpperCase()
+  const seq = parseMixCodeSequence(raw)
+  const preferred = seq != null ? formatMixCode(seq) : ''
+  if (preferred) {
     const clash = await withSession(
-      AlloyMixJob.findOne({ mixCode: preferred }).select('_id').lean(),
+      AlloyMixJob.findOne({ mixCode: preferred }).select('_id mixCode').lean(),
       session,
     )
     if (!clash) return preferred
+    // Explicit batch from New/Edit mix — do not silently mint the next number.
+    throw httpError(400, `Batch ${preferred} is already in use`)
   }
   return nextMixCode(session)
 }

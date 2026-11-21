@@ -614,6 +614,10 @@ function createAlloyMixService({
           }
         }
       } catch (bridgeErr) {
+        // Explicit Batch No (New/Edit) must hard-fail so inventory is not posted without the job.
+        if (String(reuseMixCode || '').trim() || Number(bridgeErr?.status) === 400) {
+          throw bridgeErr
+        }
         // Soft-fail bridge so ERP stock post is not blocked by lot/ops issues.
         console.warn('[alloy-mix] floor bridge failed:', bridgeErr?.message || bridgeErr)
         erpResult.mixJobWarning = String(bridgeErr?.message || 'Mix job bridge failed')

@@ -22,6 +22,7 @@ import {
   findFinishedAlloyProductHint,
   listAvailableAlloyLineTemplates,
   listFinishedAlloyOptionsForKarat,
+  normalizeAlloyMixBatchNo,
   normalizeAlloyPurity,
   patchInventoryCategoryPurity,
   rebalanceAlloyUpdateLinesAfterShareChange,
@@ -29,6 +30,7 @@ import {
   resolveAlloyUpdateOriginalGross,
   resolveKaratRecipe,
   roundAlloyGrams,
+  suggestNextAlloyMixBatchNo,
   summarizeAlloyLines,
   validateAlloyMixPost,
 } from '../goldAlloyCalculator'
@@ -102,8 +104,12 @@ export default function ERPGoldAlloyTab({
   const [updating, setUpdating] = useState(false)
   const [editingPosted, setEditingPosted] = useState(null)
   const [viewPosted, setViewPosted] = useState(null)
+  /** Editable BMG batch on New/Edit mix dialog (e.g. BMG-0001). */
+  const [batchNo, setBatchNo] = useState('')
   /** Open Floor/Ops mix jobs keyed by ERP reasonBase (Update Mix only in vault). */
   const [mixJobsByReason, setMixJobsByReason] = useState({})
+  /** All mix codes (incl. archived) — used to suggest next Batch No. */
+  const [mixJobCodes, setMixJobCodes] = useState([])
   const postingEnabled = String(tenantKey || '').toLowerCase() === 'mg'
 
   useEffect(() => {
@@ -111,27 +117,37 @@ export default function ERPGoldAlloyTab({
     Promise.resolve(loadInventory()).catch(() => {})
   }, [activeTab, token, loadInventory])
 
+  const applyMixJobs = (jobs = []) => {
+    const map = {}
+    const codes = []
+    for (const job of jobs || []) {
+      const code = String(job.mixCode || '').trim().toUpperCase()
+      if (code) codes.push(code)
+      const key = String(job.reasonBase || '').trim()
+      if (!key) continue
+      const existing = map[key]
+      // Prefer the live job when a closed/deleted twin shares the same reason.
+      if (!existing || (existing.status === 'closed' && job.status !== 'closed')) {
+        map[key] = job
+      }
+    }
+    setMixJobsByReason(map)
+    setMixJobCodes(codes)
+  }
+
   const reloadMixJobs = async () => {
     if (!token || !postingEnabled) {
       setMixJobsByReason({})
+      setMixJobCodes([])
       return
     }
     try {
       // includeClosed so Posted-mix history rows still resolve Batch (AMX) after reverse/update.
       const data = await erpAccountingAPI.listAlloyMixJobs(token, { includeClosed: true })
-      const map = {}
-      for (const job of data?.jobs || []) {
-        const key = String(job.reasonBase || '').trim()
-        if (!key) continue
-        const existing = map[key]
-        // Prefer the live job when a closed/deleted twin shares the same reason.
-        if (!existing || (existing.status === 'closed' && job.status !== 'closed')) {
-          map[key] = job
-        }
-      }
-      setMixJobsByReason(map)
+      applyMixJobs(data?.jobs || [])
     } catch {
       setMixJobsByReason({})
+      setMixJobCodes([])
     }
   }
 
@@ -171,21 +187,13 @@ export default function ERPGoldAlloyTab({
       .then(([data, jobsData]) => {
         if (cancelled) return
         setPostedMixes(buildPostedAlloyMixListFromMovements(data?.movements || []))
-        const map = {}
-        for (const job of jobsData?.jobs || []) {
-          const key = String(job.reasonBase || '').trim()
-          if (!key) continue
-          const existing = map[key]
-          if (!existing || (existing.status === 'closed' && job.status !== 'closed')) {
-            map[key] = job
-          }
-        }
-        setMixJobsByReason(map)
+        applyMixJobs(jobsData?.jobs || [])
       })
       .catch(() => {
         if (!cancelled) {
           setPostedMixes([])
           setMixJobsByReason({})
+          setMixJobCodes([])
         }
       })
       .finally(() => {
@@ -221,10 +229,7 @@ export default function ERPGoldAlloyTab({
   }, [karat, stockOptions, finishedOptions, finishedProductId])
 
   const finishedHint = useMemo(
-    () => (karat ? findFinishedAlloyProductHint(karat, stockOptions) : {
-      id: '',
-      message: 'Select karat, gold input, stocks, and finished product to build a new mix.',
-    }),
+    () => (karat ? findFinishedAlloyProductHint(karat, stockOptions) : null),
     [karat, stockOptions],
   )
 
@@ -298,6 +303,7 @@ export default function ERPGoldAlloyTab({
     setFinishedProductId('')
     setAddMenuOpen(false)
     setEditingPosted(null)
+    setBatchNo('')
   }
 
   const closeUpdateDialogState = () => {
@@ -323,6 +329,7 @@ export default function ERPGoldAlloyTab({
     setViewPosted(null)
     if (updateOpen) closeUpdateDialogState()
     resetNewMix()
+    setBatchNo(suggestNextAlloyMixBatchNo(mixJobCodes))
     setNewMixOpen(true)
   }
 
@@ -369,6 +376,10 @@ export default function ERPGoldAlloyTab({
     setFinishedProductId(String(posted.finishedProductId || ''))
     setLines(nextLines)
     setEditingPosted(posted)
+    const existingBatch = normalizeAlloyMixBatchNo(
+      job?.mixCode || posted.mixCode || posted.batchNumber || '',
+    )
+    setBatchNo(existingBatch || suggestNextAlloyMixBatchNo(mixJobCodes))
     setNewMixOpen(true)
     if (typeof showNotification === 'function') {
       showNotification(
@@ -957,15 +968,34 @@ export default function ERPGoldAlloyTab({
     }
     try {
       setPosting(true)
-      // Capture batch before reverse so Edit keeps the same BMG number.
-      const reuseMixCode = editingPosted
-        ? String(
-          mixJobsByReason[String(editingPosted.reason || '').trim()]?.mixCode
-          || editingPosted.mixCode
-          || editingPosted.batchNumber
-          || '',
-        ).trim().toUpperCase()
-        : ''
+      // Prefer the Batch No field (editable on New + Edit). Fall back to prior job code on Edit.
+      const reuseMixCode = normalizeAlloyMixBatchNo(batchNo)
+        || (editingPosted
+          ? normalizeAlloyMixBatchNo(
+            mixJobsByReason[String(editingPosted.reason || '').trim()]?.mixCode
+            || editingPosted.mixCode
+            || editingPosted.batchNumber
+            || '',
+          )
+          : '')
+      if (batchNo.trim() && !reuseMixCode) {
+        if (typeof setError === 'function') {
+          setError('Batch No must look like BMG-0001 (or enter 1 / 0001)')
+        }
+        return
+      }
+      // Block taken codes before post (Edit frees its own code via reverse first).
+      if (reuseMixCode && !editingPosted) {
+        const taken = mixJobCodes.some((code) => (
+          String(code || '').trim().toUpperCase() === reuseMixCode
+        ))
+        if (taken) {
+          if (typeof setError === 'function') {
+            setError(`Batch ${reuseMixCode} is already in use — pick another Batch No`)
+          }
+          return
+        }
+      }
       // Active Edit reverses first. History Edit is already reversed — skip reverse.
       if (editingPosted && !editingPosted.isHistory) {
         const reversed = await reversePostedMix(editingPosted, { skipConfirm: true })
@@ -973,11 +1003,13 @@ export default function ERPGoldAlloyTab({
       }
       // Edit = reverse + replace as a normal posted mix (never tag as "updated").
       // Update dialog alone uses status "updated" for metal-loss versions.
+      // New mix also sends reuseMixCode so the chosen Batch No is used (not silent next).
       const payload = buildAlloyMixPayload({
         karat,
         targetGross,
         finishedProductId,
         lines,
+        reuseMixCode,
         ...(editingPosted
           ? {
             description: buildAlloyMixReasonBase({
@@ -985,7 +1017,6 @@ export default function ERPGoldAlloyTab({
               targetGross,
               status: 'posted',
             }),
-            reuseMixCode,
           }
           : {}),
       })
@@ -1613,19 +1644,52 @@ export default function ERPGoldAlloyTab({
               </div>
             ) : null}
 
-            <div style={{
-              marginBottom: '0.75rem',
-              padding: '0.55rem 0.7rem',
-              borderRadius: '0.45rem',
-              border: `1px solid ${finishedHint.id ? '#BBF7D0' : '#E2E8F0'}`,
-              background: finishedHint.id ? '#F0FDF4' : '#F8FAFC',
-              color: finishedHint.id ? '#166534' : '#475569',
-              fontSize: '0.78rem',
-              lineHeight: 1.45,
-            }}
-            >
-              {finishedHint.message}
+            <div style={{ marginBottom: '0.75rem', maxWidth: 148 }}>
+              <label style={labelStyle} htmlFor="alloy-mix-batch-no">Batch No</label>
+              <input
+                id="alloy-mix-batch-no"
+                type="text"
+                value={batchNo}
+                onChange={(e) => setBatchNo(e.target.value.toUpperCase())}
+                onBlur={() => {
+                  const normalized = normalizeAlloyMixBatchNo(batchNo)
+                  if (normalized) setBatchNo(normalized)
+                }}
+                placeholder="BMG-0001"
+                disabled={posting}
+                autoComplete="off"
+                style={{
+                  ...fieldStyle,
+                  width: '100%',
+                  maxWidth: 148,
+                  padding: '0.4rem 0.5rem',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                }}
+                aria-label="Batch number"
+              />
             </div>
+
+            {finishedHint?.message ? (
+              <div style={{
+                display: 'inline-block',
+                width: 'fit-content',
+                maxWidth: '100%',
+                marginBottom: '0.75rem',
+                padding: '0.4rem 0.55rem',
+                borderRadius: '0.4rem',
+                border: `1px solid ${finishedHint.id ? '#BBF7D0' : '#E2E8F0'}`,
+                background: finishedHint.id ? '#F0FDF4' : '#F8FAFC',
+                color: finishedHint.id ? '#166534' : '#475569',
+                fontSize: '0.75rem',
+                lineHeight: 1.35,
+              }}
+              >
+                {finishedHint.message}
+              </div>
+            ) : null}
 
             <div style={{
               display: 'grid',

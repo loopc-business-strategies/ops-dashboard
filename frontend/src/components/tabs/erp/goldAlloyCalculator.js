@@ -1,3 +1,43 @@
+/** Live batch / mix codes: BMG-0001, BMG-0002, … */
+export const ALLOY_MIX_CODE_PREFIX = 'BMG-'
+
+/** Parse BMG-#### (also BMG-####__REV__…) → sequence number, or null. */
+export function parseAlloyMixBatchSequence(mixCode = '') {
+  const m = String(mixCode || '').trim().toUpperCase()
+    .match(new RegExp(`^${ALLOY_MIX_CODE_PREFIX}(\\d+)`, 'i'))
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Normalize user/API input to BMG-0001 (accepts 1, 0001, BMG-1, BMG-0001). */
+export function normalizeAlloyMixBatchNo(raw = '') {
+  const text = String(raw || '').trim().toUpperCase()
+  if (!text) return ''
+  const withPrefix = text.startsWith(ALLOY_MIX_CODE_PREFIX)
+    ? text
+    : /^\d+$/.test(text)
+      ? `${ALLOY_MIX_CODE_PREFIX}${text}`
+      : text
+  const n = parseAlloyMixBatchSequence(withPrefix)
+  if (n == null || n < 1) return ''
+  return `${ALLOY_MIX_CODE_PREFIX}${String(n).padStart(4, '0')}`
+}
+
+export function isValidAlloyMixBatchNo(raw = '') {
+  return Boolean(normalizeAlloyMixBatchNo(raw))
+}
+
+/** Next free BMG-#### from existing job codes (counts archived __REV__ too). */
+export function suggestNextAlloyMixBatchNo(mixCodes = []) {
+  let seq = 1
+  for (const code of mixCodes || []) {
+    const n = parseAlloyMixBatchSequence(code)
+    if (n != null) seq = Math.max(seq, n + 1)
+  }
+  return `${ALLOY_MIX_CODE_PREFIX}${String(seq).padStart(4, '0')}`
+}
+
 /** Karat → gold / alloy ratio percentages (sum 100). */
 export const GOLD_ALLOY_KARAT_RECIPES = [
   { karat: 24, goldRatio: 100, alloyRatio: 0, label: '24K' },
@@ -535,7 +575,8 @@ export function buildAlloyMixPayload({
   description = '',
   reuseMixCode = '',
 } = {}) {
-  const reuse = String(reuseMixCode || '').trim().toUpperCase()
+  const reuse = normalizeAlloyMixBatchNo(reuseMixCode)
+    || String(reuseMixCode || '').trim().toUpperCase()
   return {
     karat: Number(karat),
     targetGross: Number(targetGross),
