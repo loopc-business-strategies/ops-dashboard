@@ -1,9 +1,45 @@
-import { useState } from 'react'
-import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, S } from './voucherTabShared'
+import { useMemo, useState } from 'react'
+import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, inputStyle, isMetalStockVoucherType, isSaveSubmitOnlyVoucherType, sortVouchersByDocNo, S } from './voucherTabShared'
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 import { canFixVoucher, resolveVoucherFixingBadge, resolveVoucherIndicativeTotalNote, summarizeVoucherFixing } from './voucherFixingHelpers'
 import VoucherActivityLogModal from './VoucherActivityLogModal'
+
+/** Compact chevron pair — active direction solid, idle muted dual arrow. */
+function SortChevron({ active, dir }) {
+  const up = active && dir === 'asc'
+  const down = active && dir === 'desc'
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: '0.28rem',
+        lineHeight: 0.7,
+        fontSize: '0.55rem',
+        verticalAlign: 'middle',
+        userSelect: 'none',
+      }}
+    >
+      <span style={{ color: up ? S.ink : '#94A3B8', fontWeight: 800 }}>▲</span>
+      <span style={{ color: down ? S.ink : '#94A3B8', fontWeight: 800 }}>▼</span>
+    </span>
+  )
+}
+
+function sortVouchersByGrandTotal(items, voucherType, dir = 'asc') {
+  const src = Array.isArray(items) ? [...items] : []
+  const sign = dir === 'desc' ? -1 : 1
+  return src.sort((a, b) => {
+    const av = Number(computeVoucherGrandTotal(a, voucherType) || 0)
+    const bv = Number(computeVoucherGrandTotal(b, voucherType) || 0)
+    if (av !== bv) return (av - bv) * sign
+    return 0
+  })
+}
 
 const FIXING_BADGE_COLORS = {
   fixed: { bg: '#DCFCE7', color: '#166534' },
@@ -57,18 +93,50 @@ export default function VoucherListPanel({
   const colCount = 7
     + (isSimpleMetalVoucher ? 0 : 2)
     + (isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? 1 : 0)
+  const [showActivityLog, setShowActivityLog] = useState(false)
+  const [listSort, setListSort] = useState({ key: 'docNo', dir: 'asc' })
+
+  const toggleListSort = (key) => {
+    setListSort((prev) => (
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'grandTotal' ? 'desc' : 'asc' }
+    ))
+  }
+
+  const sortedVouchers = useMemo(() => {
+    const rows = Array.isArray(filteredVouchers) ? filteredVouchers : []
+    if (listSort.key === 'grandTotal') {
+      return sortVouchersByGrandTotal(rows, voucherType, listSort.dir)
+    }
+    const byDoc = sortVouchersByDocNo(rows, voucherType)
+    return listSort.dir === 'desc' ? byDoc.reverse() : byDoc
+  }, [filteredVouchers, listSort, voucherType])
+
   const {
     scrollRef,
     enabled: virtEnabled,
     virtualItems,
     paddingTop,
     paddingBottom,
-  } = useVirtualTableRows(filteredVouchers.length, { estimateSize: 52 })
+  } = useVirtualTableRows(sortedVouchers.length, { estimateSize: 52 })
 
   const visibleIndexes = virtEnabled
     ? virtualItems.map((v) => v.index)
-    : filteredVouchers.map((_, index) => index)
-  const [showActivityLog, setShowActivityLog] = useState(false)
+    : sortedVouchers.map((_, index) => index)
+
+  const headers = [
+    { label: 'Doc No', sortKey: 'docNo' },
+    { label: 'Doc Date' },
+    ...(isSimpleMetalVoucher ? [] : [{ label: 'Value Date' }]),
+    { label: 'Party Code' },
+    { label: 'Party Name' },
+    ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? [{ label: 'Fixing' }] : []),
+    ...(isSimpleMetalVoucher ? [] : [{ label: 'Currency' }]),
+    { label: 'Grand Total', sortKey: 'grandTotal' },
+    { label: 'Status' },
+    { label: 'Actions' },
+  ]
 
   return (
     <div>
@@ -145,11 +213,35 @@ export default function VoucherListPanel({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr style={{ background: S.headerBg }}>
-                {['Doc No', 'Doc Date', ...(isSimpleMetalVoucher ? [] : ['Value Date']), 'Party Code', 'Party Name', ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? ['Fixing'] : []), ...(isSimpleMetalVoucher ? [] : ['Currency']), 'Grand Total', 'Status', 'Actions'].map((heading) => (
-                  <th key={heading} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
-                    {heading}
-                  </th>
-                ))}
+                {headers.map((heading) => {
+                  const sortable = Boolean(heading.sortKey)
+                  const active = listSort.key === heading.sortKey
+                  return (
+                    <th
+                      key={heading.label}
+                      style={{
+                        padding: '0.6rem 0.75rem',
+                        textAlign: heading.sortKey === 'grandTotal' ? 'right' : 'left',
+                        fontWeight: '700',
+                        color: S.ink,
+                        borderBottom: `2px solid ${S.border}`,
+                        whiteSpace: 'nowrap',
+                        cursor: sortable ? 'pointer' : 'default',
+                        userSelect: sortable ? 'none' : undefined,
+                      }}
+                      onClick={sortable ? () => toggleListSort(heading.sortKey) : undefined}
+                      aria-sort={sortable && active ? (listSort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                      title={sortable ? `Sort by ${heading.label}` : undefined}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: heading.sortKey === 'grandTotal' ? 'flex-end' : 'flex-start', width: '100%' }}>
+                        {heading.label}
+                        {sortable ? (
+                          <SortChevron active={active} dir={listSort.dir} />
+                        ) : null}
+                      </span>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -157,7 +249,7 @@ export default function VoucherListPanel({
                 <tr><td colSpan={colCount} style={{ height: paddingTop, padding: 0, border: 'none' }} /></tr>
               )}
               {visibleIndexes.map((index) => {
-                const voucher = filteredVouchers[index]
+                const voucher = sortedVouchers[index]
                 if (!voucher) return null
                 const meta = voucher.voucherMeta || {}
                 const grand = computeVoucherGrandTotal(voucher, voucherType)
@@ -298,7 +390,7 @@ export default function VoucherListPanel({
               )}
             </tbody>
           </table>
-          <p style={{ marginTop: '0.5rem', color: S.muted, fontSize: '0.8rem' }}>{filteredVouchers.length} voucher(s)</p>
+          <p style={{ marginTop: '0.5rem', color: S.muted, fontSize: '0.8rem' }}>{sortedVouchers.length} voucher(s)</p>
         </div>
       )}
     </div>
