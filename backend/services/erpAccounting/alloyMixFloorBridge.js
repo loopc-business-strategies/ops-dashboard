@@ -26,11 +26,20 @@ function toQty(n) {
   return Math.round(Number(n || 0) * 1000) / 1000
 }
 
-/** Normalize Post Mix consumed rows into AlloyMixJob.inputComponents. */
+/**
+ * Normalize Post Mix consumed rows into AlloyMixJob.inputComponents.
+ * Prefer remainGross (metals in the finished bar) — same grams View mix shows —
+ * not the pre-oxidation consume amount when metal loss reduced the mix.
+ */
 function buildInputComponents(consumed = []) {
   return (Array.isArray(consumed) ? consumed : [])
     .map((row) => {
-      const gross = toQty(row?.gross)
+      const consume = toQty(row?.gross)
+      const remainRaw = row?.remainGross
+      const remain = remainRaw === '' || remainRaw == null ? null : toQty(remainRaw)
+      const gross = remain != null && remain >= 0 && remain <= consume + 0.0005
+        ? remain
+        : consume
       if (!(gross > QTY_EPS)) return null
       const name = String(row?.name || row?.consumeLabel || row?.label || '').trim()
       if (!name) return null
@@ -43,6 +52,35 @@ function buildInputComponents(consumed = []) {
       }
     })
     .filter(Boolean)
+}
+
+/**
+ * When stored input grams still sum above finished target (legacy jobs that kept
+ * consume amounts after Update metal loss), scale down to match View mix remain.
+ */
+function normalizeInputComponentsToTarget(components = [], targetGross) {
+  const target = toQty(targetGross)
+  const list = (Array.isArray(components) ? components : [])
+    .map((row) => ({
+      itemId: row?.itemId || null,
+      name: String(row?.name || '').trim(),
+      role: String(row?.role || '').trim(),
+      label: String(row?.label || '').trim(),
+      gross: toQty(row?.gross),
+    }))
+    .filter((row) => row.name && row.gross > QTY_EPS)
+  if (!(target > 0) || !list.length) return list
+  const sum = toQty(list.reduce((acc, row) => acc + row.gross, 0))
+  if (!(sum > target + 0.0005)) return list
+  let allocated = 0
+  return list.map((row, index) => {
+    const isLast = index === list.length - 1
+    const remain = isLast
+      ? toQty(target - allocated)
+      : toQty(row.gross * (target / sum))
+    if (!isLast) allocated = toQty(allocated + remain)
+    return { ...row, gross: remain }
+  }).filter((row) => row.gross > QTY_EPS)
 }
 
 /** Scale input grams when a mix is partially allocated (ratio = move / available). */
@@ -1211,13 +1249,12 @@ async function receiveMixJob({
   let metalInEntry = null
   try {
     const { createSystemPendingMetalIn } = require('../mgFloor/batchEntries')
-    const inputLines = (Array.isArray(job.inputComponents) ? job.inputComponents : [])
-      .map((c) => ({
-        metal: String(c.name || c.label || '').trim(),
-        qty: toQty(c.gross),
-        purity: null,
-      }))
-      .filter((line) => line.metal && line.qty > QTY_EPS)
+    // Seed one finished-alloy line (Post Mix product + purity), not Gold/Copper inputs.
+    const finishedName = String(job.finishedProductName || '').trim()
+      || (Number(job.karat) > 0 ? `${Number(job.karat)}K alloyed gold` : '')
+    const finishedLines = finishedName
+      ? [{ metal: finishedName, qty: weight, purity: purityPct }]
+      : []
     const seeded = await createSystemPendingMetalIn({
       department: dest,
       batchLabel: job.mixCode,
@@ -1227,9 +1264,7 @@ async function receiveMixJob({
       employeeId: user._id,
       employeeName: user.name || '',
       mixCode: job.mixCode,
-      lines: inputLines.length
-        ? inputLines
-        : undefined,
+      lines: finishedLines.length ? finishedLines : undefined,
     })
     metalInEntry = seeded?.entry || null
   } catch (err) {
@@ -1326,15 +1361,18 @@ function serializeJob(job, {
       .filter((c) => c.lossGross > QTY_EPS),
     finishedProductId: row.finishedProductId ? String(row.finishedProductId) : '',
     finishedProductName: row.finishedProductName || '',
-    inputComponents: (Array.isArray(row.inputComponents) ? row.inputComponents : [])
-      .map((c) => ({
-        itemId: c.itemId ? String(c.itemId) : '',
-        name: String(c.name || '').trim(),
-        role: String(c.role || '').trim(),
-        label: String(c.label || '').trim(),
-        gross: toQty(c.gross),
-      }))
-      .filter((c) => c.name && c.gross > QTY_EPS),
+    inputComponents: normalizeInputComponentsToTarget(
+      (Array.isArray(row.inputComponents) ? row.inputComponents : [])
+        .map((c) => ({
+          itemId: c.itemId ? String(c.itemId) : '',
+          name: String(c.name || '').trim(),
+          role: String(c.role || '').trim(),
+          label: String(c.label || '').trim(),
+          gross: toQty(c.gross),
+        }))
+        .filter((c) => c.name && c.gross > QTY_EPS),
+      row.targetGross,
+    ),
     purity: row.purity,
     stockLotId: row.stockLotId ? String(row.stockLotId) : '',
     stockCode: row.stockCode || '',

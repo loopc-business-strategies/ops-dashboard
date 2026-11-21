@@ -6,7 +6,9 @@ import {
   carriedOverEntries,
   dayTag,
   editableBatch,
+  finishedMetalOutLineFromJob,
   formatBatchTotalLabel,
+  isAlloyMixBatchCode,
   latestEntries,
   localDateKey,
   metalInChoices,
@@ -205,6 +207,69 @@ describe('batch numbers', () => {
       { metal: 'Gold 24K Bar', qty: '199.05', purity: '', time: '' },
       { metal: 'silver pure', qty: '47.12', purity: '', time: '' },
       { metal: 'pure copper', qty: '19.23', purity: '', time: '' },
+    ])
+  })
+
+  it('finishedMetalOutLineFromJob shows View-mix purity/share fractions', () => {
+    expect(isAlloyMixBatchCode('BMG-0001')).toBe(true)
+    const seeded = finishedMetalOutLineFromJob({
+      finishedProductName: '18K Alloyed Gold',
+      karat: 18,
+      purity: 76,
+      targetGross: 99.6,
+      inputComponents: [
+        { name: 'Gold 24K Bar', gross: 89.6 },
+        { name: 'Fine Copper', gross: 10 },
+      ],
+    })
+    expect(seeded).toEqual([{
+      metal: '18K Alloyed Gold',
+      qty: null,
+      purity: 76,
+      time: '',
+      purityDisplay: 'finished 0.76 · Gold 0.899598 · Copper 0.100402',
+      compositionParts: [
+        { label: 'finished', share: 0.76, shareText: '0.76' },
+        { label: 'Gold', share: 0.899598, shareText: '0.899598' },
+        { label: 'Copper', share: 0.100402, shareText: '0.100402' },
+      ],
+    }])
+    expect(editableBatch(
+      { entryDate: D1, batchLabel: 'BMG-0001' },
+      seeded,
+      'OUT',
+      { preferSeedOnly: true },
+    ).lines).toEqual([
+      {
+        metal: '18K Alloyed Gold',
+        qty: '',
+        purity: 'finished 0.76 · Gold 0.899598 · Copper 0.100402',
+        time: '',
+        purityValue: '76',
+        compositionParts: [
+          { label: 'finished', share: 0.76, shareText: '0.76' },
+          { label: 'Gold', share: 0.899598, shareText: '0.899598' },
+          { label: 'Copper', share: 0.100402, shareText: '0.100402' },
+        ],
+      },
+    ])
+  })
+
+  it('finishedMetalOutLineFromJob scales share after Update metal loss', () => {
+    const seeded = finishedMetalOutLineFromJob({
+      finishedProductName: '18K Alloyed Gold',
+      karat: 18,
+      purity: 76,
+      targetGross: 99,
+      inputComponents: [
+        { name: 'Gold 24K Bar', gross: 89.6 },
+        { name: 'Fine Copper', gross: 10 },
+      ],
+    })
+    expect(seeded[0].compositionParts).toEqual([
+      { label: 'finished', share: 0.76, shareText: '0.76' },
+      { label: 'Gold', share: 0.899596, shareText: '0.899596' },
+      { label: 'Copper', share: 0.100404, shareText: '0.100404' },
     ])
   })
 

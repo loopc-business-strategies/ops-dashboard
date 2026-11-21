@@ -8,8 +8,13 @@ import { IdleFade } from './IdleFade'
 export type MetalLineEdit = {
   metal: string
   qty: string
+  /** UI purity — composition text for Gold Alloy OUT, or typed number. */
   purity: string
   time: string
+  /** Finished fine-gold % for API when `purity` shows Post Mix composition. */
+  purityValue?: string
+  /** Small stacked View-mix share chips (0.76 / 0.9 / 0.1) for alloy Metal Out. */
+  compositionParts?: Array<{ label: string; share: number; shareText: string }>
 }
 
 export type MetalBatchEdit = {

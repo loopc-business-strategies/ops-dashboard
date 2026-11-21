@@ -9,8 +9,9 @@ import {
   blankMetalOutLine,
   buildMetalOutPayload,
   clockNow,
+  finishedMetalOutLineFromJob,
   hasActiveMetalOut,
-  linesFromJobInputComponents,
+  isAlloyMixBatchCode,
   localDateKey,
 } from './allocateMetalOut'
 
@@ -79,9 +80,12 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
 
   const openMetalOut = (job) => {
     setAllocating(null)
-    const seeded = linesFromJobInputComponents(job.inputComponents)
-    const withTime = (seeded.length ? seeded : [blankMetalOutLine('Gold Bar'), blankMetalOutLine('pure copper')])
-      .map((row) => ({ ...row, time: row.time || clockNow() }))
+    const now = clockNow()
+    const alloyOut = isAlloyMixBatchCode(job?.mixCode)
+    const withTime = alloyOut
+      ? [finishedMetalOutLineFromJob(job, { time: now })]
+      : [blankMetalOutLine('Gold Bar'), blankMetalOutLine('pure copper')]
+        .map((row) => ({ ...row, time: row.time || now }))
     setMetalOutJob(job)
     setMetalOutLines(withTime)
     setLocalError('')
@@ -470,7 +474,9 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                   {DASHBOARD_DEPARTMENTS.find((d) => d.key === metalOutJob.currentDepartment)?.label
                     || metalOutJob.currentDepartment}
                   {' · '}
-                  Sends for Floor Manager approval (same as MG Floor tablet)
+                  {isAlloyMixBatchCode(metalOutJob.mixCode)
+                    ? 'Finished product from Post Mix — edit Gross (g) and Time only; purity/share matches View mix (unchanged if gross changes)'
+                    : 'Sends for Floor Manager approval (same as MG Floor tablet)'}
                 </div>
               </div>
               <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={closeMetalOut}>Close</button>
@@ -511,6 +517,8 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               <span />
             </div>
             {metalOutLines.map((row, index) => {
+              const alloyLocked = Boolean(row.lockedMetal || row.lockedPurity)
+                || isAlloyMixBatchCode(metalOutJob.mixCode)
               const fieldStyle = {
                 width: '100%',
                 minHeight: 44,
@@ -523,6 +531,12 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                 fontWeight: 700,
                 textAlign: 'center',
                 boxSizing: 'border-box',
+              }
+              const lockedStyle = {
+                ...fieldStyle,
+                background: '#F8FAFC',
+                borderColor: '#E2E8F0',
+                color: C.t2,
               }
               return (
                 <div
@@ -539,11 +553,12 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                 >
                   <input
                     value={row.metal}
-                    disabled={Boolean(busyId)}
+                    disabled={Boolean(busyId) || alloyLocked}
+                    readOnly={alloyLocked}
                     onChange={(e) => updateMetalOutLine(index, { metal: e.target.value })}
                     placeholder="Metal"
                     aria-label={`Metal row ${index + 1}`}
-                    style={{ ...fieldStyle, textAlign: 'left', fontSize: 14 }}
+                    style={{ ...(alloyLocked ? lockedStyle : fieldStyle), textAlign: 'left', fontSize: 14 }}
                   />
                   <input
                     type="number"
@@ -556,17 +571,59 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                     aria-label={`Quantity (g) row ${index + 1}`}
                     style={fieldStyle}
                   />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={row.purity}
-                    disabled={Boolean(busyId)}
-                    onChange={(e) => updateMetalOutLine(index, { purity: e.target.value })}
-                    placeholder="e.g. 916"
-                    aria-label={`Purity row ${index + 1}`}
-                    style={fieldStyle}
-                  />
+                  {alloyLocked && Array.isArray(row.compositionParts) && row.compositionParts.length ? (
+                    <div
+                      aria-label={`Purity row ${index + 1}`}
+                      title={row.purityValue != null
+                        ? `Post Mix share (finished fine gold ${row.purityValue}%)`
+                        : 'Post Mix Gold / Copper share'}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        alignItems: 'stretch',
+                        minWidth: 0,
+                      }}
+                    >
+                      {row.compositionParts.map((part) => (
+                        <span
+                          key={`${part.label}-${part.shareText || part.share}`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-end',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            border: '1px solid #E2E8F0',
+                            background: part.label === 'finished' ? '#FFFBEB' : '#F8FAFC',
+                            color: C.t2,
+                            lineHeight: 1.15,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span style={{ fontSize: 12, fontWeight: 800, color: C.t1, fontVariantNumeric: 'tabular-nums' }}>
+                            {part.shareText != null ? part.shareText : part.share}
+                          </span>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#94A3B8', textTransform: 'lowercase' }}>
+                            {part.label}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.purity}
+                      disabled={Boolean(busyId) || alloyLocked}
+                      readOnly={alloyLocked}
+                      onChange={(e) => updateMetalOutLine(index, { purity: e.target.value })}
+                      placeholder="e.g. 91.6"
+                      aria-label={`Purity row ${index + 1}`}
+                      style={alloyLocked ? lockedStyle : fieldStyle}
+                    />
+                  )}
                   <input
                     value={row.time}
                     disabled={Boolean(busyId)}
@@ -580,28 +637,34 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                       color: C.t2,
                     }}
                   />
-                  <button
-                    type="button"
-                    className={B.ghost}
-                    disabled={Boolean(busyId) || metalOutLines.length <= 1}
-                    onClick={() => setMetalOutLines((rows) => rows.filter((_, i) => i !== index))}
-                    aria-label="Remove line"
-                  >
-                    ✕
-                  </button>
+                  {alloyLocked ? (
+                    <span aria-hidden style={{ width: 36 }} />
+                  ) : (
+                    <button
+                      type="button"
+                      className={B.ghost}
+                      disabled={Boolean(busyId) || metalOutLines.length <= 1}
+                      onClick={() => setMetalOutLines((rows) => rows.filter((_, i) => i !== index))}
+                      aria-label="Remove line"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               )
             })}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={B.ghost}
-                disabled={Boolean(busyId) || metalOutLines.length >= 8}
-                onClick={() => setMetalOutLines((rows) => [...rows, blankMetalOutLine()])}
-              >
-                + Add metal
-              </button>
+              {isAlloyMixBatchCode(metalOutJob.mixCode) ? null : (
+                <button
+                  type="button"
+                  className={B.ghost}
+                  disabled={Boolean(busyId) || metalOutLines.length >= 8}
+                  onClick={() => setMetalOutLines((rows) => [...rows, blankMetalOutLine()])}
+                >
+                  + Add metal
+                </button>
+              )}
               <button
                 type="button"
                 className={B.pri}
