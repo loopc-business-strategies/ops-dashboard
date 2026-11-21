@@ -171,8 +171,15 @@ async function upsertOpsRow({
   employeeName,
   actor,
   stamp,
+  fromDepartment = '',
+  toDepartment = '',
 }) {
   const code = String(mixCode || '').toUpperCase()
+  const fromRaw = String(fromDepartment || '').trim().toLowerCase()
+  const fromDept = normalizeDept(fromDepartment) || (
+    fromRaw === 'post_mix' || fromRaw === 'update_mix' ? fromRaw : ''
+  )
+  const toDept = normalizeDept(toDepartment) || ''
   const setBase = {
     source: 'gold_alloy',
     departmentKey,
@@ -192,6 +199,7 @@ async function upsertOpsRow({
       open.batchOverAt = new Date()
       open.floorOutEntryId = open.floorOutEntryId || opsKey(code, departmentKey, `out-${stamp}`)
       open.departmentManagerName = actor?.name || open.departmentManagerName
+      if (toDept) open.transferToDepartment = toDept
       if (open.metalIn != null && open.metalOut != null) {
         open.metalLoss = Math.max(0, toQty(open.metalIn - open.metalOut))
       }
@@ -214,6 +222,7 @@ async function upsertOpsRow({
       fineGold: fineGold ?? null,
       batchStartedAt: new Date(),
       floorInEntryId: floorBatchKey,
+      ...(fromDept ? { transferFromDepartment: fromDept } : {}),
     })
   } else {
     Object.assign(set, {
@@ -222,6 +231,7 @@ async function upsertOpsRow({
       fineGoldOut: fineGold ?? null,
       batchOverAt: new Date(),
       floorOutEntryId: floorBatchKey,
+      ...(toDept ? { transferToDepartment: toDept } : {}),
     })
   }
 
@@ -259,6 +269,9 @@ async function upsertOpsRow({
  * On reverse/Update: drop only *open* Ops visits (Metal IN, no Metal OUT yet).
  * Keep completed Melting/Bangle/Vault history under the same BMG batch so
  * Ops Production + Production Dashboard still show IN/OUT after Update.
+ *
+ * Vault returns from a floor department (from Melting / Rolling / …) are closed
+ * as history (OUT = IN) instead of deleted — otherwise Update Mix erases those rows.
  */
 async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
   const code = String(mixCode || '').toUpperCase()
@@ -282,6 +295,29 @@ async function softDeleteOpsForMix({ session, mixCode, actor, reason }) {
     const hasOut = row.metalOut != null && Number.isFinite(Number(row.metalOut))
     const hasOver = Boolean(row.batchOverAt)
     if (hasOut || hasOver) continue
+
+    const dept = normalizeDept(row.departmentKey)
+    const fromRaw = String(row.transferFromDepartment || '').trim().toLowerCase()
+    const fromDept = normalizeDept(fromRaw) || (
+      fromRaw === 'post_mix' || fromRaw === 'update_mix' ? fromRaw : ''
+    )
+    // Keep Vault history after Update Mix: close open IN as OUT=IN instead of delete
+    // (from Melting/Rolling/… returns, and prior Post Mix / Updated Mix stock rows).
+    if (dept === VAULT && fromDept) {
+      const inn = row.metalIn != null && Number.isFinite(Number(row.metalIn)) ? toQty(row.metalIn) : null
+      if (inn != null) {
+        row.metalOut = inn
+        if (row.purityOut == null && row.purity != null) row.purityOut = row.purity
+        if (row.fineGoldOut == null && row.fineGold != null) row.fineGoldOut = row.fineGold
+        row.metalLoss = 0
+        row.batchOverAt = row.batchOverAt || new Date()
+        if (!row.floorOutEntryId) {
+          row.floorOutEntryId = `${row.floorBatchKey || opsKey(code, VAULT, 'ret')}:update-close`
+        }
+        await row.save(writeOpts(session))
+        continue
+      }
+    }
 
     await row.deleteOne(writeOpts(session))
     n += 1
@@ -494,6 +530,9 @@ async function createJobFromPostedMix({
   )
 
   const date = dubaiDateKey()
+  const isUpdate = /updated/i.test(String(reasonBase || ''))
+  // Unique stamp so each Post/Update Mix is its own Vault row (OUT then merges onto that open IN).
+  const stamp = isUpdate ? `update-${Date.now()}` : `post-${Date.now()}`
   await upsertOpsRow({
     session,
     mixCode,
@@ -505,7 +544,8 @@ async function createJobFromPostedMix({
     purity: purityPct,
     fineGold,
     actor: user,
-    stamp: 'post',
+    stamp,
+    fromDepartment: isUpdate ? 'update_mix' : 'post_mix',
   })
 
   return {
@@ -945,6 +985,7 @@ async function allocateMixJob({
       fineGold,
       actor: user,
       stamp,
+      toDepartment: dest,
     })
     // Dest Metal IN always — every department keeps a visit row (Vault, Melting, Bangle…).
     // Floor still waits for receive Approve before status becomes in_department.
@@ -960,6 +1001,7 @@ async function allocateMixJob({
       fineGold,
       actor: user,
       stamp,
+      fromDepartment: from,
     })
 
     job.targetGross = remainWeight
@@ -992,6 +1034,7 @@ async function allocateMixJob({
     fineGold,
     actor: user,
     stamp,
+    toDepartment: dest,
   })
   // Dest Metal IN always — Melting/Bangle/etc keep the visit as soon as metal is sent,
   // same as Vault return. Receive Approve no longer creates a second IN.
@@ -1007,6 +1050,7 @@ async function allocateMixJob({
     fineGold,
     actor: user,
     stamp,
+    fromDepartment: from,
   })
 
   job.history.push({

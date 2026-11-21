@@ -17,9 +17,6 @@ export const SHEET_COLUMNS = [
   { key: 'batchOver', label: 'Batch Over', align: 'left', filter: null, sortable: true },
   { key: 'departmentManager', label: 'Department Manager', align: 'left', filter: null, sortable: true },
   { key: 'employee', label: 'Employee', align: 'left', filter: null, sortable: true },
-  { key: 'rating', label: 'Rating', align: 'left', filter: null, sortable: true },
-  { key: 'breakdown', label: 'Breakdown', align: 'left', filter: null, sortable: true },
-  { key: 'requests', label: 'Requests', align: 'left', filter: null, sortable: true },
 ]
 
 export const STATUS_BUCKETS = {
@@ -223,8 +220,8 @@ export function computeDepartmentTotals(rows) {
   }
 }
 
-/** Row fields still editable on workbook rows written by MG Floor approvals. */
-export const MG_FLOOR_EDITABLE_KEYS = ['rating', 'breakdown', 'requests']
+/** Row fields still editable on workbook rows written by MG Floor approvals (none — sheet is view-only). */
+export const MG_FLOOR_EDITABLE_KEYS = []
 
 function batchDurationMinutes(batch) {
   const start = batch?.startedAt ? new Date(batch.startedAt) : null
@@ -539,6 +536,8 @@ export function mapEntryToRow(entry) {
   const alloyMixCode = String(entry?.alloyMixCode || '').trim().toUpperCase()
   const batchNumber = String(entry?.batchNumber || '').trim()
   const batchLabel = batchNumber || alloyMixCode || '—'
+  const transferFromDepartment = String(entry?.transferFromDepartment || '').trim().toLowerCase()
+  const transferToDepartment = String(entry?.transferToDepartment || '').trim().toLowerCase()
 
   return {
     ...figures,
@@ -549,6 +548,8 @@ export function mapEntryToRow(entry) {
     fromFloor: source === 'mg_floor' || source === 'gold_alloy',
     fromGoldAlloy: source === 'gold_alloy' || Boolean(alloyMixCode),
     alloyMixCode,
+    transferFromDepartment,
+    transferToDepartment,
     employee: String(entry?.employeeName || '').trim() || '—',
     departmentManager: String(entry?.departmentManagerName || '').trim() || '—',
     batch: batchLabel,

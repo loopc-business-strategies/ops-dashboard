@@ -16,10 +16,8 @@ import {
   applyDeptDateFilter,
   applyGlobalFilters,
   computeSummary,
-  emptyDraftRow,
   fetchAllOperationsEntries,
   mapEntryToRow,
-  rowToEntryPayload,
 } from './productionSheetUtils'
 
 const wrap = {
@@ -31,7 +29,7 @@ const wrap = {
 }
 
 /**
- * Operations → Production: Excel-style department workbook (CRUD ledger), used by every tenant.
+ * Operations → Production: read-only department workbook (Floor / Gold Alloy), used by every tenant.
  * `dashboardSource`: the Production Dashboard is built from these rows (LoopC always; MG on days with rows).
  * `mgFloorSync`: MG Floor / Production Managers can re-apply approved MG Floor batches.
  * `showLossLimits`: MG — colour Loss % red above each department's limit set on the tablet.
@@ -43,10 +41,8 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
   const [syncing, setSyncing] = useState(false)
   const [syncNote, setSyncNote] = useState('')
   const [entries, setEntries] = useState([])
-  const [draftRows, setDraftRows] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [savingId, setSavingId] = useState(null)
   const [draftFilters, setDraftFilters] = useState({ ...EMPTY_FILTERS })
   const [appliedFilters, setAppliedFilters] = useState({ ...EMPTY_FILTERS })
   const [deptDateFilters, setDeptDateFilters] = useState({})
@@ -122,11 +118,45 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
       const job = code ? alloyJobsByCode[code] : null
       const alloyLossLabel = job ? formatAlloyMetalLossLabel(job) : null
-      return alloyLossLabel ? { ...row, alloyLossLabel } : row
+      const jobDept = String(job?.currentDepartment || '').trim().toLowerCase()
+      const jobLive = Boolean(job) && String(job.status || '') !== 'closed'
+      const openVisit = row.metalOut == null || row.metalOut === ''
+      // Highlight the open Ops visit in the department that currently holds the mix.
+      const alloyCurrentHere = Boolean(
+        row.fromGoldAlloy
+        && openVisit
+        && jobLive
+        && jobDept
+        && String(row.deptKey || '').toLowerCase() === jobDept,
+      )
+      return {
+        ...row,
+        ...(alloyLossLabel ? { alloyLossLabel } : {}),
+        alloyCurrentHere,
+        alloyCurrentDept: alloyCurrentHere ? jobDept : '',
+      }
     })
-    const drafts = Object.values(draftRows || {})
-    return [...mapped, ...drafts]
-  }, [entries, draftRows, alloyJobsByCode])
+
+    // Fallback when job map missing: exactly one open Gold Alloy visit per mix → mark it.
+    const openByCode = new Map()
+    mapped.forEach((row) => {
+      if (!row.fromGoldAlloy || row.alloyCurrentHere) return
+      if (!(row.metalOut == null || row.metalOut === '')) return
+      const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+      if (!code) return
+      const list = openByCode.get(code) || []
+      list.push(row)
+      openByCode.set(code, list)
+    })
+    openByCode.forEach((list) => {
+      if (list.length !== 1) return
+      const row = list[0]
+      row.alloyCurrentHere = true
+      row.alloyCurrentDept = String(row.deptKey || '').toLowerCase()
+    })
+
+    return mapped
+  }, [entries, alloyJobsByCode])
 
   const filteredRows = useMemo(
     () => applyGlobalFilters(allRows, appliedFilters),
@@ -173,40 +203,6 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
     }))
   }
 
-  const handleAddRow = (departmentKey) => {
-    const draft = emptyDraftRow(departmentKey)
-    setDraftRows((prev) => ({ ...prev, [draft.id]: draft }))
-    setExpanded((prev) => ({ ...prev, [departmentKey]: true }))
-  }
-
-  const handleSaveRow = async (row) => {
-    const departmentKey = row.deptKey
-    if (!departmentKey) {
-      setError('Missing department for row')
-      return
-    }
-    const payload = rowToEntryPayload(row, departmentKey)
-    setSavingId(row.id)
-    setError('')
-    try {
-      if (row._isNew) {
-        await productionControlApi.createOperationsEntry(payload)
-        setDraftRows((prev) => {
-          const next = { ...prev }
-          delete next[row.id]
-          return next
-        })
-      } else {
-        await productionControlApi.updateOperationsEntry(row.id, payload)
-      }
-      await reload()
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to save entry')
-    } finally {
-      setSavingId(null)
-    }
-  }
-
   const handleSyncFloor = async () => {
     setSyncing(true)
     setSyncNote('')
@@ -220,28 +216,6 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       setError(err?.response?.data?.message || err?.message || 'Failed to sync MG Floor batches')
     } finally {
       setSyncing(false)
-    }
-  }
-
-  const handleDeleteRow = async (row) => {
-    if (row._isNew) {
-      setDraftRows((prev) => {
-        const next = { ...prev }
-        delete next[row.id]
-        return next
-      })
-      return
-    }
-    if (!window.confirm('Delete this production entry?')) return
-    setSavingId(row.id)
-    setError('')
-    try {
-      await productionControlApi.deleteOperationsEntry(row.id)
-      await reload()
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to delete entry')
-    } finally {
-      setSavingId(null)
     }
   }
 
@@ -308,11 +282,6 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
               rows={rows}
               expanded={expanded[department.key] !== false}
               onToggle={() => toggleDept(department.key)}
-              editable
-              savingId={savingId}
-              onSaveRow={handleSaveRow}
-              onDeleteRow={handleDeleteRow}
-              onAddRow={() => handleAddRow(department.key)}
               dateFrom={df.dateFrom || ''}
               dateTo={df.dateTo || ''}
               onDateFilterChange={(next) => handleDeptDateFilter(department.key, next)}

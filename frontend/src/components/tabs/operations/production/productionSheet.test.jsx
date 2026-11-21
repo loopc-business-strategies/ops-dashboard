@@ -1,6 +1,6 @@
 import React from 'react'
-import { describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, test } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import DepartmentTable from './DepartmentTable'
 import {
   SHEET_COLUMNS,
@@ -48,14 +48,10 @@ describe('Production workbook purity and MG Floor rows', () => {
     expect(payload).toMatchObject({ metalOut: null, metalLoss: null, purity: null })
   })
 
-  test('MG Floor rows map as locked and only send the editable fields', () => {
+  test('MG Floor rows map as locked and send no editable fields (sheet is view-only)', () => {
     const row = mapEntryToRow(floorEntry)
     expect(row).toMatchObject({ fromFloor: true, purity: 93.48, fineGold: 1243.949, batch: '7' })
-    expect(rowToEntryPayload({ ...row, rating: 'A', metalIn: 1 }, 'melting')).toEqual({
-      rating: 'A',
-      breakdown: '',
-      requests: '',
-    })
+    expect(rowToEntryPayload({ ...row, rating: 'A', metalIn: 1 }, 'melting')).toEqual({})
 
     const manual = mapEntryToRow({ ...floorEntry, source: 'manual' })
     expect(manual.fromFloor).toBe(false)
@@ -77,80 +73,87 @@ describe('Production workbook purity and MG Floor rows', () => {
     })
   })
 
-  test('table shows the Gold Alloy badge for gold_alloy source rows', () => {
+  test('table shows gold_alloy mix code without Gold Alloy badge', () => {
     const row = mapEntryToRow({
       ...floorEntry,
       source: 'gold_alloy',
       batchNumber: 'AMX-261116-0001',
       alloyMixCode: 'AMX-261116-0001',
     })
-    render(
-      <DepartmentTable
-        rows={[row]}
-        editable
-        onSaveRow={vi.fn()}
-        onDeleteRow={() => {}}
-        onAddRow={() => {}}
-      />,
-    )
-    expect(screen.getByText('Gold Alloy')).toBeTruthy()
+    render(<DepartmentTable rows={[row]} />)
     expect(screen.getByText('AMX-261116-0001')).toBeTruthy()
+    expect(screen.queryByText('Gold Alloy')).toBeNull()
   })
 
-  test('table shows the MG Floor badge, blocks delete and keeps metal read-only while editing', () => {
-    const onSaveRow = vi.fn()
-    const onDeleteRow = vi.fn()
+  test('current custody row shows Now here badge and highlight marker', () => {
+    const row = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      departmentKey: 'melting',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      metalOut: null,
+      metalLoss: null,
+      transferFromDepartment: 'vault_room',
+    })
     render(
       <DepartmentTable
-        rows={[mapEntryToRow(floorEntry)]}
-        editable
-        onSaveRow={onSaveRow}
-        onDeleteRow={onDeleteRow}
-        onAddRow={() => {}}
+        rows={[{ ...row, alloyCurrentHere: true, alloyCurrentDept: 'melting' }]}
       />,
+    )
+    expect(screen.getByText('Now here')).toBeTruthy()
+    expect(document.querySelector('tr[data-alloy-current="true"]')).toBeTruthy()
+  })
+
+  test('from/to department badges show on Vault and Melting/Rolling/Bangle rows', () => {
+    const vault = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'post_mix',
+      transferToDepartment: 'melting',
+    })
+    const melting = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      departmentKey: 'melting',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'vault_room',
+      transferToDepartment: 'vault_room',
+    })
+    const rolling = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      departmentKey: 'rolling',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'vault_room',
+      transferToDepartment: 'vault_room',
+    })
+    render(<DepartmentTable rows={[vault, melting, rolling]} />)
+    expect(screen.getByText('Post Mix')).toBeTruthy()
+    expect(screen.getByText('to Melting')).toBeTruthy()
+    expect(screen.getAllByText('from Vault').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('to Vault').length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('table is view-only: no Edit/Save/Del and shows MG Floor metal values', () => {
+    render(
+      <DepartmentTable rows={[mapEntryToRow(floorEntry)]} />,
     )
     const row = screen.getByText('MG Floor').closest('tr')
     expect(within(row).getByText('93.48%')).toBeTruthy()
     expect(within(row).getByText('1243.95 g')).toBeTruthy()
-    expect(within(row).getByRole('button', { name: 'Del' }).disabled).toBe(true)
-
-    fireEvent.click(within(row).getByRole('button', { name: 'Edit' }))
-    expect(within(row).queryByLabelText('Purity IN %')).toBeNull()
-    expect(within(row).queryByLabelText('Purity OUT %')).toBeNull()
-    expect(within(row).queryByDisplayValue('1330.7')).toBeNull()
-    expect(within(row).getAllByRole('textbox')).toHaveLength(3)
-  })
-
-  test('manual rows edit purity and update fine gold', () => {
-    render(
-      <DepartmentTable
-        rows={[mapEntryToRow({ ...floorEntry, source: 'manual', metalIn: 1000, purity: null, fineGold: null })]}
-        editable
-        onSaveRow={() => {}}
-        onDeleteRow={() => {}}
-        onAddRow={() => {}}
-      />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    fireEvent.change(screen.getByLabelText('Purity IN %'), { target: { value: '91.6' } })
-    expect(screen.getByText('916 g')).toBeTruthy()
-  })
-
-  test('manual rows edit Purity OUT and update Fine Gold OUT and Fine Gold Loss', () => {
-    render(
-      <DepartmentTable
-        rows={[mapEntryToRow({ ...floorEntry, source: 'manual', metalIn: 1000, metalOut: 990, metalLoss: 10, purity: 91.6, fineGold: 916 })]}
-        editable
-        onSaveRow={() => {}}
-        onDeleteRow={() => {}}
-        onAddRow={() => {}}
-      />,
-    )
-    const row = screen.getByRole('button', { name: 'Edit' }).closest('tr')
-    fireEvent.click(within(row).getByRole('button', { name: 'Edit' }))
-    fireEvent.change(within(row).getByLabelText('Purity OUT %'), { target: { value: '91' } })
-    expect(within(row).getByText('900.9 g')).toBeTruthy()
-    expect(within(row).getByText('15.1 g')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Del' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Add row' })).toBeNull()
+    expect(screen.queryByText('Rate')).toBeNull()
+    expect(screen.queryByText('Brk')).toBeNull()
+    expect(screen.queryByText('Req')).toBeNull()
   })
 
   test('Loss %, Fine Gold OUT (estimated without Purity OUT) and Fine Gold Loss', () => {
