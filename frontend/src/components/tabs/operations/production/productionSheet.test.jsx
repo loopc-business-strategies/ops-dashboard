@@ -4,9 +4,11 @@ import { render, screen, within } from '@testing-library/react'
 import DepartmentTable from './DepartmentTable'
 import {
   SHEET_COLUMNS,
+  assignAlloyMoveSequences,
   computeDepartmentTotals,
   computeFineGold,
   computeSummary,
+  formatDepartmentBatchTotal,
   mapEntryToRow,
   rowToEntryPayload,
 } from './productionSheetUtils'
@@ -140,6 +142,55 @@ describe('Production workbook purity and MG Floor rows', () => {
     expect(screen.getAllByText('to Vault').length).toBeGreaterThanOrEqual(2)
   })
 
+  test('Gold Alloy visits get start→finish move numbers across departments', () => {
+    const post = mapEntryToRow({
+      ...floorEntry,
+      _id: '1'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      batchStartedAt: '2026-11-21T10:00:00.000Z',
+      batchOverAt: '2026-11-21T10:05:00.000Z',
+      transferFromDepartment: 'post_mix',
+      transferToDepartment: 'melting',
+    })
+    const melting = mapEntryToRow({
+      ...floorEntry,
+      _id: '2'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'melting',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      batchStartedAt: '2026-11-21T10:06:00.000Z',
+      batchOverAt: '2026-11-21T10:10:00.000Z',
+      transferFromDepartment: 'vault_room',
+      transferToDepartment: 'vault_room',
+    })
+    const back = mapEntryToRow({
+      ...floorEntry,
+      _id: '3'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      batchStartedAt: '2026-11-21T10:11:00.000Z',
+      batchOverAt: '2026-11-21T10:15:00.000Z',
+      transferFromDepartment: 'melting',
+      transferToDepartment: 'vault_room',
+    })
+    assignAlloyMoveSequences([back, melting, post])
+    expect(post.alloyMoveSeq).toBe(1)
+    expect(melting.alloyMoveSeq).toBe(2)
+    expect(back.alloyMoveSeq).toBe(3)
+    expect(post.alloyMoveTotal).toBe(3)
+
+    render(<DepartmentTable rows={[post, melting, back]} />)
+    expect(screen.getByText('#1')).toBeTruthy()
+    expect(screen.getByText('#2')).toBeTruthy()
+    expect(screen.getByText('#3')).toBeTruthy()
+  })
+
   test('table is view-only: no Edit/Save/Del and shows MG Floor metal values', () => {
     render(
       <DepartmentTable rows={[mapEntryToRow(floorEntry)]} />,
@@ -256,5 +307,45 @@ describe('Production workbook purity and MG Floor rows', () => {
       mapEntryToRow({ ...floorEntry, _id: 'd'.repeat(24), batchNumber: '' }),
     ]
     expect(computeSummary(rows).totalBatches).toBe(3)
+  })
+
+  test('Gold Alloy same mix is 1 batch with sequences in department footer and summary', () => {
+    const vaultA = mapEntryToRow({
+      ...floorEntry,
+      _id: '1'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'post_mix',
+      transferToDepartment: 'melting',
+    })
+    const vaultB = mapEntryToRow({
+      ...floorEntry,
+      _id: '2'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'melting',
+    })
+    const melting = mapEntryToRow({
+      ...floorEntry,
+      _id: '3'.repeat(24),
+      source: 'gold_alloy',
+      departmentKey: 'melting',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      transferFromDepartment: 'vault_room',
+      transferToDepartment: 'vault_room',
+    })
+    const dept = computeDepartmentTotals([vaultA, vaultB])
+    expect(dept).toMatchObject({ batches: 1, alloySequences: 2, visits: 2 })
+    expect(formatDepartmentBatchTotal(dept)).toBe('1 batch · 2 sequences')
+
+    expect(computeSummary([vaultA, vaultB, melting]).totalBatches).toBe(1)
+
+    render(<DepartmentTable rows={[vaultA, vaultB]} />)
+    expect(within(screen.getByTestId('department-total-row')).getByText('1 batch · 2 sequences')).toBeTruthy()
   })
 })

@@ -15,6 +15,7 @@ import {
   EMPTY_FILTERS,
   applyDeptDateFilter,
   applyGlobalFilters,
+  assignAlloyMoveSequences,
   computeSummary,
   fetchAllOperationsEntries,
   mapEntryToRow,
@@ -155,7 +156,8 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       row.alloyCurrentDept = String(row.deptKey || '').toLowerCase()
     })
 
-    return mapped
+    // 1…n across Vault + floor depts for the same mix (Post → Melting → Vault → Update → …).
+    return assignAlloyMoveSequences(mapped)
   }, [entries, alloyJobsByCode])
 
   const filteredRows = useMemo(

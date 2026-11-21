@@ -4,6 +4,7 @@ import {
   MG_FLOOR_EDITABLE_KEYS,
   SHEET_COLUMNS,
   computeDepartmentTotals,
+  formatDepartmentBatchTotal,
   computeFineGold,
   formatMinutes,
   formatPurity,
@@ -233,6 +234,14 @@ const batchCellWrap = {
   lineHeight: 1.2,
 }
 
+const batchCodeRow = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  maxWidth: '100%',
+  minWidth: 0,
+}
+
 const batchText = {
   display: 'block',
   fontWeight: 800,
@@ -241,6 +250,38 @@ const batchText = {
   whiteSpace: 'nowrap',
   overflow: 'visible',
   maxWidth: '100%',
+}
+
+/** Start→finish step chip (#1…#n) — compact marker next to mix code. */
+const moveSeqChipBase = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  minWidth: '1.4rem',
+  height: '1.15rem',
+  padding: '0 0.3rem',
+  borderRadius: 5,
+  fontSize: '0.68rem',
+  fontWeight: 800,
+  fontVariantNumeric: 'tabular-nums',
+  letterSpacing: '0.02em',
+  lineHeight: 1,
+}
+
+const moveSeqChipPast = {
+  ...moveSeqChipBase,
+  background: '#292524',
+  border: '1px solid #1C1917',
+  color: '#FAFAF9',
+}
+
+const moveSeqChipHere = {
+  ...moveSeqChipBase,
+  background: '#D97706',
+  border: '1px solid #B45309',
+  color: '#FFFBEB',
+  boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.35)',
 }
 
 /** Prefer readable Batch over squeezing every other column equally. */
@@ -388,6 +429,9 @@ function cellDisplay(row, key, lossLimitPct = null) {
   if (key === 'batch' && row.fromFloor) {
     if (row.fromGoldAlloy) {
       const mixLabel = row.alloyMixCode || row.batch || '—'
+      const moveSeq = Number(row.alloyMoveSeq)
+      const moveTotal = Number(row.alloyMoveTotal)
+      const hasMoveSeq = Number.isFinite(moveSeq) && moveSeq > 0
       const aml = row.alloyLossLabel ? ` · ${row.alloyLossLabel}` : ''
       const fromKey = String(row.transferFromDepartment || '').trim().toLowerCase()
       const toKey = String(row.transferToDepartment || '').trim().toLowerCase()
@@ -401,12 +445,27 @@ function cellDisplay(row, key, lossLimitPct = null) {
       const hereTitle = row.alloyCurrentHere
         ? `Batch is here now (${transferFromLabel(row.alloyCurrentDept || row.deptKey)})`
         : ''
+      const pathTitle = hasMoveSeq
+        ? (Number.isFinite(moveTotal) && moveTotal > 0
+          ? `Move ${moveSeq} of ${moveTotal} (start → finish)`
+          : `Move ${moveSeq} (start → finish)`)
+        : ''
       return (
         <span
           style={batchCellWrap}
-          title={[`Gold Alloy mix ${mixLabel}${aml} — metal fields are read-only`, fromTitle, toTitle, hereTitle].filter(Boolean).join(' · ')}
+          title={[`Gold Alloy mix ${mixLabel}${aml} — metal fields are read-only`, pathTitle, fromTitle, toTitle, hereTitle].filter(Boolean).join(' · ')}
         >
-          <span style={batchText}>{mixLabel}</span>
+          <span style={batchCodeRow}>
+            {hasMoveSeq ? (
+              <span
+                style={row.alloyCurrentHere ? moveSeqChipHere : moveSeqChipPast}
+                aria-label={pathTitle || `Move ${moveSeq}`}
+              >
+                {`#${moveSeq}`}
+              </span>
+            ) : null}
+            <span style={batchText}>{mixLabel}</span>
+          </span>
           {row.alloyCurrentHere ? (
             <span style={nowHereBadge}>Now here</span>
           ) : null}
@@ -617,7 +676,7 @@ export default function DepartmentTable({
   const totalCell = (key) => {
     const t = totals
     if (key === 'date') return 'Total'
-    if (key === 'batch') return `${t.batches} ${t.batches === 1 ? 'batch' : 'batches'}`
+    if (key === 'batch') return formatDepartmentBatchTotal(t)
     if (key === 'metalLoss' && t.gains) {
       return (
         <>

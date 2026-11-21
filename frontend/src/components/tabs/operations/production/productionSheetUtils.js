@@ -178,9 +178,33 @@ export function isOverLossLimit(lossPct, lossLimitPct) {
 
 const round3 = (n) => Math.round(n * 1000) / 1000
 
+/** Unique batch identity within one department table (Gold Alloy mix = one batch across visits). */
+export function departmentBatchIdentity(row) {
+  if (row?.fromGoldAlloy) {
+    const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+    if (code && code !== '—') return `alloy:${code}`
+  }
+  const id = String(row?.id || '').trim()
+  if (id) return `row:${id}`
+  const batch = String(row?.batch || '').trim()
+  return batch && batch !== '—' ? `batch:${batch}` : null
+}
+
+/** Unique batch identity for workbook summary (Gold Alloy counted once across departments). */
+export function summaryBatchIdentity(row) {
+  if (row?.fromGoldAlloy) {
+    const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+    if (code && code !== '—') return `alloy:${code}`
+  }
+  const batch = String(row?.batch || '').trim()
+  if (!batch || batch === '—') return null
+  return `floor:${row.deptKey || ''}|${row.dateKey || ''}|${batch}`
+}
+
 /**
  * Department total row. Loss % and Fine Gold Loss use finished batches only (both Metal IN and OUT),
  * so a running batch's Metal IN does not dilute the loss. Avg time is over finished batches.
+ * Gold Alloy: same mix code = 1 batch; each visit is a sequence (#1…#n).
  */
 export function computeDepartmentTotals(rows) {
   const list = Array.isArray(rows) ? rows : []
@@ -201,8 +225,12 @@ export function computeDepartmentTotals(rows) {
   const finishedLoss = sum('metalLoss', finished)
   const finishedIn = sum('metalIn', finished)
   const fineLossRows = finished.filter((r) => num(r.fineLoss))
+  const batchIds = new Set(list.map(departmentBatchIdentity).filter(Boolean))
+  const alloySequences = list.filter((r) => r.fromGoldAlloy).length
   return {
-    batches: list.length,
+    batches: batchIds.size,
+    alloySequences,
+    visits: list.length,
     metalIn: sum('metalIn'),
     purity: weightedPurity(withFineIn, 'metalIn', 'fineGold'),
     fineGold: sum('fineGold'),
@@ -218,6 +246,17 @@ export function computeDepartmentTotals(rows) {
     avgTime: times.length ? times.reduce((a, b) => a + b, 0) / times.length : null,
     finishedBatches: times.length,
   }
+}
+
+/** Footer Batch cell: "1 batch · 6 sequences" when Gold Alloy visits share one mix. */
+export function formatDepartmentBatchTotal(totals) {
+  const t = totals || {}
+  const n = Number(t.batches) || 0
+  const seq = Number(t.alloySequences) || 0
+  const batchLabel = `${n} ${n === 1 ? 'batch' : 'batches'}`
+  if (seq <= 0) return batchLabel
+  const seqLabel = `${seq} ${seq === 1 ? 'sequence' : 'sequences'}`
+  return `${batchLabel} · ${seqLabel}`
 }
 
 /** Row fields still editable on workbook rows written by MG Floor approvals (none — sheet is view-only). */
@@ -437,11 +476,7 @@ export function computeSummary(rows) {
   const employees = new Set(
     rows.map((r) => r.employee).filter((e) => e && e !== '—'),
   )
-  const batches = new Set(
-    rows
-      .filter((r) => r.batch && r.batch !== '—')
-      .map((r) => `${r.deptKey || ''}|${r.dateKey || ''}|${r.batch}`),
-  )
+  const batches = new Set(rows.map(summaryBatchIdentity).filter(Boolean))
   let metalIn = 0
   let metalOut = 0
   let metalLoss = 0
@@ -582,6 +617,50 @@ export function mapEntryToRow(entry) {
     dateKey,
     shift: dateObj && Number.isFinite(dateObj.getTime()) ? shiftFromDate(dateObj) : '',
   }
+}
+
+/**
+ * Number each Gold Alloy Ops visit 1…n for a mix code, start → finish across all departments.
+ * Order: batch start time, then batch over, then id (stable).
+ */
+export function assignAlloyMoveSequences(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const byCode = new Map()
+  list.forEach((row) => {
+    if (!row?.fromGoldAlloy) return
+    const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+    if (!code || code === '—') return
+    const bucket = byCode.get(code) || []
+    bucket.push(row)
+    byCode.set(code, bucket)
+  })
+
+  const startedMs = (row) => {
+    const t = row?.batchStartedRaw ? new Date(row.batchStartedRaw).getTime() : NaN
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+  }
+  const overMs = (row) => {
+    const t = row?.batchOverRaw ? new Date(row.batchOverRaw).getTime() : NaN
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+  }
+  const idKey = (row) => String(row?.id || '')
+
+  byCode.forEach((bucket) => {
+    bucket.sort((a, b) => {
+      const ds = startedMs(a) - startedMs(b)
+      if (ds !== 0) return ds
+      const de = overMs(a) - overMs(b)
+      if (de !== 0) return de
+      return idKey(a).localeCompare(idKey(b))
+    })
+    const total = bucket.length
+    bucket.forEach((row, i) => {
+      row.alloyMoveSeq = i + 1
+      row.alloyMoveTotal = total
+    })
+  })
+
+  return list
 }
 
 export async function fetchAllOperationsEntries(listEntries, params = {}) {

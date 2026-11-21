@@ -114,7 +114,8 @@ function batchOverAfterStart(startedAt, overAt) {
  * AMX Metal In is already written as gold_alloy on Incoming Approve (receiveMixJob).
  * FM approve of the seeded Floor batch must attach to that custody row — never create a
  * parallel mg_floor Melting Metal IN/OUT (that double-counts Ops / Production Dashboard totals).
- * Metal Out weight still comes from allocate→vault (gold_alloy OUT); we only stamp floorOutEntryId.
+ * Metal Out: stamp Floor OUT gross + Post Mix purity on the gold_alloy visit (allocate→vault
+ * keeps that OUT when floorOutEntryId is set). OUT < target then auto Updated Mix + AML.
  */
 async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
   if (!alloyMixCode || !departmentKey) return null
@@ -141,8 +142,38 @@ async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
     metalIn: { $ne: null },
   }).sort({ updatedAt: -1 })
   if (!inRow) return null
+
+  // Floor Metal Out gross (e.g. 551.61) + Post Mix purity → Melting OUT / loss.
+  // Allocate→vault must not overwrite this when floorOutEntryId is already set.
+  const sums = summarizeLines(entry.lines)
+  let purityOut = sums.purity
+  let fineGoldOut = sums.fineGold
+  try {
+    const AlloyMixJob = require('../../models/AlloyMixJob')
+    const job = await AlloyMixJob.findOne({
+      mixCode: alloyMixCode,
+      isDeleted: { $ne: true },
+    }).select('purity targetGross').lean()
+    const jobPurity = job?.purity != null && Number.isFinite(Number(job.purity))
+      ? Number(job.purity)
+      : null
+    if (jobPurity != null && jobPurity > 0 && sums.weight != null) {
+      purityOut = jobPurity
+      fineGoldOut = round((sums.weight * jobPurity) / 100, 3)
+    }
+  } catch (_) { /* job lookup optional */ }
+
   inRow.floorOutEntryId = entry.entryId
   inRow.departmentManagerName = entry.decidedByName || inRow.departmentManagerName
+  if (sums.weight != null) {
+    inRow.metalOut = sums.weight
+    inRow.purityOut = purityOut
+    inRow.fineGoldOut = fineGoldOut
+    inRow.batchOverAt = entryTimestamp(entry) || inRow.batchOverAt || new Date()
+    if (inRow.metalIn != null) {
+      inRow.metalLoss = Math.max(0, round(Number(inRow.metalIn) - sums.weight, 3))
+    }
+  }
   await inRow.save()
   return inRow
 }

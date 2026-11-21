@@ -346,6 +346,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
 
   let workbookEntryId = null
   let alloyReturnedToVault = null
+  let alloyUpdatedMix = null
   if (approve) {
     try {
       const row = await applyApprovedEntryToWorkbook(updated)
@@ -355,6 +356,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     }
     const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
     if (updated.direction === 'OUT' && isAlloyMixBatchCode(updated.batchLabel)) {
+      const outGross = summarizeLines(updated.lines || []).weight
       try {
         alloyReturnedToVault = await returnAlloyMixToVaultAfterMetalOut({
           user,
@@ -364,10 +366,24 @@ async function decideBatchEntry(req, id, decision, reason = '') {
       } catch (err) {
         console.warn('[mg-floor] alloy return-to-vault after Metal Out failed', err?.message || err)
       }
+      // OUT < prior Post/Update Mix target → auto Updated Mix + AML (~5500 mapping).
+      try {
+        const {
+          autoUpdateAlloyMixAfterMetalOut,
+        } = require('../erpAccounting/alloyMixFloorBridge')
+        alloyUpdatedMix = await autoUpdateAlloyMixAfterMetalOut({
+          user,
+          batchLabel: updated.batchLabel,
+          outGross,
+          tenant: user?.company || 'mg',
+        })
+      } catch (err) {
+        console.warn('[mg-floor] auto Updated Mix after Metal Out failed', err?.message || err)
+      }
     }
   }
 
-  return { entry: updated, workbookEntryId, alloyReturnedToVault }
+  return { entry: updated, workbookEntryId, alloyReturnedToVault, alloyUpdatedMix }
 }
 
 function pad2(n) {

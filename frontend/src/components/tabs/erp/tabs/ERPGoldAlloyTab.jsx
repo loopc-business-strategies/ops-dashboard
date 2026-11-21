@@ -103,7 +103,8 @@ export default function ERPGoldAlloyTab({
   const [updateMetalLines, setUpdateMetalLines] = useState([])
   const [updating, setUpdating] = useState(false)
   const [editingPosted, setEditingPosted] = useState(null)
-  const [viewPosted, setViewPosted] = useState(null)
+  /** Shared New/Edit/View dialog: same form shell; view = read-only selects. */
+  const [mixFormMode, setMixFormMode] = useState('new')
   /** Editable BMG batch on New/Edit mix dialog (e.g. BMG-0001). */
   const [batchNo, setBatchNo] = useState('')
   /** Open Floor/Ops mix jobs keyed by ERP reasonBase (Update Mix only in vault). */
@@ -303,7 +304,34 @@ export default function ERPGoldAlloyTab({
     setFinishedProductId('')
     setAddMenuOpen(false)
     setEditingPosted(null)
+    setMixFormMode('new')
     setBatchNo('')
+  }
+
+  const hydratePostedMixForm = (posted) => {
+    const job = mixJobsByReason[String(posted?.reason || '').trim()]
+    const recipe = resolveKaratRecipe(posted.karat)
+    const nextLines = buildAlloyLinesFromPostedMix(posted)
+    const goldLine = nextLines.find((line) => line.role === 'gold')
+    const nextGoldInput = goldLine?.gross != null && goldLine.gross !== ''
+      ? String(goldLine.gross)
+      : ''
+    setKarat(posted.karat || '')
+    setGoldRatio(recipe ? recipe.goldRatio : '')
+    setAlloyRatio(recipe ? recipe.alloyRatio : '')
+    setGoldInput(nextGoldInput)
+    setTargetGross(
+      posted.targetGross != null && posted.targetGross !== ''
+        ? String(posted.targetGross)
+        : (computeCalculatedGrossFromGoldWeight(nextGoldInput, recipe?.goldRatio) || ''),
+    )
+    setFinishedProductId(String(posted.finishedProductId || ''))
+    setLines(nextLines)
+    setEditingPosted(posted)
+    const existingBatch = normalizeAlloyMixBatchNo(
+      job?.mixCode || posted.mixCode || posted.batchNumber || '',
+    )
+    setBatchNo(existingBatch || suggestNextAlloyMixBatchNo(mixJobCodes))
   }
 
   const closeUpdateDialogState = () => {
@@ -326,9 +354,9 @@ export default function ERPGoldAlloyTab({
       if (typeof setError === 'function') setError('Gold alloy posting is MG-only')
       return
     }
-    setViewPosted(null)
     if (updateOpen) closeUpdateDialogState()
     resetNewMix()
+    setMixFormMode('new')
     setBatchNo(suggestNextAlloyMixBatchNo(mixJobCodes))
     setNewMixOpen(true)
   }
@@ -355,31 +383,11 @@ export default function ERPGoldAlloyTab({
       }
       return
     }
-    // Always open the Edit dialog for Edit — never fall through to New mix.
-    setViewPosted(null)
+    // Same dialog as View / New — hydrate into the mix form.
     if (updateOpen) closeUpdateDialogState()
-    const recipe = resolveKaratRecipe(posted.karat)
-    const nextLines = buildAlloyLinesFromPostedMix(posted)
-    const goldLine = nextLines.find((line) => line.role === 'gold')
-    const nextGoldInput = goldLine?.gross != null && goldLine.gross !== ''
-      ? String(goldLine.gross)
-      : ''
-    setKarat(posted.karat || '')
-    setGoldRatio(recipe ? recipe.goldRatio : '')
-    setAlloyRatio(recipe ? recipe.alloyRatio : '')
-    setGoldInput(nextGoldInput)
-    setTargetGross(
-      posted.targetGross != null && posted.targetGross !== ''
-        ? String(posted.targetGross)
-        : (computeCalculatedGrossFromGoldWeight(nextGoldInput, recipe?.goldRatio) || ''),
-    )
-    setFinishedProductId(String(posted.finishedProductId || ''))
-    setLines(nextLines)
-    setEditingPosted(posted)
-    const existingBatch = normalizeAlloyMixBatchNo(
-      job?.mixCode || posted.mixCode || posted.batchNumber || '',
-    )
-    setBatchNo(existingBatch || suggestNextAlloyMixBatchNo(mixJobCodes))
+    hydratePostedMixForm(posted)
+    setMixFormMode('edit')
+    setAddMenuOpen(false)
     setNewMixOpen(true)
     if (typeof showNotification === 'function') {
       showNotification(
@@ -391,18 +399,14 @@ export default function ERPGoldAlloyTab({
   }
 
   const openViewPostedMix = (posted) => {
-    if (!posted) return
-    // View only — close Edit / Update so the correct popup is alone.
-    if (posting) return
-    if (newMixOpen) {
-      resetNewMix()
-      setNewMixOpen(false)
-    }
+    if (!posted || posting) return
+    // Same dialog as Edit — read-only selects / fields (not a separate popup).
     if (updateOpen) closeUpdateDialogState()
-    setViewPosted(posted)
+    hydratePostedMixForm(posted)
+    setMixFormMode('view')
+    setAddMenuOpen(false)
+    setNewMixOpen(true)
   }
-
-  const closeViewPostedMix = () => setViewPosted(null)
 
   const onKaratChange = (value) => {
     const nextKarat = value === '' ? '' : Number(value)
@@ -719,8 +723,7 @@ export default function ERPGoldAlloyTab({
       }
       return
     }
-    // Update only — close View / Edit so the correct popup is alone.
-    setViewPosted(null)
+    // Update only — close New/Edit/View so the correct popup is alone.
     if (newMixOpen) {
       resetNewMix()
       setNewMixOpen(false)
@@ -1054,6 +1057,7 @@ export default function ERPGoldAlloyTab({
   const alloyRatioFraction = Number(alloyRatio) > 0
     ? roundAlloyGrams(Number(alloyRatio) / 100, 4)
     : ''
+  const formLocked = posting || mixFormMode === 'view'
 
   return (
     <div style={{ padding: '1rem 1.15rem 1.5rem', maxWidth: 980 }}>
@@ -1566,7 +1570,11 @@ export default function ERPGoldAlloyTab({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={editingPosted ? 'Edit alloy mix' : 'New alloy mix'}
+          aria-label={
+            mixFormMode === 'view'
+              ? 'View posted mix'
+              : (editingPosted ? 'Edit alloy mix' : 'New alloy mix')
+          }
           style={{
             position: 'fixed',
             inset: 0,
@@ -1599,12 +1607,20 @@ export default function ERPGoldAlloyTab({
             >
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#111827' }}>
-                  {editingPosted
-                    ? (editingPosted.isHistory ? 'Edit prior mix' : 'Edit posted mix')
-                    : 'New mix'}
+                  {mixFormMode === 'view'
+                    ? 'View mix'
+                    : (editingPosted
+                      ? (editingPosted.isHistory ? 'Edit prior mix' : 'Edit posted mix')
+                      : 'New mix')}
                 </h3>
                 <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
-                  {editingPosted ? (
+                  {mixFormMode === 'view' ? (
+                    <>
+                      Same mix form as <strong>Edit</strong> — karat, finished product, and stock
+                      <strong> selects</strong> are shown read-only. Use <strong>Edit</strong> to change
+                      and post, or <strong>Update</strong> for finished-weight / metal-loss only.
+                    </>
+                  ) : editingPosted ? (
                     <>
                       <strong>Edit</strong> opens the full mix form — change karat, stocks, or weights, then
                       <strong> Post edited mix</strong> to reverse and replace this row as a normal <strong>Posted</strong> mix.
@@ -1629,14 +1645,16 @@ export default function ERPGoldAlloyTab({
                 marginBottom: '0.75rem',
                 padding: '0.55rem 0.75rem',
                 borderRadius: '0.45rem',
-                border: '1px solid #FDE68A',
-                background: '#FFFBEB',
-                color: '#92400E',
+                border: mixFormMode === 'view' ? '1px solid #BBF7D0' : '1px solid #FDE68A',
+                background: mixFormMode === 'view' ? '#F0FDF4' : '#FFFBEB',
+                color: mixFormMode === 'view' ? '#166534' : '#92400E',
                 fontSize: '0.8rem',
                 fontWeight: 600,
               }}
               >
-                Editing {editingPosted.karat ? `${editingPosted.karat}K ` : ''}
+                {mixFormMode === 'view' ? 'Viewing' : 'Editing'}
+                {' '}
+                {editingPosted.karat ? `${editingPosted.karat}K ` : ''}
                 {Number(editingPosted.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
                 {' → '}
                 {editingPosted.finishedName || 'finished'}
@@ -1656,7 +1674,8 @@ export default function ERPGoldAlloyTab({
                   if (normalized) setBatchNo(normalized)
                 }}
                 placeholder="BMG-0001"
-                disabled={posting}
+                disabled={formLocked}
+                readOnly={mixFormMode === 'view'}
                 autoComplete="off"
                 style={{
                   ...fieldStyle,
@@ -1709,6 +1728,7 @@ export default function ERPGoldAlloyTab({
                   aria-label="Karat"
                   value={karat}
                   onChange={(e) => onKaratChange(e.target.value)}
+                  disabled={formLocked}
                   style={fieldStyle}
                 >
                   <option value="">Select karat</option>
@@ -1726,6 +1746,7 @@ export default function ERPGoldAlloyTab({
                   step="0.001"
                   value={goldRatio}
                   onChange={(e) => onGoldRatioChange(e.target.value)}
+                  disabled={formLocked}
                   style={fieldStyle}
                   placeholder="e.g. 75"
                 />
@@ -1744,6 +1765,7 @@ export default function ERPGoldAlloyTab({
                   step="0.001"
                   value={alloyRatio}
                   onChange={(e) => onAlloyRatioChange(e.target.value)}
+                  disabled={formLocked}
                   style={fieldStyle}
                   placeholder="e.g. 25"
                 />
@@ -1763,6 +1785,7 @@ export default function ERPGoldAlloyTab({
                   min="0"
                   value={goldInput}
                   onChange={(e) => onGoldInputChange(e.target.value)}
+                  disabled={formLocked}
                   style={fieldStyle}
                   placeholder="e.g. 75"
                 />
@@ -1779,6 +1802,7 @@ export default function ERPGoldAlloyTab({
                   aria-label="Finished alloy product"
                   value={finishedProductId}
                   onChange={(e) => setFinishedProductId(e.target.value)}
+                  disabled={formLocked}
                   style={fieldStyle}
                 >
                   <option value="">Select finished product</option>
@@ -1846,6 +1870,7 @@ export default function ERPGoldAlloyTab({
                             aria-label={`Product for ${line.label}`}
                             value={line.stockId}
                             onChange={(e) => onStockChange(line.key, e.target.value)}
+                            disabled={formLocked}
                             style={fieldStyle}
                           >
                             <option value="">Select product</option>
@@ -1871,6 +1896,7 @@ export default function ERPGoldAlloyTab({
                             step="0.001"
                             value={line.gross}
                             onChange={(e) => updateLine(line.key, { gross: e.target.value })}
+                            disabled={formLocked}
                             style={{ ...fieldStyle, textAlign: 'right' }}
                             placeholder="0"
                           />
@@ -1882,6 +1908,7 @@ export default function ERPGoldAlloyTab({
                             step="0.0001"
                             value={line.purity}
                             onChange={(e) => updateLine(line.key, { purity: e.target.value })}
+                            disabled={formLocked}
                             style={{ ...fieldStyle, textAlign: 'right' }}
                             placeholder="1"
                           />
@@ -1916,21 +1943,24 @@ export default function ERPGoldAlloyTab({
                           </td>
                         ) : null}
                         <td style={{ padding: '0.35rem 0.4rem' }}>
+                          {mixFormMode === 'view' ? null : (
                           <button
                             type="button"
                             aria-label={`Remove ${line.label}`}
                             onClick={() => removeRow(line.key)}
+                            disabled={formLocked}
                             style={{
                               border: 'none',
                               background: 'transparent',
                               color: '#94A3B8',
                               fontWeight: 700,
-                              cursor: 'pointer',
+                              cursor: formLocked ? 'not-allowed' : 'pointer',
                               fontSize: '0.78rem',
                             }}
                           >
                             Remove
                           </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -1976,111 +2006,166 @@ export default function ERPGoldAlloyTab({
               zIndex: 5,
             }}
             >
-              <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                <button
-                  type="button"
-                  aria-label="Add stock"
-                  aria-haspopup="menu"
-                  aria-expanded={addMenuOpen}
-                  onClick={() => setAddMenuOpen((open) => !open)}
-                  disabled={!availableLineTemplates.length}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.38rem 0.7rem',
-                    borderRadius: '0.4rem',
-                    border: '1px solid #FDBA74',
-                    background: availableLineTemplates.length ? '#FFF7ED' : '#F8FAFC',
-                    color: availableLineTemplates.length ? '#C2410C' : '#94A3B8',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    cursor: availableLineTemplates.length ? 'pointer' : 'not-allowed',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  + Add stock
-                  <span aria-hidden="true" style={{ fontSize: '0.65rem', lineHeight: 1 }}>
-                    {addMenuOpen ? '▴' : '▾'}
-                  </span>
-                </button>
-                {addMenuOpen && availableLineTemplates.length ? (
-                  <div
-                    role="menu"
-                    aria-label="Choose stock to add"
-                    style={{
-                      position: 'absolute',
-                      bottom: 'calc(100% + 0.4rem)',
-                      left: 0,
-                      minWidth: 168,
-                      background: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '0.5rem',
-                      boxShadow: '0 12px 28px rgba(15, 23, 42, 0.16)',
-                      zIndex: 120,
-                      padding: '0.35rem',
-                    }}
-                  >
-                    {availableLineTemplates.map((row) => (
+              {mixFormMode === 'view' ? (
+                <>
+                  {postingEnabled && editingPosted ? (
+                    <>
                       <button
-                        key={row.key}
                         type="button"
-                        role="menuitem"
-                        onClick={() => addRow(row.key)}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '0.48rem 0.65rem',
-                          border: 'none',
-                          borderRadius: '0.35rem',
-                          background: 'transparent',
-                          fontWeight: 700,
-                          fontSize: '0.82rem',
-                          color: '#0F172A',
-                          cursor: 'pointer',
-                          textTransform: 'capitalize',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#FFF7ED' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                        onClick={() => openEditPostedMix(editingPosted)}
+                        style={secondaryBtnStyle}
                       >
-                        {row.label}
+                        Edit
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => openUpdatePostedMix(editingPosted)}
+                        style={{
+                          padding: '0.45rem 0.8rem',
+                          borderRadius: '0.4rem',
+                          border: 'none',
+                          background: '#EA580C',
+                          color: '#FFFFFF',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Update
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeNewMixDialog()
+                          onDeletePostedMix(editingPosted)
+                        }}
+                        style={{
+                          ...secondaryBtnStyle,
+                          color: '#B91C1C',
+                          borderColor: '#FECACA',
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={closeNewMixDialog}
+                    disabled={posting}
+                    style={{ ...secondaryBtnStyle, marginLeft: 'auto' }}
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                    <button
+                      type="button"
+                      aria-label="Add stock"
+                      aria-haspopup="menu"
+                      aria-expanded={addMenuOpen}
+                      onClick={() => setAddMenuOpen((open) => !open)}
+                      disabled={!availableLineTemplates.length || formLocked}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.38rem 0.7rem',
+                        borderRadius: '0.4rem',
+                        border: '1px solid #FDBA74',
+                        background: availableLineTemplates.length ? '#FFF7ED' : '#F8FAFC',
+                        color: availableLineTemplates.length ? '#C2410C' : '#94A3B8',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        cursor: availableLineTemplates.length && !formLocked ? 'pointer' : 'not-allowed',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      + Add stock
+                      <span aria-hidden="true" style={{ fontSize: '0.65rem', lineHeight: 1 }}>
+                        {addMenuOpen ? '▴' : '▾'}
+                      </span>
+                    </button>
+                    {addMenuOpen && availableLineTemplates.length ? (
+                      <div
+                        role="menu"
+                        aria-label="Choose stock to add"
+                        style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 0.4rem)',
+                          left: 0,
+                          minWidth: 168,
+                          background: '#FFFFFF',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '0.5rem',
+                          boxShadow: '0 12px 28px rgba(15, 23, 42, 0.16)',
+                          zIndex: 120,
+                          padding: '0.35rem',
+                        }}
+                      >
+                        {availableLineTemplates.map((row) => (
+                          <button
+                            key={row.key}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => addRow(row.key)}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '0.48rem 0.65rem',
+                              border: 'none',
+                              borderRadius: '0.35rem',
+                              background: 'transparent',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              color: '#0F172A',
+                              cursor: 'pointer',
+                              textTransform: 'capitalize',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = '#FFF7ED' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            {row.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
 
-              <button type="button" onClick={closeNewMixDialog} disabled={posting} style={secondaryBtnStyle}>
-                Cancel
-              </button>
-              {postingEnabled ? (
-                <button
-                  type="button"
-                  onClick={submitPost}
-                  disabled={posting || !postCheck.ok}
-                  style={{
-                    marginLeft: 'auto',
-                    padding: '0.5rem 0.9rem',
-                    borderRadius: '0.45rem',
-                    border: 'none',
-                    background: postCheck.ok && !posting ? '#EA580C' : '#CBD5E1',
-                    color: '#FFFFFF',
-                    fontWeight: 800,
-                    fontSize: '0.85rem',
-                    cursor: postCheck.ok && !posting ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  {posting
-                    ? 'Posting…'
-                    : (editingPosted
-                      ? (editingPosted.isHistory ? 'Post mix to inventory' : 'Post edited mix')
-                      : 'Post mix to inventory')}
-                </button>
-              ) : null}
+                  <button type="button" onClick={closeNewMixDialog} disabled={posting} style={secondaryBtnStyle}>
+                    Cancel
+                  </button>
+                  {postingEnabled ? (
+                    <button
+                      type="button"
+                      onClick={submitPost}
+                      disabled={posting || !postCheck.ok}
+                      style={{
+                        marginLeft: 'auto',
+                        padding: '0.5rem 0.9rem',
+                        borderRadius: '0.45rem',
+                        border: 'none',
+                        background: postCheck.ok && !posting ? '#EA580C' : '#CBD5E1',
+                        color: '#FFFFFF',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        cursor: postCheck.ok && !posting ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {posting
+                        ? 'Posting…'
+                        : (editingPosted
+                          ? (editingPosted.isHistory ? 'Post mix to inventory' : 'Post edited mix')
+                          : 'Post mix to inventory')}
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
 
-            {!postCheck.ok && postingEnabled ? (
+            {mixFormMode !== 'view' && !postCheck.ok && postingEnabled ? (
               <p style={{ margin: '0.55rem 0 0', fontSize: '0.78rem', color: '#B45309' }}>{postCheck.message}</p>
             ) : null}
           </div>
@@ -2396,347 +2481,6 @@ export default function ERPGoldAlloyTab({
         </div>
       ) : null}
 
-      {viewPosted ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="View posted mix"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 85,
-            padding: '1rem',
-          }}
-          onClick={closeViewPostedMix}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 720,
-              background: '#FFFFFF',
-              borderRadius: '0.7rem',
-              padding: '1.1rem 1.2rem',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(() => {
-              const row = viewPosted
-              const isUpdated = String(row.status || '').toLowerCase() === 'updated'
-              const isHistory = Boolean(row.isHistory)
-              const statusLabel = isHistory
-                ? 'Prior (before update)'
-                : (isUpdated ? 'Updated' : 'Posted')
-              const whenLabel = row.at
-                ? new Date(row.at).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-                : '—'
-              const target = Number(row.targetGross || 0)
-              const finishedId = String(row.finishedProductId || '')
-              const finishedOpt = stockOptions.find((o) => String(o.id) === finishedId)
-              const recipe = resolveKaratRecipe(row.karat)
-              const finishedPurity = normalizeAlloyPurity(
-                finishedOpt?.purity || (recipe ? recipe.goldRatio / 100 : 0),
-              )
-              const finishedPure = target > 0 && finishedPurity > 0
-                ? roundAlloyGrams(target * finishedPurity)
-                : 0
-              const achievedKarat = finishedPurity > 0
-                ? roundAlloyGrams(finishedPurity * 24, 1)
-                : ''
-              // Metal loss vs prior history row for same finished product (Updated mixes).
-              const prior = !isHistory
-                ? (postedMixes || []).find((m) => (
-                  m.isHistory
-                  && String(m.finishedProductId || '') === finishedId
-                  && m.id !== row.id
-                ))
-                : null
-              const priorTarget = Number(prior?.targetGross || 0)
-              const finishedLoss = prior
-                ? computeAlloyMetalLoss(target, priorTarget)
-                : 0
-              const metalRows = (row.consumed || []).map((item) => {
-                const gross = Number(item.gross || 0)
-                const share = target > 0 && gross > 0 ? computeAlloyMixShare(gross, target) : ''
-                const option = stockOptions.find((o) => String(o.id) === String(item.itemId || ''))
-                const metalPurity = normalizeAlloyPurity(option?.purity || 1) || 1
-                const pure = computeAlloyPure(gross, metalPurity)
-                const priorGross = Number(
-                  (prior?.consumed || []).find((c) => (
-                    String(c.itemId) === String(item.itemId || '')
-                    || String(c.name || '') === String(item.name || '')
-                  ))?.gross || 0,
-                )
-                const loss = prior ? computeAlloyMetalLoss(gross, priorGross) : 0
-                return {
-                  key: `${item.itemId || item.name}-${gross}`,
-                  name: item.name || item.label || 'Metal',
-                  label: item.label || '',
-                  gross,
-                  share,
-                  metalPurity,
-                  pure,
-                  loss,
-                }
-              })
-              const metalsLossTotal = roundAlloyGrams(
-                metalRows.reduce((sum, line) => sum + Number(line.loss || 0), 0),
-              )
-              const metalsGrossTotal = roundAlloyGrams(
-                metalRows.reduce((sum, line) => sum + Number(line.gross || 0), 0),
-              )
-              return (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#111827' }}>View mix</h3>
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#64748B', lineHeight: 1.45 }}>
-                        {whenLabel} · {statusLabel}
-                        {row.actorName ? ` · ${row.actorName}` : ''}
-                        {prior ? ' · metal loss vs prior' : ''}
-                      </p>
-                    </div>
-                    <button type="button" onClick={closeViewPostedMix} style={secondaryBtnStyle}>
-                      Close
-                    </button>
-                  </div>
-
-                  <div style={{
-                    marginTop: '0.85rem',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '0.45rem',
-                    border: '1px solid #BBF7D0',
-                    background: '#F0FDF4',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                    gap: '0.55rem 1rem',
-                    fontSize: '0.82rem',
-                  }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Karat</div>
-                      <div style={{ fontWeight: 800, color: '#0F172A' }}>{row.karat ? `${row.karat}K` : '—'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Allowed / target</div>
-                      <div style={{ fontWeight: 800, color: '#0F172A' }}>
-                        {target > 0 ? `${target.toLocaleString(undefined, { maximumFractionDigits: 3 })} g` : '—'}
-                      </div>
-                      {prior ? (
-                        <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>
-                          was {priorTarget.toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-                        </div>
-                      ) : null}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Finished purity</div>
-                      <div style={{ fontWeight: 800, color: '#0F172A' }}>
-                        {finishedPurity > 0 ? finishedPurity.toFixed(2) : '—'}
-                        {achievedKarat !== '' ? ` · ${achievedKarat}K` : ''}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Pure / achieved</div>
-                      <div style={{ fontWeight: 800, color: '#0F172A' }}>
-                        {finishedPure > 0
-                          ? `${finishedPure.toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
-                          : '—'}
-                      </div>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700 }}>Finished (IN)</div>
-                      <div style={{ fontWeight: 700, color: '#166534' }}>{row.finishedName || '—'}</div>
-                      {!isHistory && row.finishedQtyAfter != null ? (
-                        <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>
-                          on hand {Number(row.finishedQtyAfter).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-                        </div>
-                      ) : null}
-                      {isHistory ? (
-                        <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 2, fontWeight: 600 }}>
-                          Replaced by a later Edit or Update — read only
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', textAlign: 'left' }}>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B' }}>Stock</th>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B' }}>Product</th>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B', textAlign: 'right' }}>Gross (g)</th>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B', textAlign: 'right' }}>Purity / share</th>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B', textAlign: 'right' }}>Pure</th>
-                        <th style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: '#64748B', textAlign: 'right' }}>Metal loss</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ borderTop: '1px solid #F1F5F9', background: '#FFFBEB' }}>
-                        <td style={{ padding: '0.45rem 0.5rem', fontSize: '0.82rem', fontWeight: 700 }}>
-                          finished
-                          <div style={{ fontWeight: 600, fontSize: '0.7rem', color: '#94A3B8' }}>
-                            {row.karat ? `${row.karat}K IN` : 'IN'}
-                          </div>
-                        </td>
-                        <td style={{ padding: '0.45rem 0.5rem', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
-                          {row.finishedName || 'Finished alloy'}
-                        </td>
-                        <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 800, fontSize: '0.82rem' }}>
-                          {target > 0 ? target.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '—'}
-                        </td>
-                        <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontSize: '0.82rem', color: '#64748B' }}>
-                          {finishedPurity > 0 ? finishedPurity.toFixed(2) : '—'}
-                        </td>
-                        <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 700, fontSize: '0.82rem' }}>
-                          {finishedPure > 0
-                            ? finishedPure.toLocaleString(undefined, { maximumFractionDigits: 3 })
-                            : '—'}
-                        </td>
-                        <td style={{
-                          padding: '0.45rem 0.5rem',
-                          textAlign: 'right',
-                          fontWeight: 800,
-                          fontSize: '0.82rem',
-                          color: finishedLoss < 0 ? '#B91C1C' : (finishedLoss > 0 ? '#047857' : '#64748B'),
-                        }}
-                        >
-                          {prior ? formatAlloyMetalLoss(finishedLoss) : '—'}
-                        </td>
-                      </tr>
-                      {metalRows.length ? metalRows.map((line) => (
-                        <tr key={line.key} style={{ borderTop: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '0.45rem 0.5rem', fontSize: '0.82rem', fontWeight: 700, textTransform: 'lowercase' }}>
-                            {line.label || 'metal'}
-                            <div style={{ fontWeight: 500, fontSize: '0.7rem', color: '#94A3B8' }}>OUT</div>
-                          </td>
-                          <td style={{ padding: '0.45rem 0.5rem', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
-                            {line.name}
-                          </td>
-                          <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 700, fontSize: '0.82rem' }}>
-                            {line.gross.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                          </td>
-                          <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontSize: '0.82rem', color: '#334155' }}>
-                            {line.share || '—'}
-                          </td>
-                          <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 700, fontSize: '0.82rem' }}>
-                            {Number(line.pure) > 0
-                              ? Number(line.pure).toLocaleString(undefined, { maximumFractionDigits: 3 })
-                              : '—'}
-                          </td>
-                          <td style={{
-                            padding: '0.45rem 0.5rem',
-                            textAlign: 'right',
-                            fontWeight: 800,
-                            fontSize: '0.82rem',
-                            color: line.loss < 0 ? '#B91C1C' : (line.loss > 0 ? '#047857' : '#64748B'),
-                          }}
-                          >
-                            {prior ? formatAlloyMetalLoss(line.loss) : '—'}
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '0.75rem 0.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.82rem' }}>
-                            No input stocks recorded
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ borderTop: '2px solid #E2E8F0', background: '#F8FAFC' }}>
-                        <td colSpan={2} style={{ padding: '0.5rem', fontWeight: 800, fontSize: '0.8rem' }}>
-                          Totals
-                        </td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, fontSize: '0.82rem' }}>
-                          {metalsGrossTotal.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                        </td>
-                        <td colSpan={2} style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.78rem', color: '#047857', fontWeight: 700 }}>
-                          {finishedPurity > 0
-                            ? `${finishedPurity.toFixed(2)} · ${achievedKarat || '—'}K · pure ${finishedPure || '—'}`
-                            : '—'}
-                        </td>
-                        <td style={{
-                          padding: '0.5rem',
-                          textAlign: 'right',
-                          fontWeight: 800,
-                          fontSize: '0.8rem',
-                          color: metalsLossTotal < 0 ? '#B91C1C' : '#64748B',
-                        }}
-                        >
-                          {prior ? `metals ${formatAlloyMetalLoss(metalsLossTotal)}` : '—'}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                  {!prior && !isHistory ? (
-                    <p style={{ margin: '0.55rem 0 0', fontSize: '0.75rem', color: '#94A3B8' }}>
-                      Metal loss shows after an update (compares to the prior posted mix).
-                    </p>
-                  ) : null}
-
-                  <div style={{ display: 'flex', gap: '0.55rem', justifyContent: 'flex-end', marginTop: '1rem', flexWrap: 'wrap' }}>
-                    {postingEnabled ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => openEditPostedMix(row)}
-                          style={secondaryBtnStyle}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openUpdatePostedMix(row)}
-                          style={{
-                            padding: '0.45rem 0.8rem',
-                            borderRadius: '0.4rem',
-                            border: 'none',
-                            background: '#EA580C',
-                            color: '#FFFFFF',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Update
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            closeViewPostedMix()
-                            onDeletePostedMix(row)
-                          }}
-                          style={{
-                            ...secondaryBtnStyle,
-                            color: '#B91C1C',
-                            borderColor: '#FECACA',
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    ) : null}
-                    <button type="button" onClick={closeViewPostedMix} style={secondaryBtnStyle}>
-                      Close
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      ) : null}
 
     </div>
   )
