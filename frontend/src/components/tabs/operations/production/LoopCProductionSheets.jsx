@@ -8,7 +8,6 @@ import ProductionSummary from './ProductionSummary'
 import ProductionFilters from './ProductionFilters'
 import DepartmentGroup from './DepartmentGroup'
 import {
-  formatAlloyMetalLossLabel,
   indexAlloyMixJobsByCode,
 } from '../alloyMetalLossDisplay'
 import {
@@ -118,21 +117,12 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       const row = mapEntryToRow(entry)
       const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
       const job = code ? alloyJobsByCode[code] : null
-      const alloyLossLabel = job ? formatAlloyMetalLossLabel(job) : null
       const jobDept = String(job?.currentDepartment || '').trim().toLowerCase()
       const jobLive = Boolean(job) && String(job.status || '') !== 'closed'
       const openVisit = row.metalOut == null || row.metalOut === ''
       const deptKey = String(row.deptKey || '').toLowerCase()
-      const floorLoss = Number(row.metalLoss)
-      // AML / alloy-loss text: only on floor Metal Out visits where OUT < IN.
-      // Never show on Vault (Post / return / Updated Mix stock rows).
-      const showAlloyLoss = Boolean(
-        alloyLossLabel
-        && deptKey
-        && deptKey !== 'vault_room'
-        && Number.isFinite(floorLoss)
-        && floorLoss > 0.0005,
-      )
+      // Loss column = this visit's Metal Out loss only (IN − OUT). Do not attach
+      // ERP Updated Mix AML text — that is job-level and bleeds onto every dept.
       // Highlight the open Ops visit in the department that currently holds the mix.
       const alloyCurrentHere = Boolean(
         row.fromGoldAlloy
@@ -143,7 +133,6 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
       )
       return {
         ...row,
-        ...(showAlloyLoss ? { alloyLossLabel } : {}),
         alloyCurrentHere,
         alloyCurrentDept: alloyCurrentHere ? jobDept : '',
       }
