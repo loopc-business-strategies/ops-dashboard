@@ -10,7 +10,6 @@ import {
   type LayoutChangeEvent,
 } from 'react-native'
 import { useAuth } from '@/src/context/AuthContext'
-import { getSelectedDepartment } from '@/src/auth/sessionPrefs'
 import { employeeRows } from '@/src/auth/sessionList'
 import { EmployeeLoginModal } from './EmployeeLoginModal'
 import { tabletDashboard as td } from '@/src/theme'
@@ -79,11 +78,10 @@ function panelRows(batches: SentBatch[], direction: BatchDirection): MetalPanelR
 }
 
 export function MGFloorTabletDashboard() {
-  const { user, token, permissions, logout, logoutUser, sessions, loggedOut } = useAuth()
+  const { user, token, logout, logoutUser, sessions, loggedOut, loading } = useAuth()
   const { width } = useWindowDimensions()
   const compact = width < 900
 
-  const [selectedDept, setSelectedDept] = useState('')
   const [loginOpen, setLoginOpen] = useState(false)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
@@ -94,16 +92,16 @@ export function MGFloorTabletDashboard() {
   const [fullSize, setFullSize] = useState({ width: 0, height: 0 })
   const [openMixJobs, setOpenMixJobs] = useState<AlloyMixJob[]>([])
 
-  useEffect(() => {
-    getSelectedDepartment().then((d) => setSelectedDept(d || ''))
-  }, [])
-
-  const canChooseDepartment = Boolean(permissions.approveBatches)
+  // Department comes from the logged-in employee — no tablet department pick screen.
   const dept = effectiveFloorDepartment({
     floorDepartment: user?.floorDepartment,
-    selectedDepartment: selectedDept,
-    canChooseDepartment,
+    selectedDepartment: '',
+    canChooseDepartment: false,
   })
+
+  useEffect(() => {
+    if (!loading && sessions.length === 0) setLoginOpen(true)
+  }, [loading, sessions.length])
 
   const departmentManager = useDepartmentManager({ token, department: dept })
   const manager = departmentManager.manager
@@ -403,7 +401,7 @@ export function MGFloorTabletDashboard() {
           lossLimitPct={batchStats.stats?.lossLimitPct ?? null}
         />
       ) : null}
-      <EmployeeLoginModal visible={loginOpen} onClose={() => setLoginOpen(false)} tabletDepartment={dept} />
+      <EmployeeLoginModal visible={loginOpen} onClose={() => setLoginOpen(false)} />
       <LossLimitModal
         visible={limitOpen}
         department={floorDepartmentLabel(dept)}

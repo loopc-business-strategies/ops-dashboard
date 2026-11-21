@@ -22,7 +22,6 @@ import {
   type QuickLoginCredential,
   type QuickLoginEntry,
 } from '@/src/auth/quickLogin'
-import { departmentMismatch } from '@/src/auth/sessionList'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 
 type Mode = 'password' | 'done'
@@ -30,15 +29,13 @@ type Mode = 'password' | 'done'
 type Props = {
   visible: boolean
   onClose: () => void
-  /** Department the tablet is working for; operators from another department are refused. */
-  tabletDepartment: string
 }
 
 /** Space the login button (plus sheet and backdrop padding) takes below the scrolling fields. */
 const FOOTER_HEIGHT = 120
 
 /** Employees join the tablet with Employee ID + password, or fingerprint / Face ID once turned on. */
-export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props) {
+export function EmployeeLoginModal({ visible, onClose }: Props) {
   const { login } = useAuth()
   const [mode, setMode] = useState<Mode>('password')
   const [employee, setEmployee] = useState('')
@@ -61,6 +58,7 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
     setNotice(null)
     setJoined(null)
     setCanEnrollBio(false)
+    setBusy(false)
     lastCred.current = null
   }
 
@@ -79,13 +77,18 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
     }
   }, [visible])
 
-  const close = () => {
-    if (busy) return
+  /** Always dismiss — Done and ✕ must close even if a biometric enroll is still busy. */
+  const dismiss = () => {
     lastCred.current = null
+    setBusy(false)
     onClose()
   }
 
-  const validate = (s: FloorSession) => departmentMismatch(s, tabletDepartment)
+  /** On the password form, ignore accidental backdrop taps while a login request is in flight. */
+  const close = () => {
+    if (busy && mode === 'password') return
+    dismiss()
+  }
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -104,10 +107,10 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
     run(async () => {
       const id = employee.trim()
       if (!id || !password) throw new Error('Enter your Employee ID and password.')
-      const session = await login(id, password, { validate })
+      const session = await login(id, password)
       const cred: QuickLoginCredential = { kind: 'password', name: id, password }
       if (!bioReady || (await hasQuickLogin(session.user.id))) {
-        onClose()
+        dismiss()
         return
       }
       lastCred.current = cred
@@ -121,12 +124,12 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
       const cred = await unlockQuickLogin(entry)
       if (!cred) throw new Error('Fingerprint / Face ID was cancelled.')
       try {
-        const session = await login(cred.name, cred.password, { validate, method: 'biometric' })
+        const session = await login(cred.name, cred.password, { method: 'biometric' })
         if (entry.id === LEGACY_QUICK_ID) {
           await saveQuickLogin({ id: session.user.id, name: session.user.name, employeeCode: session.user.employeeCode }, cred)
           await removeQuickLogin(LEGACY_QUICK_ID)
         }
-        onClose()
+        dismiss()
       } catch (err) {
         const e = toApiError(err)
         if (e.kind === 'AUTH_ERROR') {
@@ -153,13 +156,13 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
   const title = mode === 'done' ? `${joined?.user.name || 'Employee'} logged in` : 'Employee login'
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
       <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
-        <View style={styles.sheet}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Dismiss login" />
+        <View style={styles.sheet} collapsable={false}>
           <View style={styles.titleBar}>
             <Text style={styles.title}>{title}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close login" hitSlop={10} onPress={close}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close login" hitSlop={10} onPress={dismiss}>
               <Text style={styles.closeX}>✕</Text>
             </Pressable>
           </View>
@@ -244,7 +247,7 @@ export function EmployeeLoginModal({ visible, onClose, tabletDepartment }: Props
           </KeyboardAwareScrollView>
 
           {mode === 'done' ? (
-            <Pressable accessibilityRole="button" onPress={close} style={[styles.primary, buttonShadow]}>
+            <Pressable accessibilityRole="button" onPress={dismiss} style={[styles.primary, buttonShadow]}>
               <Text style={styles.primaryText}>DONE</Text>
             </Pressable>
           ) : (
@@ -281,7 +284,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: td.border,
     padding: 16,
-    zIndex: 1,
+    zIndex: 2,
+    elevation: 8,
   },
   titleBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   title: { color: td.text, fontWeight: '800', fontSize: 20, flex: 1 },

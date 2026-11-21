@@ -14,7 +14,7 @@ export default function CallManagerScreen() {
   const [busy, setBusy] = useState(false)
 
   const call = async () => {
-    const dept = (await getSelectedDepartment()) || user?.department || ''
+    const dept = user?.floorDepartment || user?.department || (await getSelectedDepartment()) || ''
     Alert.alert('CALL FLOOR MANAGER?', `Department: ${dept}\nOperator: ${user?.name || '—'}`, [
       { text: 'CANCEL', style: 'cancel' },
       {

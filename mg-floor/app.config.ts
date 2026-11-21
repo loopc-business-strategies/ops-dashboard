@@ -1,6 +1,6 @@
 import type { ExpoConfig } from 'expo/config'
 
-const APP_VERSION = '1.2.0'
+const APP_VERSION = '1.2.1'
 const PROD_API_URL = 'https://api.loopcstrategies.com'
 const easProfile = process.env.EAS_BUILD_PROFILE || ''
 const isProductionProfile = easProfile === 'production'
@@ -45,7 +45,7 @@ const config = {
   },
   android: {
     package: 'com.loopc.mgfloor',
-    versionCode: 12,
+    versionCode: 13,
     permissions: ['INTERNET', 'USE_BIOMETRIC', 'USE_FINGERPRINT'],
     blockedPermissions: ['android.permission.CAMERA'],
     usesCleartextTraffic,

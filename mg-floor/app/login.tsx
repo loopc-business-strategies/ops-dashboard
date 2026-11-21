@@ -17,7 +17,6 @@ import {
   authenticateWithBiometric,
   biometricAvailable,
   enrollBiometricCredentials,
-  getSelectedDepartment,
   isBiometricEnabled,
   consumeSessionExpiredNotice,
 } from '@/src/auth/sessionPrefs'
@@ -29,17 +28,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [dept, setDept] = useState<string | null>(null)
   const [bioReady, setBioReady] = useState(false)
 
   useEffect(() => {
     ;(async () => {
-      const d = await getSelectedDepartment()
-      if (!d) {
-        router.replace('/department')
-        return
-      }
-      setDept(d)
       const avail = await biometricAvailable()
       const enabled = await isBiometricEnabled()
       setBioReady(avail && enabled)
@@ -47,7 +39,7 @@ export default function LoginScreen() {
         Alert.alert('Session expired', 'Your session has expired. Please log in again.')
       }
     })()
-  }, [router])
+  }, [])
 
   const finishLogin = async (username: string, pwd: string) => {
     setError('')
@@ -105,9 +97,7 @@ export default function LoginScreen() {
         <Title>{brand.appName}</Title>
         <Subtitle>Employee Login</Subtitle>
         <View style={styles.lock}>
-          <Text style={styles.lockText}>
-            {dept ? `DEPT: ${dept.toUpperCase()}` : 'SELECT DEPARTMENT'} · TENANT {MG_TENANT.toUpperCase()}
-          </Text>
+          <Text style={styles.lockText}>ANY DEPARTMENT · TENANT {MG_TENANT.toUpperCase()}</Text>
         </View>
 
         <Text style={styles.label}>Employee ID</Text>
@@ -143,17 +133,9 @@ export default function LoginScreen() {
             disabled={busy}
           />
         ) : null}
-        {dept ? (
-          <BigButton
-            label="BACK TO HOME"
-            onPress={() => router.replace('/')}
-            tone="neutral"
-            disabled={busy}
-          />
-        ) : null}
         <BigButton
-          label="CHANGE DEPARTMENT"
-          onPress={() => router.replace('/department')}
+          label="BACK TO HOME"
+          onPress={() => router.replace('/')}
           tone="neutral"
           disabled={busy}
         />
