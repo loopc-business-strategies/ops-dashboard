@@ -143,15 +143,15 @@ const footerBar = {
 
 const floorBadge = {
   flexShrink: 0,
-  marginLeft: 4,
   padding: '0.05rem 0.3rem',
   borderRadius: 999,
   background: '#FFEDD5',
   border: '1px solid #FDBA74',
   color: '#9A3412',
-  fontSize: '0.65rem',
+  fontSize: '0.62rem',
   fontWeight: 800,
   whiteSpace: 'nowrap',
+  lineHeight: 1.2,
 }
 
 const alloyBadge = {
@@ -161,20 +161,43 @@ const alloyBadge = {
   color: '#92400E',
 }
 
+/** Stack code + badge so BMG-0001 stays fully visible in the narrow fixed table. */
 const batchCellWrap = {
   display: 'inline-flex',
-  alignItems: 'center',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 2,
   maxWidth: '100%',
   minWidth: 0,
-  overflow: 'hidden',
   verticalAlign: 'middle',
+  lineHeight: 1.2,
 }
 
 const batchText = {
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
+  display: 'block',
+  fontWeight: 800,
+  fontVariantNumeric: 'tabular-nums',
+  letterSpacing: '0.01em',
   whiteSpace: 'nowrap',
-  minWidth: 0,
+  overflow: 'visible',
+  maxWidth: '100%',
+}
+
+/** Prefer readable Batch over squeezing every other column equally. */
+const batchTh = {
+  ...thBase,
+  width: '7.5%',
+  minWidth: '5.5rem',
+}
+
+const batchTd = {
+  ...tdBase,
+  width: '7.5%',
+  minWidth: '5.5rem',
+  maxWidth: 'none',
+  overflow: 'visible',
+  textOverflow: 'clip',
+  whiteSpace: 'normal',
 }
 
 const actionsRow = {
@@ -643,15 +666,16 @@ export default function DepartmentTable({
           const tip = !editing && longTextKeys.has(col.key) && (typeof text === 'string' || typeof text === 'number')
             ? String(text)
             : undefined
+          const isBatchCol = col.key === 'batch'
           return (
             <td
               key={col.key}
               title={tip}
               style={{
-                ...tdBase,
+                ...(isBatchCol ? batchTd : tdBase),
                 textAlign: col.align || 'left',
-                fontWeight: 500,
-                fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
+                fontWeight: isBatchCol ? 700 : 500,
+                fontVariantNumeric: col.numeric || isBatchCol ? 'tabular-nums' : undefined,
               }}
             >
               {editing ? renderEditableCell(row, col) : text}
@@ -703,7 +727,11 @@ export default function DepartmentTable({
                 <th
                   key={col.key}
                   title={col.label}
-                  style={{ ...thBase, textAlign: col.align || 'left', cursor: col.sortable ? 'pointer' : 'default' }}
+                  style={{
+                    ...(col.key === 'batch' ? batchTh : thBase),
+                    textAlign: col.align || 'left',
+                    cursor: col.sortable ? 'pointer' : 'default',
+                  }}
                   onClick={() => col.sortable && toggleSort(col.key)}
                 >
                   {SHORT_HEADERS[col.key] || col.label}
