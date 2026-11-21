@@ -127,9 +127,6 @@ const SHORT_HEADERS = {
   batchOver: 'Over',
   departmentManager: 'Mgr',
   employee: 'Emp',
-  rating: 'Rate',
-  breakdown: 'Brk',
-  requests: 'Req',
 }
 
 const footerBar = {
@@ -154,11 +151,74 @@ const floorBadge = {
   lineHeight: 1.2,
 }
 
-const alloyBadge = {
-  ...floorBadge,
+/** Compact chips — square radius, not blue/green pills. */
+const transferChipBase = {
+  flexShrink: 0,
+  padding: '0.1rem 0.38rem',
+  borderRadius: 4,
+  fontSize: '0.6rem',
+  fontWeight: 700,
+  letterSpacing: '0.03em',
+  whiteSpace: 'nowrap',
+  lineHeight: 1.25,
+}
+
+const fromDeptBadge = {
+  ...transferChipBase,
+  background: '#F1F5F9',
+  border: '1px solid #CBD5E1',
+  color: '#334155',
+}
+
+const toDeptBadge = {
+  ...transferChipBase,
+  background: '#FFF7ED',
+  border: '1px solid #FDBA74',
+  color: '#C2410C',
+}
+
+const mixOriginBadge = {
+  ...transferChipBase,
+  background: '#FAFAF9',
+  border: '1px solid #D6D3D1',
+  color: '#44403C',
+}
+
+const nowHereBadge = {
+  ...transferChipBase,
   background: '#FFFBEB',
   border: '1px solid #F59E0B',
-  color: '#92400E',
+  color: '#B45309',
+  fontWeight: 800,
+}
+
+const currentCustodyRow = {
+  background: 'linear-gradient(90deg, #FDE68A 0%, #FEF3C7 32%, #FFFBEB 100%)',
+  boxShadow: 'inset 4px 0 0 #D97706',
+  outline: '1px solid #FBBF24',
+  outlineOffset: '-1px',
+}
+
+const TRANSFER_FROM_LABELS = {
+  post_mix: 'Post Mix',
+  update_mix: 'Updated Mix',
+  vault_room: 'Vault',
+  melting: 'Melting',
+  rolling: 'Rolling',
+  bangle_area: 'Bangle Area',
+  stamping: 'Stamping',
+  pendent_section: 'Pendent',
+  welding_area: 'Welding',
+  assembly: 'Assembly',
+  qc: 'QC',
+  finished_goods: 'Finished Goods',
+}
+
+function transferFromLabel(key) {
+  const k = String(key || '').trim().toLowerCase()
+  if (!k) return ''
+  if (TRANSFER_FROM_LABELS[k]) return TRANSFER_FROM_LABELS[k]
+  return k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 /** Stack code + badge so BMG-0001 stays fully visible in the narrow fixed table. */
@@ -200,6 +260,35 @@ const batchTd = {
   whiteSpace: 'normal',
 }
 
+/** Loss needs room for floor grams + "Alloy loss 0.6 g" AML line. */
+const lossTh = {
+  ...thBase,
+  width: '8%',
+  minWidth: '6.25rem',
+}
+
+const lossTd = {
+  ...tdBase,
+  width: '8%',
+  minWidth: '6.25rem',
+  maxWidth: 'none',
+  overflow: 'visible',
+  textOverflow: 'clip',
+  whiteSpace: 'normal',
+}
+
+const alloyLossLine = {
+  display: 'block',
+  fontSize: '0.68rem',
+  fontWeight: 800,
+  color: '#9A3412',
+  lineHeight: 1.2,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  textAlign: 'right',
+}
+
 const actionsRow = {
   display: 'flex',
   flexWrap: 'nowrap',
@@ -232,9 +321,6 @@ const EDITABLE_KEYS = new Set([
   'batchOver',
   'departmentManager',
   'employee',
-  'rating',
-  'breakdown',
-  'requests',
 ])
 
 const GAIN_TITLE = 'Metal OUT is more than Metal IN — check the weights'
@@ -245,11 +331,11 @@ function metalLossCell(row) {
     : <span style={overLimitStyle} title={GAIN_TITLE}>Gain +{formatWeight(row.metalGain)}</span>
   if (!row.alloyLossLabel) return floor
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.25 }}>
-      <span>{floor}</span>
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, lineHeight: 1.25, maxWidth: '100%' }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{floor}</span>
       <span
-        style={{ fontSize: 10, fontWeight: 700, color: '#9A3412', whiteSpace: 'nowrap' }}
-        title="Gold Alloy Update metal loss (AML) — separate from floor Metal IN − OUT"
+        style={alloyLossLine}
+        title={`Gold Alloy Update metal loss (AML) — ${row.alloyLossLabel}`}
       >
         {row.alloyLossLabel}
       </span>
@@ -303,10 +389,37 @@ function cellDisplay(row, key, lossLimitPct = null) {
     if (row.fromGoldAlloy) {
       const mixLabel = row.alloyMixCode || row.batch || '—'
       const aml = row.alloyLossLabel ? ` · ${row.alloyLossLabel}` : ''
+      const fromKey = String(row.transferFromDepartment || '').trim().toLowerCase()
+      const toKey = String(row.transferToDepartment || '').trim().toLowerCase()
+      const fromText = fromKey ? transferFromLabel(fromKey) : ''
+      const toText = toKey ? transferFromLabel(toKey) : ''
+      const mixOrigin = fromKey === 'post_mix' || fromKey === 'update_mix'
+      const fromTitle = fromText
+        ? (mixOrigin ? `IN from ${fromText}` : `Received from ${fromText}`)
+        : ''
+      const toTitle = toText ? `Sent to ${toText}` : ''
+      const hereTitle = row.alloyCurrentHere
+        ? `Batch is here now (${transferFromLabel(row.alloyCurrentDept || row.deptKey)})`
+        : ''
       return (
-        <span style={batchCellWrap} title={`Gold Alloy mix ${mixLabel}${aml} — metal fields are read-only`}>
+        <span
+          style={batchCellWrap}
+          title={[`Gold Alloy mix ${mixLabel}${aml} — metal fields are read-only`, fromTitle, toTitle, hereTitle].filter(Boolean).join(' · ')}
+        >
           <span style={batchText}>{mixLabel}</span>
-          <span style={alloyBadge}>Gold Alloy</span>
+          {row.alloyCurrentHere ? (
+            <span style={nowHereBadge}>Now here</span>
+          ) : null}
+          {fromText ? (
+            <span style={mixOrigin ? mixOriginBadge : fromDeptBadge}>
+              {mixOrigin ? fromText : `from ${fromText}`}
+            </span>
+          ) : null}
+          {toText ? (
+            <span style={toDeptBadge}>
+              {`to ${toText}`}
+            </span>
+          ) : null}
         </span>
       )
     }
@@ -628,9 +741,6 @@ export default function DepartmentTable({
       batch: 'batch',
       departmentManager: 'departmentManager',
       employee: 'employee',
-      rating: 'rating',
-      breakdown: 'breakdown',
-      requests: 'requests',
     }
     const field = fieldMap[key]
     const raw = draft[field]
@@ -650,29 +760,40 @@ export default function DepartmentTable({
     const busy = savingId != null && String(savingId) === String(row.id)
     const editing = editable && isEditing(row)
     const displayRow = editing ? getDraft(row) : row
-    const rowBg = row._isNew || editing ? '#FFFBEB' : (idx % 2 ? '#F8FAFC' : '#FFFFFF')
+    const rowBg = row._isNew || editing
+      ? '#FFFBEB'
+      : row.alloyCurrentHere
+        ? undefined
+        : (idx % 2 ? '#F8FAFC' : '#FFFFFF')
 
     return (
       <tr
         key={row.id || idx}
-        style={{ background: rowBg }}
+        data-alloy-current={row.alloyCurrentHere ? 'true' : undefined}
+        title={row.alloyCurrentHere
+          ? `BMG is currently in ${transferFromLabel(row.alloyCurrentDept || row.deptKey)}`
+          : undefined}
+        style={row.alloyCurrentHere
+          ? currentCustodyRow
+          : { background: rowBg }}
       >
         {SHEET_COLUMNS.map((col) => {
           const text = editing ? null : cellDisplay(displayRow, col.key, lossLimitPct)
           const longTextKeys = new Set([
             'date', 'batch', 'batchStarted', 'batchOver',
-            'departmentManager', 'employee', 'breakdown', 'requests',
+            'departmentManager', 'employee',
           ])
           const tip = !editing && longTextKeys.has(col.key) && (typeof text === 'string' || typeof text === 'number')
             ? String(text)
             : undefined
           const isBatchCol = col.key === 'batch'
+          const isLossCol = col.key === 'metalLoss'
           return (
             <td
               key={col.key}
               title={tip}
               style={{
-                ...(isBatchCol ? batchTd : tdBase),
+                ...(isBatchCol ? batchTd : isLossCol ? lossTd : tdBase),
                 textAlign: col.align || 'left',
                 fontWeight: isBatchCol ? 700 : 500,
                 fontVariantNumeric: col.numeric || isBatchCol ? 'tabular-nums' : undefined,
@@ -728,7 +849,7 @@ export default function DepartmentTable({
                   key={col.key}
                   title={col.label}
                   style={{
-                    ...(col.key === 'batch' ? batchTh : thBase),
+                    ...(col.key === 'batch' ? batchTh : col.key === 'metalLoss' ? lossTh : thBase),
                     textAlign: col.align || 'left',
                     cursor: col.sortable ? 'pointer' : 'default',
                   }}
@@ -776,6 +897,7 @@ export default function DepartmentTable({
                     key={col.key}
                     style={{
                       ...totalTd,
+                      ...(col.key === 'metalLoss' ? { minWidth: '6.25rem', overflow: 'visible', whiteSpace: 'normal' } : {}),
                       textAlign: col.align || 'left',
                       fontVariantNumeric: col.numeric ? 'tabular-nums' : undefined,
                     }}

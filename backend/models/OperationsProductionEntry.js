@@ -45,6 +45,16 @@ const operationsProductionEntrySchema = new mongoose.Schema(
     floorOutEntryId: { type: String, trim: true, default: '' },
     /** Alloy mix code when source is gold_alloy (e.g. BMG-0001). */
     alloyMixCode: { type: String, trim: true, uppercase: true, default: '' },
+    /**
+     * When metal arrives into this department (esp. Vault return), which dept sent it.
+     * Gold Alloy: `post_mix` on Post/Update Mix vault IN; `melting` / `rolling` / … on return_vault.
+     */
+    transferFromDepartment: { type: String, trim: true, default: '' },
+    /**
+     * When metal leaves this department (Metal OUT), which dept it was sent to.
+     * Gold Alloy Vault: set on allocate out so Ops can show "to Melting" / "to Rolling".
+     */
+    transferToDepartment: { type: String, trim: true, default: '' },
   },
   { timestamps: true },
 )
