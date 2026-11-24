@@ -206,16 +206,26 @@ const openLastOrCreate = async (type) => {
 
 const switchVoucherTab = async (type) => {
   if (!isVoucherTypeEnabled(tenantKey, type)) return
-  if (type === voucherType && mode === 'list') {
-    await loadVouchers()
-    return
-  }
   if (mode === 'create' && !editingId) {
     const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
     if (hasData && !window.confirm('Discard current unsaved form and switch voucher type?')) return
   }
+  // Always land on the full list for the selected type (never auto-open New/create).
+  if (type === voucherType) {
+    if (mode !== 'list') {
+      setEditingId(null)
+      setError('')
+      setMode('list')
+      return
+    }
+    await loadVouchers()
+    return
+  }
   setVoucherType(type)
-  await openLastOrCreate(type)
+  setEditingId(null)
+  setError('')
+  setMode('list')
+  // loadVouchers() runs via VoucherTab effect when voucherType changes.
 }
 
   return { openVoucher, openCreate, openLastOrCreate, switchVoucherTab }

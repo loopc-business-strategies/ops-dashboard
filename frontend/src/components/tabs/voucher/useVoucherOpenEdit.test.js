@@ -124,3 +124,48 @@ describe('useVoucherOpenEdit openLastOrCreate', () => {
     expect(deps.setMode).toHaveBeenCalledWith('create')
   })
 })
+
+describe('useVoucherOpenEdit switchVoucherTab', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('switches to another type in list mode instead of opening New', async () => {
+    const deps = makeDeps({ mode: 'create', editingId: null })
+    const { result } = renderHook(() => useVoucherOpenEdit(deps))
+
+    await act(async () => {
+      await result.current.switchVoucherTab('receipt')
+    })
+
+    expect(deps.setVoucherType).toHaveBeenCalledWith('receipt')
+    expect(deps.setMode).toHaveBeenCalledWith('list')
+    expect(deps.setEditingId).toHaveBeenCalledWith(null)
+    expect(deps.voucherErpApi.getTransactions).not.toHaveBeenCalled()
+    expect(deps.setMode).not.toHaveBeenCalledWith('create')
+  })
+
+  test('same-type click from editor returns to list without refetch', async () => {
+    const deps = makeDeps({ mode: 'view', voucherType: 'payment', editingId: 'posted-1' })
+    const { result } = renderHook(() => useVoucherOpenEdit(deps))
+
+    await act(async () => {
+      await result.current.switchVoucherTab('payment')
+    })
+
+    expect(deps.setMode).toHaveBeenCalledWith('list')
+    expect(deps.loadVouchers).not.toHaveBeenCalled()
+  })
+
+  test('same-type click while already on list refreshes the list', async () => {
+    const deps = makeDeps({ mode: 'list', voucherType: 'payment' })
+    deps.loadVouchers.mockResolvedValue(undefined)
+    const { result } = renderHook(() => useVoucherOpenEdit(deps))
+
+    await act(async () => {
+      await result.current.switchVoucherTab('payment')
+    })
+
+    expect(deps.loadVouchers).toHaveBeenCalled()
+  })
+})

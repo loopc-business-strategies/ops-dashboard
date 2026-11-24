@@ -523,6 +523,33 @@ export default function VoucherTab({
 
   useEffect(() => { loadVouchers({ force: false }) }, [loadVouchers])
 
+  // Warm sibling voucher-type lists in the background so tab switches feel instant.
+  useEffect(() => {
+    if (!token || !canView) return undefined
+    const year = normalizeFilterYear(voucherFilterYear)
+    const months = normalizeFilterMonths(voucherFilterMonths)
+    const siblings = enabledVoucherTypes.filter((type) => type !== voucherType)
+    if (!siblings.length) return undefined
+    let cancelled = false
+    let idx = 0
+    let timer = window.setTimeout(function warmNext() {
+      if (cancelled || idx >= siblings.length) return
+      const type = siblings[idx]
+      idx += 1
+      const query = {
+        type,
+        ...(year ? { year } : {}),
+        ...(months.length ? { months: toMonthCsv(months) } : {}),
+      }
+      void loadSharedVoucherList(token, query).catch(() => {})
+      timer = window.setTimeout(warmNext, 350)
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [token, canView, enabledVoucherTypes, voucherType, voucherFilterYear, voucherFilterMonths])
+
   useEffect(() => {
     if (enabledVoucherTypes.includes(voucherType)) return
     const nextType = enabledVoucherTypes[0] || 'payment'
