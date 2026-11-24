@@ -120,11 +120,122 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(next.deptCards.find((c) => c.key === 'melting').lossRows).toEqual([expect.objectContaining({ label: '3 (yesterday)' })])
     expect(next.deptCards.find((c) => c.key === 'wire')?.hasData ?? false).toBe(false)
     expect(next.header).toMatchObject({ activeBatches: 1, totalBatches: null })
+    expect(next.underProductionKpi.activeBatches).toBe(1)
     expect(next.compactKpis.totalOutput).toBeNull()
     expect(next.compactKpis.yesterdayOutput).toBe(518.4 * 2)
 
     const withoutOption = applyLoopcOpsEntriesToModel(baseModel(), [], prior, { keepModelWhenEmpty: true })
     expect(withoutOption.hasLiveProduction).toBe(false)
+  })
+
+  test('MG carries still-open gold-alloy visits older than yesterday onto the live card', () => {
+    const older = dayKey(addDays(new Date(), -3))
+    const started = new Date(Date.now() - 3 * 24 * 60 * 60000).toISOString()
+    const meltOver = new Date(Date.now() - 3 * 24 * 60 * 60000 + 60_000).toISOString()
+    const rollOver = new Date(Date.now() - 3 * 24 * 60 * 60000 + 120_000).toISOString()
+    const prior = [
+      mgFloorRow({
+        _id: 'bmg-vault',
+        source: 'gold_alloy',
+        alloyMixCode: 'BMG-0001',
+        date: older,
+        departmentKey: 'vault_room',
+        batchNumber: 'BMG-0001',
+        metalIn: 552.304,
+        metalOut: 552.304,
+        metalLoss: 0,
+        transferFromDepartment: 'post_mix',
+        transferToDepartment: 'melting',
+        batchStartedAt: started,
+        batchOverAt: meltOver,
+      }),
+      mgFloorRow({
+        _id: 'bmg-melt-done',
+        source: 'gold_alloy',
+        alloyMixCode: 'BMG-0001',
+        date: older,
+        departmentKey: 'melting',
+        batchNumber: 'BMG-0001',
+        metalIn: 552.304,
+        metalOut: 551.61,
+        metalLoss: 0.694,
+        batchStartedAt: started,
+        batchOverAt: meltOver,
+      }),
+      mgFloorRow({
+        _id: 'bmg-roll-done',
+        source: 'gold_alloy',
+        alloyMixCode: 'BMG-0001',
+        date: older,
+        departmentKey: 'rolling',
+        batchNumber: 'BMG-0001',
+        metalIn: 551.61,
+        metalOut: 551.51,
+        metalLoss: 0.1,
+        batchStartedAt: meltOver,
+        batchOverAt: rollOver,
+      }),
+      mgFloorRow({
+        _id: 'bmg-open',
+        source: 'gold_alloy',
+        alloyMixCode: 'BMG-0001',
+        date: older,
+        departmentKey: 'bangle_area',
+        batchNumber: 'BMG-0001',
+        metalIn: 551.51,
+        metalOut: null,
+        metalLoss: null,
+        batchStartedAt: rollOver,
+        batchOverAt: null,
+      }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), [], prior, { keepModelWhenEmpty: true, carryOverOpen: true })
+
+    expect(next.deptCards.find((c) => c.key === 'bangle_area')).toMatchObject({
+      status: 'Running',
+      metalIn: 551.51,
+      metalOut: null,
+      currentBatchCarriedOver: true,
+      hasData: true,
+    })
+    expect(next.deptCards.find((c) => c.key === 'melting')).toMatchObject({
+      status: 'Completed',
+      metalIn: 552.304,
+      metalOut: 551.61,
+      metalLoss: 0.694,
+      hasData: true,
+    })
+    expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({
+      status: 'Completed',
+      metalIn: 551.61,
+      metalOut: 551.51,
+      metalLoss: 0.1,
+      hasData: true,
+    })
+    expect(next.deptCards.find((c) => c.key === 'vault_room')).toMatchObject({
+      status: 'Completed',
+      hasData: true,
+      metalLoss: 0.794,
+    })
+    expect(next.header.activeBatches).toBe(1)
+    expect(next.underProductionKpi.activeBatches).toBe(1)
+    expect(next.batchMonitorRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        batchNumber: 'BMG-0001',
+        departmentKey: 'bangle_area',
+        status: 'Running',
+        qtyIn: 551.51,
+        carriedOver: true,
+      }),
+      expect.objectContaining({
+        batchNumber: 'BMG-0001',
+        departmentKey: 'melting',
+        status: 'Completed',
+        qtyIn: 552.304,
+        qtyOut: 551.61,
+        metalLoss: 0.694,
+      }),
+    ]))
   })
 
   test('flags a running batch that takes more than 1.5× the usual time', () => {

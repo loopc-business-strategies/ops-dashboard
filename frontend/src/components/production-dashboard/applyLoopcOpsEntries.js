@@ -190,19 +190,55 @@ function roundOrNull(n, decimals = 0) {
 export const LONG_BATCH_FACTOR = 1.5
 
 /**
- * Yesterday's batches that were still running at midnight (no Over time yet, or Over after midnight).
- * They keep showing on today's cards instead of disappearing at 00:00.
+ * Prior-day batches still open after midnight (no Over yet, or Over after today's midnight).
+ * Covers last night and older still-running gold-alloy / floor visits (e.g. BMG open since
+ * several days ago) so cards do not go Idle while the LIVE mix chip still shows.
  */
-function openFromYesterday(entriesAll, now = new Date()) {
-  const yesterday = dayKey(addDays(now, -1))
+function openPriorRunning(entriesAll, now = new Date()) {
+  const today = dayKey(now)
   const midnight = new Date(now)
   midnight.setHours(0, 0, 0, 0)
   return (Array.isArray(entriesAll) ? entriesAll : []).filter((e) => {
-    if (String(e?.date || '').trim() !== yesterday || !e?.batchStartedAt) return false
+    const date = String(e?.date || '').trim()
+    if (!date || date === today || !e?.batchStartedAt) return false
     if (!e.batchOverAt) return true
     const over = new Date(e.batchOverAt)
     return Number.isFinite(over.getTime()) && over >= midnight
   })
+}
+
+/**
+ * When a mix is still open on a prior day, also bring its completed Vault/Melting/Rolling
+ * hops onto today's cards so Metal IN / OUT / Loss show on every department in the path
+ * (same layout as when the whole path falls on "today").
+ */
+function pathCompanionsForOpenMixes(entriesAll, openRows, now = new Date()) {
+  const today = dayKey(now)
+  const codes = new Set()
+  for (const e of openRows) {
+    const code = mixCodeOf(e)
+    if (code) codes.add(code)
+  }
+  if (!codes.size) return []
+  const openIds = new Set(
+    openRows.map((e) => String(e?._id || e?.id || '')).filter(Boolean),
+  )
+  return (Array.isArray(entriesAll) ? entriesAll : []).filter((e) => {
+    const date = String(e?.date || '').trim()
+    if (!date || date === today) return false
+    const code = mixCodeOf(e)
+    if (!code || !codes.has(code)) return false
+    const id = String(e?._id || e?.id || '')
+    if (id && openIds.has(id)) return false
+    return true
+  })
+}
+
+function carriedOverLabel(entry, now = new Date()) {
+  const date = String(entry?.date || '').trim()
+  if (date && date === dayKey(addDays(now, -1))) return 'yesterday'
+  if (entryStatus(entry) === 'Running') return 'open'
+  return 'prior'
 }
 
 /** Longest running batch taking over LONG_BATCH_FACTOR × the usual time, or null. */
@@ -238,8 +274,9 @@ function withAssignedManagers(cards, departmentManagers) {
  * @param {object[]} entries — today's entries
  * @param {object[]} [entriesAll] — prior-days entries for Total Avg (loss + time); today excluded
  * @param {object} [options]
- * @param {boolean} [options.carryOverOpen] — (MG) also show yesterday's batches still running at midnight
- *   on the cards; they stay out of today's KPI totals so nothing is counted twice
+ * @param {boolean} [options.carryOverOpen] — (MG) also show prior-day batches still running
+ *   (yesterday or older) on the cards; they stay out of today's metal KPI totals so nothing
+ *   is counted twice, but they do count toward active / under-production batch counts
  * @param {Record<string, number>} [options.timeAverages] — (MG) usual batch minutes per department,
  *   used to flag long-running batches
  * @param {Record<string, number>} [options.lossLimits] — (MG) loss warning % of Metal In per department;
@@ -253,11 +290,12 @@ export function buildLoopcOpsDashboardOverlay(
   { carryOverOpen = false, timeAverages = null, lossLimits = null, departmentManagers = null } = {},
 ) {
   const todayList = Array.isArray(entries) ? entries : []
-  const carried = carryOverOpen
-    ? openFromYesterday(entriesAll).map((e) => ({ ...e, carriedOver: true }))
-    : []
+  const now = new Date()
+  const openPrior = carryOverOpen ? openPriorRunning(entriesAll, now) : []
+  const pathPrior = carryOverOpen ? pathCompanionsForOpenMixes(entriesAll, openPrior, now) : []
+  const carried = [...openPrior, ...pathPrior].map((e) => ({ ...e, carriedOver: true }))
   const list = carried.length ? [...carried, ...todayList] : todayList
-  const today = dayKey()
+  const today = dayKey(now)
   // Total Avg must never include today — previous days only
   const allList = (Array.isArray(entriesAll) ? entriesAll : [])
     .filter((e) => String(e?.date || '').trim() !== today)
@@ -316,7 +354,7 @@ export function buildLoopcOpsDashboardOverlay(
       const out = numOrNull(e.metalOut)
       const loss = metalLossOf(e)
       const baseLabel = e.batchNumber ? String(e.batchNumber) : `Batch ${i + 1}`
-      const batchLabel = e.carriedOver ? `${baseLabel} (yesterday)` : baseLabel
+      const batchLabel = e.carriedOver ? `${baseLabel} (${carriedOverLabel(e, now)})` : baseLabel
       if (inn != null) { metalIn += inn; hasIn = true }
       if (out != null) { metalOut += out; hasOut = true }
       if (loss != null) {
