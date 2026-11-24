@@ -376,6 +376,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
           batchLabel: updated.batchLabel,
           outGross,
           tenant: user?.company || 'mg',
+          lossDepartment: updated.department || '',
         })
       } catch (err) {
         console.warn('[mg-floor] auto Updated Mix after Metal Out failed', err?.message || err)
