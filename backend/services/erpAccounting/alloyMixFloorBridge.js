@@ -1563,7 +1563,14 @@ async function serializeReceiveResult(result, session = null) {
  * reverse + re-post as Updated Mix (AML → alloy_metal_loss / ~5500), reuse BMG code.
  * Call only once the job is back in vault.
  */
-async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, tenant = 'mg' } = {}) {
+async function autoUpdateAlloyMixAfterMetalOut({
+  user,
+  batchLabel,
+  outGross,
+  tenant = 'mg',
+  /** Floor department that booked Metal Out (melting / rolling / …). */
+  lossDepartment = '',
+} = {}) {
   const code = String(batchLabel || '').trim().toUpperCase()
   if (!isAlloyMixBatchCode(code)) return null
   const nextTarget = toQty(outGross)
@@ -1649,6 +1656,7 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
     lines,
     description,
     reuseMixCode: code,
+    lossDepartment: lossDepartment || 'UPDATE',
   })
   return result
 }

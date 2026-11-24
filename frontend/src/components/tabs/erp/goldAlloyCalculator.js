@@ -592,9 +592,11 @@ export function buildAlloyMixPayload({
   lines = [],
   description = '',
   reuseMixCode = '',
+  lossDepartment = '',
 } = {}) {
   const reuse = normalizeAlloyMixBatchNo(reuseMixCode)
     || String(reuseMixCode || '').trim().toUpperCase()
+  const dept = String(lossDepartment || '').trim()
   return {
     karat: Number(karat),
     targetGross: Number(targetGross),
@@ -626,6 +628,7 @@ export function buildAlloyMixPayload({
     }),
     ...(description ? { description: String(description) } : {}),
     ...(reuse ? { reuseMixCode: reuse } : {}),
+    ...(dept ? { lossDepartment: dept } : {}),
   }
 }
 

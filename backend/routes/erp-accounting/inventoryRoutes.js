@@ -64,6 +64,8 @@ const alloyMixSchema = Joi.object({
   description: Joi.string().trim().allow('').max(1000).optional(),
   /** Update/Edit: reuse prior BMG batch instead of minting BMG-0002. */
   reuseMixCode: Joi.string().trim().uppercase().pattern(/^BMG-\d+$/).allow('', null).optional(),
+  /** Department that caused this Update metal loss (melting / rolling / update). */
+  lossDepartment: Joi.string().trim().allow('').max(40).optional(),
 })
 const alloyMixReverseSchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).required(),
@@ -465,6 +467,7 @@ function registerInventoryRoutes(deps) {
         lines: req.body.lines,
         description: req.body.description,
         reuseMixCode: req.body.reuseMixCode,
+        lossDepartment: req.body.lossDepartment,
       })
       emitAlloyMixProductionUpdate(req, 'alloy-mix-post', {
         mixCode: result?.mixJob?.mixCode || null,

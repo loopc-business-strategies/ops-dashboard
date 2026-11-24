@@ -73,6 +73,40 @@ function alloyMetalLossPositionRef(reasonBase = '') {
   return `alloy-metal-loss:${String(reasonBase || '').trim()}`
 }
 
+/** Melting / Rolling / Update → MELTING / ROLLING / UPDATE for AML receipt + narration. */
+function normalizeAmlLossDepartment(raw = '') {
+  const key = String(raw || '').trim().toLowerCase().replace(/\s+/g, '_')
+  if (!key) return 'UPDATE'
+  if (key.includes('melt')) return 'MELTING'
+  if (key.includes('roll')) return 'ROLLING'
+  if (key.includes('bangle')) return 'BANGLE'
+  if (key.includes('vault')) return 'VAULT'
+  if (key.includes('update') || key === 'update_mix') return 'UPDATE'
+  return key.replace(/[^a-z0-9]+/g, '_').toUpperCase().slice(0, 16) || 'UPDATE'
+}
+
+function amlStockShort(stockCode = '') {
+  const c = String(stockCode || '').trim().toUpperCase()
+  if (c === 'XAU' || c.includes('GOLD')) return 'AU'
+  if (c === 'XAG' || c.includes('SILV')) return 'AG'
+  if (c === 'XCU' || c.includes('COPP') || c === 'CU') return 'CU'
+  if (c === 'XPT' || c.includes('PLAT')) return 'PT'
+  if (c === 'XPD' || c.includes('PALL')) return 'PD'
+  return (c.replace(/^X/, '') || 'MT').slice(0, 4)
+}
+
+/**
+ * Receipt no like AML-BMG-0001-MELTING-AU (unique per mix + dept + metal).
+ * Falls back to AML-UPDATE-… when mix code unknown.
+ */
+function buildAmlVocNo({ mixCode = '', lossDepartment = '', stockCode = '', seq = 0 } = {}) {
+  const batch = String(mixCode || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'UPDATE'
+  const dept = normalizeAmlLossDepartment(lossDepartment)
+  const metal = amlStockShort(stockCode)
+  const base = `AML-${batch}-${dept}-${metal}`
+  return seq > 0 ? `${base}-${seq}` : base
+}
+
 function createAlloyMixService({
   InventoryItem,
   StockMovement,
@@ -97,6 +131,33 @@ function createAlloyMixService({
     )
   }
 
+  async function nextAmlVocNo({ session, mixCode, lossDepartment, stockCode }) {
+    const dept = normalizeAmlLossDepartment(lossDepartment)
+    const metal = amlStockShort(stockCode)
+    const batch = String(mixCode || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'UPDATE'
+    const prefix = `AML-${batch}-${dept}-${metal}`
+    // Avoid unique-index clash when the same dept books the same metal twice.
+    const existing = await withSession(
+      Transaction.find({
+        isDeleted: { $ne: true },
+        'voucherMeta.vocNo': { $regex: new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:-\\d+)?$`, 'i') },
+      }).select('voucherMeta.vocNo').lean(),
+      session,
+    )
+    const used = new Set((existing || []).map((row) => String(row?.voucherMeta?.vocNo || '').toUpperCase()))
+    if (!used.has(prefix)) return prefix
+    for (let seq = 2; seq < 100; seq += 1) {
+      const candidate = `${prefix}-${seq}`
+      if (!used.has(candidate.toUpperCase())) return candidate
+    }
+    return buildAmlVocNo({
+      mixCode: batch,
+      lossDepartment: dept,
+      stockCode,
+      seq: Date.now() % 10000,
+    })
+  }
+
   async function postMetalLossPositionVoucher({
     user,
     session,
@@ -104,6 +165,8 @@ function createAlloyMixService({
     reasonBase,
     metalLossMapping,
     lossLines = [],
+    mixCode = '',
+    lossDepartment = '',
   }) {
     if (!Transaction || !(metalLossMapping?.debitAccountId) || !lossLines.length) return null
 
@@ -117,19 +180,22 @@ function createAlloyMixService({
       )
     }
 
+    const deptLabel = normalizeAmlLossDepartment(lossDepartment)
+    const batchLabel = String(mixCode || '').trim().toUpperCase() || 'UPDATE'
     const weightedLines = lossLines
       .filter((row) => Number(row.lossGross) > GROSS_EPS)
       .map((row) => {
         const lossGross = toQty(row.lossGross)
         const stockCode = resolveLossMetalStockCode(row)
+        const metalName = row.name || row.label || stockCode
         return {
           inventoryItemId: row.itemId || null,
           stockCode,
-          productType: row.name || row.label || '',
+          productType: metalName,
           grossWeight: lossGross,
           purity: 1,
           pureWeight: lossGross,
-          narration: `Alloy metal loss ${lossGross} g ${row.name || row.label || stockCode}`,
+          narration: `Alloy metal loss ${lossGross} g ${metalName} · ${deptLabel} · ${batchLabel}`,
           currCode: 'USD',
           currRate: 1,
         }
@@ -140,12 +206,17 @@ function createAlloyMixService({
     const createdIds = []
     for (let i = 0; i < weightedLines.length; i += 1) {
       const line = weightedLines[i]
-      const vocSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}${i}`
+      const vocNo = await nextAmlVocNo({
+        session,
+        mixCode: batchLabel,
+        lossDepartment: deptLabel,
+        stockCode: line.stockCode,
+      })
       const [created] = await Transaction.create([{
         type: 'metal_payment',
         amount: 0,
         date: stockDate,
-        description: `${reasonBase}: metal loss position (${line.stockCode})`,
+        description: `${reasonBase}: metal loss ${deptLabel} (${line.stockCode})`,
         currency: 'USD',
         exchangeRate: 1,
         debitAccountId: metalLossMapping.debitAccountId,
@@ -159,8 +230,10 @@ function createAlloyMixService({
           partyAccountId: metalLossMapping.debitAccountId,
           partyCode: String(party?.accountCode || '').trim(),
           partyName: String(party?.accountName || 'Metal Loss').trim(),
-          vocNo: `AML-${vocSuffix}`,
+          vocNo,
           refNo: alloyMetalLossPositionRef(reasonBase),
+          mixCode: batchLabel !== 'UPDATE' ? batchLabel : '',
+          lossDepartment: deptLabel,
           fixingType: 'non-fixing',
           hedge: false,
           docDate: stockDate,
@@ -172,7 +245,7 @@ function createAlloyMixService({
           action: 'posted',
           fromStatus: 'draft',
           toStatus: 'posted',
-          comment: `Alloy oxidation metal-loss position ${line.stockCode} (unfixed grams, no cash)`,
+          comment: `Alloy oxidation metal-loss ${deptLabel} ${line.stockCode} (unfixed grams, no cash)`,
           actorId: user._id,
         }],
       }], writeOpts(session))
@@ -222,6 +295,8 @@ function createAlloyMixService({
     lines = [],
     description = '',
     reuseMixCode = '',
+    /** Department that caused this AML step (melting / rolling / update). */
+    lossDepartment = '',
   } = {}) {
     const tenantKey = String(tenant || '').trim().toLowerCase()
     if (!allowedTenants.includes(tenantKey)) {
@@ -560,6 +635,8 @@ function createAlloyMixService({
           reasonBase,
           metalLossMapping,
           lossLines: amlLines,
+          mixCode: String(reuseMixCode || '').trim().toUpperCase(),
+          lossDepartment: lossDepartment || (String(description || '').match(/updated/i) ? 'UPDATE' : 'POST'),
         })
         metalLossPositionId = positionTx?._id ? String(positionTx._id) : null
       }
@@ -827,4 +904,7 @@ module.exports = {
   createAlloyMixService,
   GROSS_EPS,
   ALLOY_METAL_LOSS_MAPPING_TYPE,
+  normalizeAmlLossDepartment,
+  buildAmlVocNo,
+  amlStockShort,
 }

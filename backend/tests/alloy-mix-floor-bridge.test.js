@@ -483,12 +483,24 @@ describe('alloy mix floor bridge', () => {
       batchLabel: mixCode,
       outGross: 99.3,
       tenant: 'mg',
+      lossDepartment: 'melting',
     })
     expect(updated?.success).toBe(true)
     expect(Number(updated.targetGross)).toBe(99.3)
     expect(Number(updated.metalLossGross)).toBeCloseTo(0.7, 5)
     expect(updated.reason).toMatch(/updated/i)
     expect(updated.mixJob?.mixCode).toBe(mixCode)
+
+    const amlMelting = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.vocNo': { $regex: /^AML-BMG-0099-MELTING-/i },
+    }).lean()
+    expect(amlMelting.length).toBeGreaterThan(0)
+    expect(amlMelting.every((t) => /MELTING/i.test(t.voucherMeta?.vocNo || ''))).toBe(true)
+    expect(amlMelting.some((t) => /MELTING/i.test(
+      (t.voucherMeta?.lineItems || []).map((li) => li.narration).join(' '),
+    ))).toBe(true)
 
     const liveJob = await AlloyMixJob.findOne({ mixCode, isDeleted: { $ne: true }, status: 'in_vault' }).lean()
     expect(liveJob).toBeTruthy()
@@ -527,8 +539,15 @@ describe('alloy mix floor bridge', () => {
       batchLabel: mixCode,
       outGross: 99.2,
       tenant: 'mg',
+      lossDepartment: 'rolling',
     })
     expect(second?.success).toBe(true)
+    const amlRolling = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.vocNo': { $regex: /^AML-BMG-0099-ROLLING-/i },
+    }).lean()
+    expect(amlRolling.length).toBeGreaterThan(0)
 
     const amlLive = await Transaction.find({
       isDeleted: { $ne: true },

@@ -869,6 +869,7 @@ export default function ERPGoldAlloyTab({
           status: 'updated',
         }),
         reuseMixCode,
+        lossDepartment: 'update',
       })
       const result = await erpAccountingAPI.postAlloyMix(token, payload)
       if (typeof showNotification === 'function') {
