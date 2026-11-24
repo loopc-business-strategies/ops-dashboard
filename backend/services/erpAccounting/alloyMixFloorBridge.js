@@ -50,6 +50,8 @@ function buildInputComponents(consumed = []) {
         role: String(row?.role || '').trim().toLowerCase(),
         label: String(row?.label || row?.consumeLabel || '').trim(),
         gross,
+        // Original vault take — later Melting/Rolling Updates need this for cumulative AML.
+        consumeGross: consume,
       }
     })
     .filter(Boolean)
@@ -62,13 +64,21 @@ function buildInputComponents(consumed = []) {
 function normalizeInputComponentsToTarget(components = [], targetGross) {
   const target = toQty(targetGross)
   const list = (Array.isArray(components) ? components : [])
-    .map((row) => ({
-      itemId: row?.itemId || null,
-      name: String(row?.name || '').trim(),
-      role: String(row?.role || '').trim(),
-      label: String(row?.label || '').trim(),
-      gross: toQty(row?.gross),
-    }))
+    .map((row) => {
+      const gross = toQty(row?.gross)
+      const consumeRaw = row?.consumeGross
+      const consumeGross = consumeRaw === '' || consumeRaw == null
+        ? null
+        : toQty(consumeRaw)
+      return {
+        itemId: row?.itemId || null,
+        name: String(row?.name || '').trim(),
+        role: String(row?.role || '').trim(),
+        label: String(row?.label || '').trim(),
+        gross,
+        consumeGross: consumeGross != null && consumeGross > QTY_EPS ? consumeGross : null,
+      }
+    })
     .filter((row) => row.name && row.gross > QTY_EPS)
   if (!(target > 0) || !list.length) return list
   const sum = toQty(list.reduce((acc, row) => acc + row.gross, 0))
@@ -92,12 +102,17 @@ function scaleInputComponents(components = [], ratio = 1) {
     .map((row) => {
       const gross = toQty(Number(row?.gross || 0) * r)
       if (!(gross > QTY_EPS)) return null
+      const consumeRaw = row?.consumeGross
+      const consumeGross = consumeRaw === '' || consumeRaw == null
+        ? null
+        : toQty(Number(consumeRaw) * r)
       return {
         itemId: row?.itemId || null,
         name: String(row?.name || '').trim(),
         role: String(row?.role || '').trim(),
         label: String(row?.label || '').trim(),
         gross,
+        ...(consumeGross != null && consumeGross > QTY_EPS ? { consumeGross } : {}),
       }
     })
     .filter(Boolean)
@@ -1574,6 +1589,12 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
   let allocatedRemain = 0
   const lines = priorInputs.map((c, index) => {
     const priorRemain = toQty(c.gross)
+    // Original vault take for inventory re-consume. Fall back to prior remain for legacy jobs.
+    const consume = toQty(
+      c.consumeGross != null && Number(c.consumeGross) > QTY_EPS
+        ? c.consumeGross
+        : priorRemain,
+    )
     const isLast = index === priorInputs.length - 1
     const remain = isLast
       ? toQty(nextTarget - allocatedRemain)
@@ -1581,8 +1602,10 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
     if (!isLast) allocatedRemain = toQty(allocatedRemain + remain)
     return {
       itemId: String(c.itemId),
-      gross: priorRemain,
+      // Re-consume original vault take after reverse (not only prior remain).
+      gross: consume,
       remainGross: remain,
+      // This-step AML only — prior Update AML is preserved on account 5500.
       lossGross: toQty(Math.max(0, priorRemain - remain)),
       role: c.role || '',
       label: c.label || c.role || '',
@@ -1612,6 +1635,8 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
     user,
     tenant: tenantKey,
     reason: job.reasonBase,
+    // Keep Melting AML; this call only adds the new Rolling (etc.) Metal Loss entry.
+    preserveMetalLoss: true,
   })
 
   const description = `Gold alloy mix (${karat}K ${nextTarget} g · updated)`

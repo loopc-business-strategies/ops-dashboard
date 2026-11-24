@@ -53,7 +53,8 @@ const alloyMixSchema = Joi.object({
     /** Remaining grams in finished after oxidation; omit for proportional loss. */
     remainGross: Joi.number().min(0).optional(),
     /**
-     * Metal Loss AML grams for this Update only (vs prior remain in bar).
+     * Metal Loss AML grams for this Update only (vs prior remain).
+     * Update Mix preserves prior AML so each Update books its own Metal Loss entry.
      * Vault still consumes `gross`; inventory oxidation uses gross − remainGross.
      */
     lossGross: Joi.number().min(0).optional(),
@@ -66,6 +67,8 @@ const alloyMixSchema = Joi.object({
 })
 const alloyMixReverseSchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).required(),
+  /** Update Mix: keep prior AML vouchers so 2 Updates → 2 Metal Loss entries. */
+  preserveMetalLoss: Joi.boolean().optional(),
 })
 const alloyMixClearHistorySchema = Joi.object({
   reason: Joi.string().trim().min(1).max(1000).optional(),
@@ -482,6 +485,7 @@ function registerInventoryRoutes(deps) {
         user: req.user,
         tenant: req.tenant,
         reason: req.body.reason,
+        preserveMetalLoss: Boolean(req.body.preserveMetalLoss),
       })
       emitAlloyMixProductionUpdate(req, 'alloy-mix-reverse', {
         mixCode: result?.mixJobClosed || null,
