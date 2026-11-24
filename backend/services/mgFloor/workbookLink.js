@@ -41,8 +41,8 @@ function summarizeLines(lines) {
   }
   if (weight <= 0) return { weight: null, fineGold: null, purity: null }
   return {
-    weight: round(weight, 3),
-    fineGold: hasPurity ? round(fine, 3) : null,
+    weight: round(weight, 4),
+    fineGold: hasPurity ? round(fine, 4) : null,
     purity: hasPurity ? Math.min(100, round((fine / weight) * 100, 2)) : null,
   }
 }
@@ -159,7 +159,7 @@ async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
       : null
     if (jobPurity != null && jobPurity > 0 && sums.weight != null) {
       purityOut = jobPurity
-      fineGoldOut = round((sums.weight * jobPurity) / 100, 3)
+      fineGoldOut = round((sums.weight * jobPurity) / 100, 4)
     }
   } catch (_) { /* job lookup optional */ }
 
@@ -171,7 +171,7 @@ async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
     inRow.fineGoldOut = fineGoldOut
     inRow.batchOverAt = entryTimestamp(entry) || inRow.batchOverAt || new Date()
     if (inRow.metalIn != null) {
-      inRow.metalLoss = Math.max(0, round(Number(inRow.metalIn) - sums.weight, 3))
+      inRow.metalLoss = Math.max(0, round(Number(inRow.metalIn) - sums.weight, 4))
     }
   }
   await inRow.save()
@@ -245,7 +245,7 @@ async function applyApprovedEntryToWorkbook(entry) {
   }
   if (!row) return null
 
-  const loss = row.metalIn != null && row.metalOut != null ? Math.max(0, round(row.metalIn - row.metalOut, 3)) : null
+  const loss = row.metalIn != null && row.metalOut != null ? Math.max(0, round(row.metalIn - row.metalOut, 4)) : null
   const overAt = batchOverAfterStart(row.batchStartedAt, row.batchOverAt)
   if (loss !== row.metalLoss || overAt !== row.batchOverAt) {
     row.metalLoss = loss

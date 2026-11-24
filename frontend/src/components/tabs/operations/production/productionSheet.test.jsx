@@ -197,7 +197,7 @@ describe('Production workbook purity and MG Floor rows', () => {
     )
     const row = screen.getByText('MG Floor').closest('tr')
     expect(within(row).getByText('93.48%')).toBeTruthy()
-    expect(within(row).getByText('1243.95 g')).toBeTruthy()
+    expect(within(row).getByText('1,243.949 g')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Del' })).toBeNull()
@@ -294,7 +294,7 @@ describe('Production workbook purity and MG Floor rows', () => {
     const total = screen.getByTestId('department-total-row')
     expect(within(total).getByText('Total')).toBeTruthy()
     expect(within(total).getByText('3 batches')).toBeTruthy()
-    expect(within(total).getByText('1800 g')).toBeTruthy()
+    expect(within(total).getByText('1,800 g')).toBeTruthy()
     expect(within(total).getByText('0.8%')).toBeTruthy()
     expect(within(total).getByText('Avg 1h 30m')).toBeTruthy()
   })
@@ -364,6 +364,8 @@ describe('Production workbook purity and MG Floor rows', () => {
     expect(summary.totalMetalIn).toBe(552.304)
     expect(summary.totalMetalOut).toBe(551.61)
     expect(summary.totalMetalLoss).toBe(0.694)
+    // Loss display keeps 3+ decimals (0.694 not cut to 0.69).
+    expect(melting.metalLossDisplay).toBe('0.694 g')
 
     render(<DepartmentTable rows={[vaultA, vaultB]} />)
     expect(within(screen.getByTestId('department-total-row')).getByText('1 batch · 2 sequences')).toBeTruthy()
