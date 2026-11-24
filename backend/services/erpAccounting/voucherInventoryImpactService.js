@@ -160,13 +160,22 @@ function createVoucherInventoryImpactService({
         })
       }
       if (!cogsAccount) {
+        const salesRevenue = await ensureAccountByCode({
+          user,
+          code: '4000',
+          name: 'Sales Revenue',
+          accountType: 'Income',
+          currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
+        })
         cogsAccount = await ensureAccountByCode({
           user,
           code: '5101',
           name: 'Cost Of Goods Sold',
-          accountType: 'Expense',
+          accountType: 'Income',
           currency: tx.currency || BASE_CURRENCY_CODE,
           session,
+          parentAccountId: salesRevenue?._id || null,
         })
       }
     }

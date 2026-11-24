@@ -1425,11 +1425,11 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
 router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accountPatchSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const existingAccount = await ChartOfAccount.findById(req.params.id).select('accountType')
+    const existingAccount = await ChartOfAccount.findById(req.params.id).select('accountType parentAccountId')
     if (!existingAccount) return res.status(404).json({ success: false, message: 'Account not found' })
 
     const updates = {}
-    const allowedFields = ['accountName', 'description', 'address', 'trn', 'authorizedPerson', 'isActive', 'currency', 'department', 'parentAccountId', 'marginPercent']
+    const allowedFields = ['accountName', 'accountType', 'description', 'address', 'trn', 'authorizedPerson', 'isActive', 'currency', 'department', 'parentAccountId', 'marginPercent']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
@@ -1451,8 +1451,15 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId === null) {
       updates.parentAccountId = null
     }
+    const nextAccountType = updates.accountType || existingAccount.accountType
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId) {
-      await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId, accountType: existingAccount.accountType })
+      await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId, accountType: nextAccountType })
+    } else if (updates.accountType && existingAccount.parentAccountId) {
+      await validateAccountParentAssignment({
+        accountId: req.params.id,
+        parentAccountId: existingAccount.parentAccountId,
+        accountType: nextAccountType,
+      })
     }
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })

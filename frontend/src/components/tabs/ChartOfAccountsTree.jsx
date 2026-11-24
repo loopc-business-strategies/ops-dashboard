@@ -494,6 +494,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
         await erpAccountingAPI.updateAccount(token, modal.node._id, {
           accountName:  form.accountName.trim(),
+          accountType:  form.accountType,
           description:  form.description,
           address:      form.address,
           trn:          form.trn,
@@ -1069,7 +1070,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                       </Field>
                     )}
 
-                    {modal.mode === 'add' && (
+                    {(modal.mode === 'add' || modal.mode === 'edit') && (
                       <Field label="Account Type *">
                         <select
                           required
@@ -1080,7 +1081,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                               ...prev,
                               accountType: nextType,
                               // Always reset parent on type switch; user can pick a valid one from filtered list.
-                              parentAccountId: '',
+                              parentAccountId: modal.mode === 'add' ? '' : prev.parentAccountId,
                             }))
                           }}
                           style={inputStyle}

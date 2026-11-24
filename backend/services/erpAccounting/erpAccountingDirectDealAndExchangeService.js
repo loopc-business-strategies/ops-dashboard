@@ -217,12 +217,13 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       accountType: 'Income',
       currency: deal.currency || BASE_CURRENCY_CODE,
     })
-    const costOfSalesParent = await ensureAccountByCode({
+    await ensureAccountByCode({
       user,
       code: '5101',
       name: 'Cost Of Goods Sold',
-      accountType: 'Expense',
+      accountType: 'Income',
       currency: deal.currency || BASE_CURRENCY_CODE,
+      parentAccountId: salesRevenueParent?._id || null,
     })
 
     const subAccountCache = new Map()
@@ -233,8 +234,6 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       const customer = await resolveDirectDealCustomer(line, idx + 1)
       const direction = String(line.direction || '').toLowerCase()
       const metal = String(line.metal || 'XAU').toUpperCase()
-      const accountType = direction === 'buy' ? 'Income' : 'Expense'
-      const parentAccount = direction === 'buy' ? salesRevenueParent : costOfSalesParent
       const directionLabel = direction === 'buy' ? 'Sales' : 'Purchase'
       const accountName = `${metalDisplayName(metal)} ${directionLabel} Fixing`
       const cacheKey = `${direction}:${metal}`
@@ -243,8 +242,8 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       if (!fixingAccount) {
         fixingAccount = await ensureChildAccountByName({
           user,
-          parentAccount,
-          accountType,
+          parentAccount: salesRevenueParent,
+          accountType: 'Income',
           accountName,
           codePrefix: direction === 'buy' ? '91' : '92',
           currency: deal.currency || BASE_CURRENCY_CODE,

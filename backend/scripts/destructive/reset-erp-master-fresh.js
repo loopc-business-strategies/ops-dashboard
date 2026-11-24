@@ -40,7 +40,7 @@ const accounts = [
   { accountCode: '4110', accountName: 'Sales - Export', accountType: 'Income', description: 'International sales', department: 'sales' },
   { accountCode: '4200', accountName: 'Service Revenue', accountType: 'Income', description: 'Service delivery income', department: 'sales' },
   { accountCode: '4300', accountName: 'Other Income', accountType: 'Income', description: 'Interest, royalties, miscellaneous', department: 'finance' },
-  { accountCode: '5101', accountName: 'Cost Of Goods Sold', accountType: 'Expense', description: 'Direct inventory cost (parent for metal Purchase Fixing 92xxxx)', department: 'production' },
+  { accountCode: '5101', accountName: 'Cost Of Goods Sold', accountType: 'Income', description: 'Direct inventory cost under Sales Revenue (sibling of metal Purchase Fixing 92xxxx)', department: 'production' },
   { accountCode: '5100', accountName: 'Raw Materials Used', accountType: 'Expense', description: 'Raw material consumption', department: 'production' },
   { accountCode: '5200', accountName: 'Direct Labor', accountType: 'Expense', description: 'Production worker wages', department: 'production' },
   { accountCode: '6000', accountName: 'Rent Expense', accountType: 'Expense', description: 'Office and facility rent', department: 'operations' },

@@ -1,8 +1,8 @@
 /**
  * Resolve metal Sales/Purchase Fixing P&L sub-accounts (91xxxx / 92xxxx).
- * Both nest under Sales Revenue (4000) in the COA tree:
+ * Both nest under Sales Revenue (4000) as Income:
  * - sales → Income 91xxxx (Gold Sales Fixing, …)
- * - purchase → Expense 92xxxx (Gold Purchase Fixing, …) — still Expense for P&L
+ * - purchase → Income 92xxxx (Gold Purchase Fixing, …)
  */
 
 function metalDisplayName(metal) {
@@ -39,7 +39,7 @@ function resolveVoucherMetalCode(tx = {}) {
 /**
  * @param {'sales'|'purchase'} kind
  * - sales → Income under 4000 (91xxxx)
- * - purchase → Expense under 4000 (92xxxx); COGS 5101 stays a sibling Expense under 4000
+ * - purchase → Income under 4000 (92xxxx); COGS 5101 is a sibling Income under 4000
  */
 async function ensureMetalFixingPlAccount({
   user,
@@ -67,7 +67,7 @@ async function ensureMetalFixingPlAccount({
   return ensureChildAccountByName({
     user,
     parentAccount: parent,
-    accountType: isSales ? 'Income' : 'Expense',
+    accountType: 'Income',
     accountName,
     codePrefix: isSales ? '91' : '92',
     currency,

@@ -5,8 +5,8 @@
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 /**
- * Same-type parents are the default. Expense may nest under Income so Cost of
- * Goods Sold can sit under Sales Revenue in the tree while staying Expense for P&L.
+ * Same-type parents are the default. Expense may still nest under Income for
+ * legacy trees; COGS / Purchase Fixing under Sales Revenue are Income children.
  */
 function isCompatibleAccountParentType(parentType, childType) {
   const parent = String(parentType || '').trim()
@@ -24,7 +24,15 @@ function createAccountCodeService({
 }) {
   const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-  const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE, session = null }) => {
+  const ensureAccountByCode = async ({
+    user,
+    code,
+    name,
+    accountType,
+    currency = BASE_CURRENCY_CODE,
+    session = null,
+    parentAccountId = undefined,
+  }) => {
     let account = await withSession(ChartOfAccount.findOne({ accountCode: code }), session)
     if (!account) {
       try {
@@ -33,6 +41,7 @@ function createAccountCodeService({
           accountCode: code,
           accountType,
           currency,
+          parentAccountId: parentAccountId || null,
           description: `Auto-created default account for ${name}`,
           createdBy: user._id,
         }], writeOpts(session)).then((rows) => rows[0])
@@ -48,6 +57,15 @@ function createAccountCodeService({
 
     if (!account.isActive) {
       account.isActive = true
+    }
+    if (accountType && account.accountType !== accountType) {
+      account.accountType = accountType
+    }
+    if (parentAccountId !== undefined
+      && String(account.parentAccountId || '') !== String(parentAccountId || '')) {
+      account.parentAccountId = parentAccountId || null
+    }
+    if (account.isModified()) {
       await account.save(writeOpts(session))
     }
 
@@ -131,23 +149,25 @@ function createAccountCodeService({
     const nameRe = new RegExp(`^${escapeRegex(accountName)}$`, 'i')
     let existing = await ChartOfAccount.findOne({
       parentAccountId: parentAccount?._id || null,
-      accountType,
       accountName: nameRe,
     })
 
-    // After COA reorg (e.g. Purchase Fixing moved under Sales Revenue), reuse the
-    // same name/type under any parent instead of minting a duplicate 92xxxx.
+    // After COA reorg / type change (Expense → Income under Sales Revenue), reuse
+    // the same named account instead of minting a duplicate 91/92xxxx.
     if (!existing) {
-      existing = await ChartOfAccount.findOne({ accountType, accountName: nameRe })
-      if (existing && parentAccount?._id
-        && String(existing.parentAccountId || '') !== String(parentAccount._id)) {
-        existing.parentAccountId = parentAccount._id
-      }
+      existing = await ChartOfAccount.findOne({ accountName: nameRe })
     }
 
     if (existing) {
       if (!existing.isActive) {
         existing.isActive = true
+      }
+      if (accountType && existing.accountType !== accountType) {
+        existing.accountType = accountType
+      }
+      if (parentAccount?._id
+        && String(existing.parentAccountId || '') !== String(parentAccount._id)) {
+        existing.parentAccountId = parentAccount._id
       }
       if (existing.isModified()) {
         await existing.save()

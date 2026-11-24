@@ -50,6 +50,30 @@ describe('summarizeProfitLossEntriesFromLedgerRows', () => {
     expect(summary.incomeBreakdown[0].amount).toBe(380)
   })
 
+  test('keeps net-debit Income accounts in income breakdown (Purchase Fixing / COGS)', () => {
+    const purchaseId = 'inc-920001'
+    const accounts = {
+      incomeById: new Map([
+        [incomeId, { accountCode: '4190', accountName: 'Exchange Gain' }],
+        [purchaseId, { accountCode: '920001', accountName: 'Gold Purchase Fixing' }],
+      ]),
+      expenseById: new Map(),
+      incomeIds: new Set([incomeId, purchaseId]),
+      expenseIds: new Set(),
+    }
+    const entries = [
+      { debitAccountId: bankId, creditAccountId: incomeId, amount: 500, exchangeRate: 1 },
+      { debitAccountId: purchaseId, creditAccountId: bankId, amount: 200, exchangeRate: 1 },
+    ]
+
+    const summary = summarizeProfitLossEntriesFromLedgerRows(entries, accounts, false)
+    const purchaseRow = summary.incomeBreakdown.find((row) => row.accountCode === '920001')
+
+    expect(purchaseRow).toMatchObject({ accountCode: '920001', amount: -200 })
+    expect(summary.totalIncome).toBe(300)
+    expect(summary.netProfit).toBe(300)
+  })
+
   test('totalExpense equals sum of expense breakdown rows', () => {
     const rentId = 'exp-rent'
     const accounts = {

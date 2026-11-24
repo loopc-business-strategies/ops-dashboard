@@ -96,11 +96,13 @@ function summarizeProfitLossEntriesFromLedgerRows(
   const incomeBreakdown = []
   const expenseBreakdown = []
 
+  // Keep signed income so debit-balance Income accounts (e.g. Purchase Fixing / COGS
+  // under Sales Revenue) reduce totalIncome instead of vanishing after clamp-to-zero.
   incomeNetMap.forEach((row) => {
-    const clamped = Math.max(Number(row.amount || 0), 0)
-    if (!includeZero && clamped < 0.005) return
-    totalIncome += clamped
-    incomeBreakdown.push({ ...row, amount: toMoney(clamped) })
+    const signed = Number(row.amount || 0)
+    if (!includeZero && Math.abs(signed) < 0.005) return
+    totalIncome += signed
+    incomeBreakdown.push({ ...row, amount: toMoney(signed) })
   })
 
   expenseNetMap.forEach((row) => {
@@ -272,9 +274,9 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     return { startDate: prevStart, endDate: prevEnd }
   }
 
-  let pnlAccountCache = null
+  // Do not permanently memoize — accountType changes (e.g. COGS → Income) must
+  // show up on the next P&L without waiting for a process restart.
   const getPnlAccountSets = async () => {
-    if (pnlAccountCache) return pnlAccountCache
     const accounts = await ChartOfAccount.find({
       isActive: true,
       accountType: { $in: ['Income', 'Expense'] },
@@ -294,8 +296,7 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
         expenseById.set(key, account)
       }
     })
-    pnlAccountCache = { incomeById, expenseById, incomeIds, expenseIds }
-    return pnlAccountCache
+    return { incomeById, expenseById, incomeIds, expenseIds }
   }
 
   const summarizeProfitLossEntries = (entries, pnlAccounts, includeZero = false) =>

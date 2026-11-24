@@ -360,7 +360,8 @@ function registerInventoryRoutes(deps) {
         actorName: req.user.name,
       })
 
-      const cogsAccount = await ChartOfAccount.findOne({ accountType: 'Expense', isActive: true, accountName: /cogs|cost of goods sold/i })
+      const cogsAccount = await ChartOfAccount.findOne({ accountCode: '5101', isActive: true })
+        || await ChartOfAccount.findOne({ isActive: true, accountName: /cogs|cost of goods sold/i })
         || await ChartOfAccount.findOne({ accountType: 'Expense', isActive: true }).sort({ accountCode: 1 })
       if (!item.ledgerAccountId || !cogsAccount) {
         return res.status(400).json({ success: false, message: 'Inventory or COGS account missing' })
