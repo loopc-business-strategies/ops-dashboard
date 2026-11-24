@@ -53,8 +53,8 @@ describe('metalFixingPlAccounts', () => {
     }))
   })
 
-  test('ensureMetalFixingPlAccount creates Purchase Fixing under 5101', async () => {
-    const parent = { _id: 'parent-5101' }
+  test('ensureMetalFixingPlAccount creates Purchase Fixing under 4000 as Expense', async () => {
+    const parent = { _id: 'parent-4000' }
     const child = { _id: 'gold-purchase-fixing', accountCode: '920001' }
     const ensureAccountByCode = jest.fn(async () => parent)
     const ensureChildAccountByName = jest.fn(async () => child)
@@ -70,13 +70,14 @@ describe('metalFixingPlAccounts', () => {
 
     expect(result).toBe(child)
     expect(ensureAccountByCode).toHaveBeenCalledWith(expect.objectContaining({
-      code: '5101',
-      accountType: 'Expense',
+      code: '4000',
+      accountType: 'Income',
     }))
     expect(ensureChildAccountByName).toHaveBeenCalledWith(expect.objectContaining({
       accountName: 'Gold Purchase Fixing',
       codePrefix: '92',
       accountType: 'Expense',
+      parentAccount: parent,
     }))
   })
 })

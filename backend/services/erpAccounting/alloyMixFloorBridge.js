@@ -27,6 +27,130 @@ function toQty(n) {
   return Math.round(Number(n || 0) * 10000) / 10000
 }
 
+function sumInputComponentGross(components = []) {
+  return toQty(
+    (Array.isArray(components) ? components : [])
+      .reduce((acc, row) => acc + Number(row?.gross || 0), 0),
+  )
+}
+
+/**
+ * After + Add metal extras bump targetGross above Post Mix inputs, Metal Out < target
+ * must not scale remains against the bumped gross (that dumps the extras gap onto the
+ * last metal and can make copper "gain"). Scale against the recipe input sum instead.
+ *
+ * @returns {{ action: 'none'|'shrink_extras_only'|'update_mix', scaleBase?: number, nextTarget?: number, fineGold?: number|null }}
+ */
+function planMetalOutMixShrink({
+  priorTarget,
+  nextTarget,
+  inputGrossSum,
+  priorFineGold = null,
+  purityPct = null,
+} = {}) {
+  const prior = toQty(priorTarget)
+  const next = toQty(nextTarget)
+  const recipe = toQty(inputGrossSum)
+  if (!(prior > QTY_EPS) || !(next > QTY_EPS)) return { action: 'none' }
+  // Out matches / exceeds current target — no shrink.
+  if (next + 0.0005 >= prior) return { action: 'none' }
+
+  const hasExtras = recipe > QTY_EPS && prior > recipe + 0.0005
+  const scaleBase = hasExtras ? recipe : prior
+  const storedFg = priorFineGold != null && Number.isFinite(Number(priorFineGold))
+    ? toQty(priorFineGold)
+    : null
+  const recipeFg = purityPct != null && scaleBase > QTY_EPS
+    ? toQty((scaleBase * Number(purityPct)) / 100)
+    : null
+  const baseFg = storedFg != null ? storedFg : recipeFg
+
+  // Out still ≥ Post Mix recipe: only non-recipe extras left the bar — keep inputs.
+  if (hasExtras && next + 0.0005 >= recipe) {
+    return {
+      action: 'shrink_extras_only',
+      scaleBase: recipe,
+      nextTarget: next,
+      fineGold: baseFg,
+    }
+  }
+
+  const fineGold = baseFg != null && scaleBase > QTY_EPS
+    ? toQty(Number(baseFg) * (next / scaleBase))
+    : (purityPct != null ? toQty((next * Number(purityPct)) / 100) : null)
+  return {
+    action: 'update_mix',
+    scaleBase,
+    nextTarget: next,
+    fineGold,
+  }
+}
+
+/** Scale Post Mix remain lines to nextTarget using scaleBase (recipe or prior target). */
+function buildUpdatedMixRemainLines(priorInputs = [], { nextTarget, scaleBase } = {}) {
+  const next = toQty(nextTarget)
+  const base = toQty(scaleBase)
+  if (!(next > QTY_EPS) || !(base > QTY_EPS)) return []
+  const ratio = next / base
+  let allocatedRemain = 0
+  return priorInputs.map((c, index) => {
+    const priorRemain = toQty(c.gross)
+    const consume = toQty(
+      c.consumeGross != null && Number(c.consumeGross) > QTY_EPS
+        ? c.consumeGross
+        : priorRemain,
+    )
+    const isLast = index === priorInputs.length - 1
+    const remain = isLast
+      ? toQty(next - allocatedRemain)
+      : toQty(priorRemain * ratio)
+    if (!isLast) allocatedRemain = toQty(allocatedRemain + remain)
+    return {
+      itemId: String(c.itemId),
+      gross: consume,
+      remainGross: remain,
+      lossGross: toQty(Math.max(0, priorRemain - remain)),
+      role: c.role || '',
+      label: c.label || c.role || '',
+    }
+  }).filter((line) => line.itemId && line.gross > QTY_EPS)
+}
+
+/**
+ * Fine gold for an allocate/receive move.
+ * Prefer stored gold-only FG (set after + Add metal extras). If targetGross was
+ * bumped above Post Mix inputs but fineGold was never stored, derive FG from
+ * input sum × purity so cadmium/copper extras are not counted as gold.
+ */
+function resolveAllocateFineGold(job, moveWeight, available) {
+  const move = toQty(moveWeight)
+  const avail = toQty(available)
+  if (!(move > QTY_EPS)) return null
+  const purityPct = job?.purity != null ? Number(job.purity) : null
+  const scale = (fullFg) => {
+    if (!(avail > QTY_EPS) || Math.abs(move - avail) <= QTY_EPS) return toQty(fullFg)
+    return toQty(Number(fullFg) * (move / avail))
+  }
+
+  const stored = job?.fineGold != null && job.fineGold !== '' ? Number(job.fineGold) : null
+  if (stored != null && Number.isFinite(stored) && stored >= 0) {
+    return scale(stored)
+  }
+
+  const inputSum = sumInputComponentGross(job?.inputComponents)
+  const target = toQty(job?.targetGross)
+  if (
+    purityPct != null
+    && inputSum > QTY_EPS
+    && target > inputSum + 0.0005
+  ) {
+    return scale((inputSum * purityPct) / 100)
+  }
+
+  if (purityPct != null) return toQty((move * purityPct) / 100)
+  return null
+}
+
 /**
  * Normalize Post Mix consumed rows into AlloyMixJob.inputComponents.
  * Prefer remainGross (metals in the finished bar) — same grams View mix shows —
@@ -535,7 +659,13 @@ async function createJobFromPostedMix({
   const purityPct = finishedPurity != null && Number(finishedPurity) > 0
     ? Math.round(Number(finishedPurity) * 10000) / 100
     : null
-  const fineGold = purityPct != null ? toQty((targetGross * purityPct) / 100) : null
+  // Prefer recipe input sum when target was bumped above Post Mix (extras) so FG
+  // stays gold-only rather than targetGross × purity.
+  const recipeGross = sumInputComponentGross(inputComponents)
+  const fgBase = recipeGross > QTY_EPS && targetGross > recipeGross + 0.0005
+    ? recipeGross
+    : targetGross
+  const fineGold = purityPct != null ? toQty((fgBase * purityPct) / 100) : null
 
   let stockCode = mixCode
   const clash = await withSession(
@@ -618,6 +748,7 @@ async function createJobFromPostedMix({
         finishedProductName: finishedName,
         inputComponents,
         purity: purityPct,
+        fineGold,
         stockLotId: lot?._id || null,
         stockCode: lot?.stockCode || stockCode,
         status: 'in_vault',
@@ -960,6 +1091,8 @@ async function allocateMixJob({
   toDepartment,
   note = '',
   weight: weightRaw = null,
+  /** Optional FG override (e.g. gold-only FG after + Add metal non-gold lines). */
+  fineGold: fineGoldRaw = null,
   session = null,
 } = {}) {
   if (!user?._id) throw httpError(401, 'Unauthorized')
@@ -1010,7 +1143,15 @@ async function allocateMixJob({
   const remainWeight = toQty(available - moveWeight)
 
   const purityPct = job.purity != null ? Number(job.purity) : null
-  const fineGold = purityPct != null ? toQty((moveWeight * purityPct) / 100) : null
+  const fineGoldOverride = fineGoldRaw != null && fineGoldRaw !== '' ? toQty(fineGoldRaw) : null
+  const fineGold = fineGoldOverride != null && fineGoldOverride >= 0
+    ? fineGoldOverride
+    : resolveAllocateFineGold(job, moveWeight, available)
+  // Keep gold-only FG on the job so the next vault→floor allocate does not
+  // recompute FG as (bumped targetGross × purity) after + Add metal extras.
+  if (fineGoldOverride != null && fineGoldOverride >= 0 && !isPartial) {
+    job.fineGold = fineGoldOverride
+  }
   const date = dubaiDateKey()
   const stamp = `${Date.now()}`
   const noteText = [
@@ -1084,6 +1225,15 @@ async function allocateMixJob({
     const splitRatio = available > QTY_EPS ? moveWeight / available : 1
     const childInputs = scaleInputComponents(job.inputComponents, splitRatio)
     const remainInputs = scaleInputComponents(job.inputComponents, remainWeight / available)
+    const parentFgBefore = job.fineGold != null && Number.isFinite(Number(job.fineGold))
+      ? toQty(job.fineGold)
+      : null
+    const childFineGold = fineGold
+    const remainFineGold = parentFgBefore != null
+      ? toQty(parentFgBefore - (childFineGold != null ? childFineGold : 0))
+      : (fineGold != null && available > QTY_EPS
+        ? toQty(Number(fineGold) * (remainWeight / available))
+        : null)
 
     const [child] = await AlloyMixJob.create(
       [
@@ -1097,6 +1247,7 @@ async function allocateMixJob({
           finishedProductName: job.finishedProductName,
           inputComponents: childInputs,
           purity: job.purity,
+          fineGold: childFineGold,
           stockLotId: childLot?._id || null,
           stockCode: childLot?.stockCode || '',
           parentJobId: job._id,
@@ -1154,6 +1305,9 @@ async function allocateMixJob({
 
     job.targetGross = remainWeight
     job.inputComponents = remainInputs
+    if (remainFineGold != null && remainFineGold >= 0) {
+      job.fineGold = remainFineGold
+    }
     job.history.push({
       at: new Date(),
       action: 'allocate',
@@ -1272,7 +1426,7 @@ async function receiveMixJob({
   const from = normalizeDept(job.pendingFromDepartment) || VAULT
   const purityPct = job.purity != null ? Number(job.purity) : null
   const weight = toQty(job.targetGross)
-  const fineGold = purityPct != null ? toQty((weight * purityPct) / 100) : null
+  const fineGold = resolveAllocateFineGold(job, weight, weight)
   const date = dubaiDateKey()
   const stamp = `recv-${Date.now()}`
   const noteText = String(note || '').trim()
@@ -1484,6 +1638,9 @@ function serializeJob(job, {
       row.targetGross,
     ),
     purity: row.purity,
+    fineGold: row.fineGold != null && Number.isFinite(Number(row.fineGold))
+      ? toQty(row.fineGold)
+      : null,
     stockLotId: row.stockLotId ? String(row.stockLotId) : '',
     stockCode: row.stockCode || '',
     parentJobId: row.parentJobId ? String(row.parentJobId) : '',
@@ -1608,6 +1765,9 @@ async function serializeReceiveResult(result, session = null) {
  * After FM approves Floor/Allocate Metal Out with OUT gross < mix target:
  * reverse + re-post as Updated Mix (AML → alloy_metal_loss / ~5500), reuse BMG code.
  * Call only once the job is back in vault.
+ *
+ * After + Add metal extras bumped targetGross, scale against Post Mix input sum
+ * (not the bumped target) so the extras gap is not dumped onto the last metal.
  */
 async function autoUpdateAlloyMixAfterMetalOut({
   user,
@@ -1631,39 +1791,76 @@ async function autoUpdateAlloyMixAfterMetalOut({
 
   const priorTarget = toQty(job.targetGross)
   if (!(priorTarget > QTY_EPS)) return null
-  // No oxidation when Floor OUT matches (or exceeds) the posted mix target.
-  if (nextTarget + 0.0005 >= priorTarget) return null
 
-  const priorInputs = normalizeInputComponentsToTarget(job.inputComponents || [], priorTarget)
+  const recipeSum = sumInputComponentGross(job.inputComponents)
+  const purityPct = job.purity != null ? Number(job.purity) : null
+  const plan = planMetalOutMixShrink({
+    priorTarget,
+    nextTarget,
+    inputGrossSum: recipeSum,
+    priorFineGold: job.fineGold,
+    purityPct,
+  })
+  if (plan.action === 'none') return null
+
+  // Extras-only: Out still covers the Post Mix recipe — shrink target/FG, keep inputs.
+  if (plan.action === 'shrink_extras_only') {
+    job.targetGross = plan.nextTarget
+    if (plan.fineGold != null && plan.fineGold >= 0) {
+      job.fineGold = plan.fineGold
+    }
+    job.updatedById = user?._id || job.updatedById
+    job.updatedByName = user?.name || job.updatedByName || ''
+    job.history.push({
+      at: new Date(),
+      action: 'update',
+      fromDepartment: VAULT,
+      toDepartment: VAULT,
+      note: `Metal Out ${plan.nextTarget} g — extras shrink (recipe ${plan.scaleBase} g kept)`,
+      actorId: user?._id || null,
+      actorName: user?.name || '',
+    })
+    await job.save()
+    if (job.stockLotId) {
+      const lot = await ProductionStockLot.findById(job.stockLotId)
+      if (lot) {
+        lot.grossWeight = plan.nextTarget
+        lot.netWeight = plan.nextTarget
+        await lot.save()
+      }
+    }
+    const openVault = await findOpenAlloyOpsVisit({
+      session: null,
+      mixCode: code,
+      departmentKey: VAULT,
+    })
+    if (openVault) {
+      openVault.metalIn = plan.nextTarget
+      openVault.fineGold = plan.fineGold != null ? plan.fineGold : openVault.fineGold
+      if (openVault.purity == null && purityPct != null) openVault.purity = purityPct
+      await openVault.save()
+    }
+    return {
+      success: true,
+      extrasOnly: true,
+      targetGross: plan.nextTarget,
+      fineGold: plan.fineGold,
+      reason: job.reasonBase,
+      mixJob: serializeJob(job),
+    }
+  }
+
+  const scaleBase = toQty(plan.scaleBase)
+  const priorInputs = normalizeInputComponentsToTarget(job.inputComponents || [], scaleBase)
     .filter((row) => row.itemId && row.gross > QTY_EPS)
   if (!priorInputs.length) return null
 
-  const ratio = nextTarget / priorTarget
-  let allocatedRemain = 0
-  const lines = priorInputs.map((c, index) => {
-    const priorRemain = toQty(c.gross)
-    // Original vault take for inventory re-consume. Fall back to prior remain for legacy jobs.
-    const consume = toQty(
-      c.consumeGross != null && Number(c.consumeGross) > QTY_EPS
-        ? c.consumeGross
-        : priorRemain,
-    )
-    const isLast = index === priorInputs.length - 1
-    const remain = isLast
-      ? toQty(nextTarget - allocatedRemain)
-      : toQty(priorRemain * ratio)
-    if (!isLast) allocatedRemain = toQty(allocatedRemain + remain)
-    return {
-      itemId: String(c.itemId),
-      // Re-consume original vault take after reverse (not only prior remain).
-      gross: consume,
-      remainGross: remain,
-      // This-step AML only — prior Update AML is preserved on account 5500.
-      lossGross: toQty(Math.max(0, priorRemain - remain)),
-      role: c.role || '',
-      label: c.label || c.role || '',
-    }
-  }).filter((line) => line.itemId && line.gross > QTY_EPS)
+  // This-step AML only — prior Update AML is preserved on account 5500.
+  const lines = buildUpdatedMixRemainLines(priorInputs, {
+    nextTarget: plan.nextTarget,
+    scaleBase,
+  })
+  if (!lines.length) return null
 
   const InventoryItem = require('../../models/InventoryItem')
   const StockMovement = require('../../models/StockMovement')
@@ -1692,24 +1889,50 @@ async function autoUpdateAlloyMixAfterMetalOut({
     preserveMetalLoss: true,
   })
 
-  const description = `Gold alloy mix (${karat}K ${nextTarget} g · updated)`
+  const description = `Gold alloy mix (${karat}K ${plan.nextTarget} g · updated)`
   const result = await svc.postAlloyMix({
     user,
     tenant: tenantKey,
     karat,
-    targetGross: nextTarget,
+    targetGross: plan.nextTarget,
     finishedProductId: String(job.finishedProductId),
     lines,
     description,
     reuseMixCode: code,
     lossDepartment: lossDepartment || 'UPDATE',
   })
+
+  // Stamp gold-only FG (scaled) — do not leave target × purity after extras history.
+  if (result?.success && plan.fineGold != null && Number.isFinite(Number(plan.fineGold))) {
+    const live = await AlloyMixJob.findOne({
+      mixCode: code,
+      isDeleted: { $ne: true },
+      status: 'in_vault',
+    })
+    if (live) {
+      live.fineGold = toQty(plan.fineGold)
+      await live.save()
+      if (result.mixJob) result.mixJob.fineGold = toQty(plan.fineGold)
+    }
+    const openVault = await findOpenAlloyOpsVisit({
+      session: null,
+      mixCode: code,
+      departmentKey: VAULT,
+    })
+    if (openVault) {
+      openVault.fineGold = toQty(plan.fineGold)
+      await openVault.save()
+    }
+  }
   return result
 }
 
 module.exports = {
   VAULT,
   MIX_CODE_PREFIX,
+  resolveAllocateFineGold,
+  planMetalOutMixShrink,
+  buildUpdatedMixRemainLines,
   createJobFromPostedMix,
   closeJobForReverse,
   assertJobUpdatableByReason,

@@ -273,6 +273,24 @@ describe('batch numbers', () => {
     ])
   })
 
+  it('finishedMetalOutLineFromJob keeps Post Mix shares after extras bump targetGross', () => {
+    const seeded = finishedMetalOutLineFromJob({
+      finishedProductName: '22k alloyed gold',
+      karat: 22,
+      purity: 91.67,
+      targetGross: 556.51,
+      inputComponents: [
+        { name: 'Gold Bar', gross: 505.182 },
+        { name: 'pure copper', gross: 46.328 },
+      ],
+    })
+    expect(seeded[0].compositionParts).toEqual([
+      { label: 'finished', share: 0.92, shareText: '0.92' },
+      { label: 'Gold', share: 0.915998, shareText: '0.915998' },
+      { label: 'Copper', share: 0.084002, shareText: '0.084002' },
+    ])
+  })
+
   it('sums line qty into a total label under the batch', () => {
     expect(sumBatchLineQty([
       { qty: 199.05 },

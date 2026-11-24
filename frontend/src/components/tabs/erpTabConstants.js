@@ -19,7 +19,7 @@ export const METAL_UNIT_FACTORS = {
  * ERP home dashboard uses a 6-column CSS grid; each widget spans 2 columns (3 widgets per row).
  * Narrow / phone layouts collapse via `.erp-dash-widget-grid` in design-system.css
  * (incl. max-device-width for desktop-site-on-mobile).
- * Reference layout: row1 margins+fixing+bank; row2 cashflow+expenses+volume; row3 apar+chat+notif.
+ * Reference layout: row1 margins+fixing+bank; row2 cashflow+expenses+volume; row3 apar.
  */
 export const ERP_DASH_GRID_COLUMNS = 6
 export const ERP_DASH_WIDGET_BODY_HEIGHT = '380px'
@@ -33,11 +33,9 @@ export const ERP_DASH_ALL_WIDGETS = [
   { id: 'expenses', labelKey: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown and monthly trend', cols: 2, expandable: true },
   { id: 'volume', labelKey: 'widgetVolume', label: 'Total Volume Traded', icon: '📦', color: '#ffedd5', desc: 'Trade volume by metal type', cols: 2 },
   { id: 'apar', labelKey: 'widgetApar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 2, viewTab: 'apar' },
-  { id: 'chat', labelKey: 'chat', label: 'Chat', icon: '💬', color: '#eff6ff', desc: 'Recent team messages', cols: 2, viewTab: 'chat' },
-  { id: 'notif', labelKey: 'widgetNotif', label: 'Notifications & Alerts', icon: '🔔', color: '#e0f2fe', desc: 'System alerts and reminders', cols: 2, viewTab: 'notif' },
 ]
 
-export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'chat', 'notif']
+export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expenses', 'volume', 'apar']
 
 /** Canonical number of widgets in the default ERP home layout (must match `ERP_DASH_ALL_WIDGETS`). */
 export const ERP_DASH_WIDGET_COUNT = ERP_DASH_ALL_WIDGETS.length
@@ -65,7 +63,10 @@ export function ensureMarginsThenFixingOrder(ids) {
 
 /** Valid ids + dedupe + legacy strip; preserves list order (no margins/fixing pin). Used while persisting during Arrange. */
 export const sanitizeDashWidgetsPreserveOrder = (value) => {
-  const raw = Array.isArray(value) ? value.filter((id) => id !== 'metals') : value
+  // Drop legacy metals + removed Chat / Notifications dashboard cards.
+  const raw = Array.isArray(value)
+    ? value.filter((id) => id !== 'metals' && id !== 'chat' && id !== 'notif')
+    : value
   const source = Array.isArray(raw) ? raw : ERP_DASH_DEFAULT
   const seen = new Set()
   const normalized = []

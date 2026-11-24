@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { batchTotals, checkMetalOut, purityPercent } from './batchLoss'
+import { batchTotals, checkMetalOut, lineCountsAsFineGold, purityPercent } from './batchLoss'
 
 const metalIn = [
   { metal: 'Gold', qty: 500, purity: 99.5 },
@@ -21,6 +21,18 @@ describe('batchTotals', () => {
     expect(purityPercent(995)).toBe(99.5)
     expect(purityPercent('91.6')).toBe(91.6)
     expect(purityPercent(0)).toBeNull()
+  })
+
+  it('counts cadmium / copper / silver weight but not fine gold', () => {
+    expect(lineCountsAsFineGold('pure cadmium')).toBe(false)
+    expect(lineCountsAsFineGold('pure copper')).toBe(false)
+    expect(lineCountsAsFineGold('Fine Silver')).toBe(false)
+    expect(lineCountsAsFineGold('22k alloyed gold')).toBe(true)
+    expect(lineCountsAsFineGold('Gold Bar')).toBe(true)
+    expect(batchTotals([
+      { metal: '22k alloyed gold', qty: 551.51, purity: 91.67 },
+      { metal: 'pure cadmium', qty: 5, purity: 100 },
+    ])).toEqual({ weight: 556.51, fineGold: 505.569 })
   })
 })
 

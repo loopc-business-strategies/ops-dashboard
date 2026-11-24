@@ -187,7 +187,11 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
   const subAccountParentOptions = useMemo(() => {
     if (!form.accountType) return []
-    return accounts.filter((item) => item.accountType === form.accountType)
+    // Expense may nest under Income (Cost of Goods under Sales Revenue).
+    return accounts.filter((item) => (
+      item.accountType === form.accountType
+      || (form.accountType === 'Expense' && item.accountType === 'Income')
+    ))
   }, [accounts, form.accountType])
 
   const loadSeqRef = useRef(0)
@@ -440,10 +444,14 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         }
 
         const selectedParent = accounts.find((item) => String(item._id) === String(form.parentAccountId))
-        if (selectedParent && selectedParent.accountType !== form.accountType) {
-          setError('Selected parent account type does not match the account type')
-          setSaving(false)
-          return
+        if (selectedParent) {
+          const sameType = selectedParent.accountType === form.accountType
+          const expenseUnderIncome = form.accountType === 'Expense' && selectedParent.accountType === 'Income'
+          if (!sameType && !expenseUnderIncome) {
+            setError('Selected parent account type does not match the account type')
+            setSaving(false)
+            return
+          }
         }
 
         const marginPercentValue = form.marginPercent === '' || form.marginPercent == null

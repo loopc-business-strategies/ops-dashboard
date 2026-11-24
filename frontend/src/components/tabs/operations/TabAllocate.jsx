@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../../context/AuthContext'
+import { inventoryApi } from '../../../api/erp-accounting/inventory'
 import { useAlloyMixJobs } from '../../production-dashboard/useAlloyMixJobs'
 import { DASHBOARD_DEPARTMENTS } from '../../production-dashboard/departmentConfig'
 import { mgFloorAlloyMixApi } from '../../../api/mgFloorAlloyMix'
@@ -13,6 +15,8 @@ import {
   hasActiveMetalOut,
   isAlloyMixBatchCode,
   localDateKey,
+  groupMetalOutSelectOptions,
+  metalOutProductOptions,
 } from './allocateMetalOut'
 
 /**
@@ -21,6 +25,7 @@ import {
  * (typed OUT batch for Floor Manager approval) per department.
  */
 export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
+  const { token } = useAuth()
   const { jobs, byDepartment, loading, error, refresh, allocate } = useAlloyMixJobs({
     enabled: true,
     tenantKey,
@@ -32,11 +37,17 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   const [metalOutJob, setMetalOutJob] = useState(null)
   const [metalOutLines, setMetalOutLines] = useState([])
   const [outEntries, setOutEntries] = useState([])
+  const [inventoryProducts, setInventoryProducts] = useState([])
   const [localError, setLocalError] = useState('')
 
   const pendingIncoming = useMemo(
     () => (jobs || []).filter((j) => j.status === 'pending_receive' || j.pendingReceive),
     [jobs],
+  )
+
+  const metalCatalog = useMemo(
+    () => metalOutProductOptions(inventoryProducts),
+    [inventoryProducts],
   )
 
   const departments = useMemo(() => {
@@ -63,6 +74,22 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   useEffect(() => {
     loadOutEntries()
   }, [loadOutEntries, jobs])
+
+  useEffect(() => {
+    if (!token) {
+      setInventoryProducts([])
+      return undefined
+    }
+    let cancelled = false
+    inventoryApi.getInventoryProducts(token, { limit: 500 })
+      .then((data) => {
+        if (!cancelled) setInventoryProducts(Array.isArray(data?.products) ? data.products : [])
+      })
+      .catch(() => {
+        if (!cancelled) setInventoryProducts([])
+      })
+    return () => { cancelled = true }
+  }, [token])
 
   const openAllocate = (job) => {
     setMetalOutJob(null)
@@ -475,7 +502,7 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                     || metalOutJob.currentDepartment}
                   {' · '}
                   {isAlloyMixBatchCode(metalOutJob.mixCode)
-                    ? 'Finished product from Post Mix — edit Gross (g) and Time only; purity/share matches View mix (unchanged if gross changes)'
+                    ? 'Finished product from Post Mix — Gross (g) + Time; purity/share matches View mix. Use + Add metal for extra lines (summed into overall Gross).'
                     : 'Sends for Floor Manager approval (same as MG Floor tablet)'}
                 </div>
               </div>
@@ -517,8 +544,13 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               <span />
             </div>
             {metalOutLines.map((row, index) => {
+              // Only the Post Mix finished row stays locked; additional metals are editable.
               const alloyLocked = Boolean(row.lockedMetal || row.lockedPurity)
-                || isAlloyMixBatchCode(metalOutJob.mixCode)
+              const usedNames = metalOutLines
+                .map((r, i) => (i === index ? '' : String(r.metal || '').trim()))
+                .filter(Boolean)
+              const selectOptions = metalOutProductOptions(inventoryProducts, { excludeNames: usedNames })
+              const metalGroups = groupMetalOutSelectOptions(selectOptions)
               const fieldStyle = {
                 width: '100%',
                 minHeight: 44,
@@ -551,15 +583,44 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                     borderBottom: `1px solid ${C.border}`,
                   }}
                 >
-                  <input
-                    value={row.metal}
-                    disabled={Boolean(busyId) || alloyLocked}
-                    readOnly={alloyLocked}
-                    onChange={(e) => updateMetalOutLine(index, { metal: e.target.value })}
-                    placeholder="Metal"
-                    aria-label={`Metal row ${index + 1}`}
-                    style={{ ...(alloyLocked ? lockedStyle : fieldStyle), textAlign: 'left', fontSize: 14 }}
-                  />
+                  {alloyLocked ? (
+                    <input
+                      value={row.metal}
+                      disabled
+                      readOnly
+                      aria-label={`Metal row ${index + 1}`}
+                      style={{ ...lockedStyle, textAlign: 'left', fontSize: 14 }}
+                    />
+                  ) : (
+                    <select
+                      value={row.metal || ''}
+                      disabled={Boolean(busyId)}
+                      onChange={(e) => {
+                        const name = e.target.value
+                        const opt = selectOptions.find((p) => p.name === name)
+                          || metalCatalog.find((p) => p.name === name)
+                        updateMetalOutLine(index, {
+                          metal: name,
+                          purity: opt?.purity != null ? opt.purity : '',
+                          ...(!String(row.time || '').trim() ? { time: clockNow() } : {}),
+                        })
+                      }}
+                      aria-label={`Metal row ${index + 1}`}
+                      style={{ ...fieldStyle, textAlign: 'left', fontSize: 14 }}
+                    >
+                      <option value="">Select metal…</option>
+                      {row.metal && !selectOptions.some((p) => p.name === row.metal) ? (
+                        <option value={row.metal}>{row.metal}</option>
+                      ) : null}
+                      {metalGroups.map((group) => (
+                        <optgroup key={group.key} label={group.label}>
+                          {group.items.map((opt) => (
+                            <option key={opt.id} value={opt.name}>{opt.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  )}
                   <input
                     type="number"
                     min="0"
@@ -654,17 +715,34 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               )
             })}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              {isAlloyMixBatchCode(metalOutJob.mixCode) ? null : (
-                <button
-                  type="button"
-                  className={B.ghost}
-                  disabled={Boolean(busyId) || metalOutLines.length >= 8}
-                  onClick={() => setMetalOutLines((rows) => [...rows, blankMetalOutLine()])}
+            {(() => {
+              const overallGross = metalOutLines.reduce((sum, row) => sum + (Number(row.qty) || 0), 0)
+              return overallGross > 0 ? (
+                <div style={{
+                  marginTop: 4,
+                  marginBottom: 4,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color: C.t1,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
                 >
-                  + Add metal
-                </button>
-              )}
+                  Overall Gross: {overallGross.toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                </div>
+              ) : null
+            })()}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={B.ghost}
+                disabled={Boolean(busyId) || metalOutLines.length >= 8 || !metalCatalog.length}
+                title={!metalCatalog.length ? 'No inventory products loaded' : 'Add another created metal'}
+                onClick={() => setMetalOutLines((rows) => [...rows, { ...blankMetalOutLine(), time: clockNow() }])}
+              >
+                + Add metal
+              </button>
               <button
                 type="button"
                 className={B.pri}

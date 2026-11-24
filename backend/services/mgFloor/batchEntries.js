@@ -311,8 +311,10 @@ async function decideBatchEntry(req, id, decision, reason = '') {
       decidedByName: user?.name || '',
       rejectReason: approve ? '' : rejectReason,
     },
+    // Free day|dept|direction|batch so a later visit can send Metal Out again same day
+    // (e.g. return to vault → re-allocate → Metal Out with + Add metal).
+    $unset: { activeKey: 1 },
   }
-  if (!approve) update.$unset = { activeKey: 1 }
 
   const updated = await FloorBatchEntry.findOneAndUpdate({ _id: id, status: 'PENDING' }, update, {
     returnDocument: 'after',
@@ -356,12 +358,15 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     }
     const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
     if (updated.direction === 'OUT' && isAlloyMixBatchCode(updated.batchLabel)) {
-      const outGross = summarizeLines(updated.lines || []).weight
+      const outSums = summarizeLines(updated.lines || [])
+      const outGross = outSums.weight
       try {
         alloyReturnedToVault = await returnAlloyMixToVaultAfterMetalOut({
           user,
           batchLabel: updated.batchLabel,
           department: updated.department,
+          outGross,
+          fineGoldOut: outSums.fineGold,
         })
       } catch (err) {
         console.warn('[mg-floor] alloy return-to-vault after Metal Out failed', err?.message || err)
@@ -483,8 +488,18 @@ async function createSystemPendingMetalIn({
   }
 }
 
-/** After AMX Metal Out is FM-approved, return the mix job to Vault Room (immediate, no receive gate). */
-async function returnAlloyMixToVaultAfterMetalOut({ user, batchLabel, department }) {
+/**
+ * After AMX Metal Out is FM-approved, return the mix job to Vault Room (immediate, no receive gate).
+ * When Metal Out Overall Gross exceeds Post Mix target (+ Add metal), bump job/lot weight to that
+ * gross and book vault Metal IN at the same weight (gold-only FG from Floor lines).
+ */
+async function returnAlloyMixToVaultAfterMetalOut({
+  user,
+  batchLabel,
+  department,
+  outGross = null,
+  fineGoldOut = null,
+} = {}) {
   const code = String(batchLabel || '').trim().toUpperCase()
   const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
   if (!isAlloyMixBatchCode(code)) return null
@@ -494,6 +509,7 @@ async function returnAlloyMixToVaultAfterMetalOut({ user, batchLabel, department
     serializeAllocateResult,
   } = require('../erpAccounting/alloyMixFloorBridge')
   const AlloyMixJob = require('../../models/AlloyMixJob')
+  const ProductionStockLot = require('../../models/ProductionStockLot')
   const job = await AlloyMixJob.findOne({
     mixCode: code,
     isDeleted: { $ne: true },
@@ -501,11 +517,45 @@ async function returnAlloyMixToVaultAfterMetalOut({ user, batchLabel, department
     currentDepartment: normalizeFloorDepartment(department) || department,
   })
   if (!job) return null
+
+  const QTY_EPS = 0.0005
+  const gross = Number(outGross)
+  const hasGross = Number.isFinite(gross) && gross > QTY_EPS
+  const priorTarget = Number(job.targetGross)
+  const goldOnlyFg = fineGoldOut != null && Number.isFinite(Number(fineGoldOut))
+    ? Math.round(Number(fineGoldOut) * 10000) / 10000
+    : null
+  // + Add metal can make Overall Gross > Post Mix target — bump job/lot then full-allocate.
+  // Do not pass a smaller weight (that would partial-split); Updated Mix handles OUT < target.
+  const extrasAboveTarget = hasGross
+    && Number.isFinite(priorTarget)
+    && gross > priorTarget + QTY_EPS
+  let jobDirty = false
+  if (extrasAboveTarget) {
+    job.targetGross = Math.round(gross * 10000) / 10000
+    jobDirty = true
+    if (job.stockLotId) {
+      const lot = await ProductionStockLot.findById(job.stockLotId)
+      if (lot) {
+        lot.grossWeight = job.targetGross
+        lot.netWeight = job.targetGross
+        await lot.save()
+      }
+    }
+  }
+  // Persist gold-only FG before vault return so later allocate/receive keep it.
+  if (goldOnlyFg != null && goldOnlyFg >= 0) {
+    job.fineGold = goldOnlyFg
+    jobDirty = true
+  }
+  if (jobDirty) await job.save()
+
   const returned = await allocateMixJob({
     user,
     mixId: job._id,
     toDepartment: 'vault_room',
     note: 'Auto return after Metal Out approved',
+    ...(goldOnlyFg != null ? { fineGold: goldOnlyFg } : {}),
   })
   // Full allocate returns the job doc; partial would return { parent, child }.
   if (returned?.partial) {

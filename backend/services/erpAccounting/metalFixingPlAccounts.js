@@ -1,6 +1,8 @@
 /**
- * Resolve metal Sales/Purchase Fixing P&L sub-accounts (91xxxx / 92xxxx),
- * matching direct-deal posting under Sales Revenue (4000) and COGS (5101).
+ * Resolve metal Sales/Purchase Fixing P&L sub-accounts (91xxxx / 92xxxx).
+ * Both nest under Sales Revenue (4000) in the COA tree:
+ * - sales → Income 91xxxx (Gold Sales Fixing, …)
+ * - purchase → Expense 92xxxx (Gold Purchase Fixing, …) — still Expense for P&L
  */
 
 function metalDisplayName(metal) {
@@ -35,7 +37,9 @@ function resolveVoucherMetalCode(tx = {}) {
 }
 
 /**
- * @param {'sales'|'purchase'} kind - sales → Income under 4000 (91); purchase → Expense under 5101 (92)
+ * @param {'sales'|'purchase'} kind
+ * - sales → Income under 4000 (91xxxx)
+ * - purchase → Expense under 4000 (92xxxx); COGS 5101 stays a sibling Expense under 4000
  */
 async function ensureMetalFixingPlAccount({
   user,
@@ -52,9 +56,9 @@ async function ensureMetalFixingPlAccount({
   const isSales = String(kind || '').toLowerCase() === 'sales'
   const parent = await ensureAccountByCode({
     user,
-    code: isSales ? '4000' : '5101',
-    name: isSales ? 'Sales Revenue' : 'Cost Of Goods Sold',
-    accountType: isSales ? 'Income' : 'Expense',
+    code: '4000',
+    name: 'Sales Revenue',
+    accountType: 'Income',
     currency,
     session,
   })

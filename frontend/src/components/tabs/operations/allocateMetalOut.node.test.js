@@ -5,6 +5,8 @@ import {
   hasActiveMetalOut,
   isAlloyMixBatchCode,
   linesFromJobInputComponents,
+  groupMetalOutSelectOptions,
+  metalOutProductOptions,
   prepareMetalOutLines,
 } from './allocateMetalOut'
 
@@ -67,6 +69,26 @@ describe('allocateMetalOut', () => {
     expect(line.lockedPurity).toBe(true)
   })
 
+  test('finishedMetalOutLineFromJob keeps Post Mix shares after extras bump targetGross', () => {
+    const line = finishedMetalOutLineFromJob({
+      finishedProductName: '22k alloyed gold',
+      karat: 22,
+      purity: 91.67,
+      // Vault return bumped Overall Gross (551.51 + 5 Cd) onto the job.
+      targetGross: 556.51,
+      inputComponents: [
+        { name: 'Gold Bar', gross: 505.182 },
+        { name: 'pure copper', gross: 46.328 },
+      ],
+    })
+    expect(line.compositionParts).toEqual([
+      { label: 'finished', share: 0.92, shareText: '0.92' },
+      { label: 'Gold', share: 0.915998, shareText: '0.915998' },
+      { label: 'Copper', share: 0.084002, shareText: '0.084002' },
+    ])
+  })
+
+
   test('prepareMetalOutLines uses purityValue when purity shows composition text', () => {
     const { lines, error } = prepareMetalOutLines([{
       metal: '18K Alloyed Gold',
@@ -106,6 +128,58 @@ describe('allocateMetalOut', () => {
     expect(body.entryId).toMatch(/^amxout[A-Za-z0-9_-]{8,}/)
   })
 
+  test('buildMetalOutPayload keeps finished purityValue and includes additional metals in overall lines', () => {
+    const finished = finishedMetalOutLineFromJob({
+      finishedProductName: '22k alloyed gold',
+      karat: 22,
+      purity: 91.6,
+      targetGross: 551.51,
+      inputComponents: [
+        { name: 'Gold Bar', gross: 505.182 },
+        { name: 'pure copper', gross: 46.328 },
+      ],
+    }, { time: '14:40' })
+    const { error, body } = buildMetalOutPayload({
+      job: { mixCode: 'BMG-0001', currentDepartment: 'bangle' },
+      lines: [
+        { ...finished, qty: '551.51' },
+        { metal: 'cadmium', qty: '2.5', purity: '100', time: '14:40' },
+      ],
+      entryDate: '2026-11-24',
+      now: new Date('2026-11-24T10:00:00Z'),
+    })
+    expect(error).toBeNull()
+    expect(body.lines).toHaveLength(2)
+    expect(body.lines[0]).toMatchObject({ metal: '22k alloyed gold', qty: 551.51, purity: 91.6 })
+    expect(body.lines[1]).toEqual({ metal: 'cadmium', qty: 2.5, purity: 100, time: '14:40' })
+    expect(body.lines.reduce((sum, row) => sum + row.qty, 0)).toBeCloseTo(554.01, 3)
+  })
+
+  test('metalOutProductOptions groups created products under Gold / Silver / Copper', () => {
+    const options = metalOutProductOptions([
+      { _id: '1', name: 'Gold Bar', category: 'mainStock=gold;recordType=product;productPurity=1', quantity: 10 },
+      { _id: '2', name: 'pure copper', category: 'mainStock=copper;recordType=product;productPurity=1', quantity: 5 },
+      { _id: '3', name: 'Gold', category: 'mainStock=gold', quantity: 0 },
+      { _id: '4', name: 'Fine Silver', category: 'mainStock=silver;recordType=product;productPurity=1', quantity: 3 },
+      { _id: '5', name: '14k gold chain', category: 'mainStock=gold;recordType=product;productPurity=0.585', quantity: 2 },
+    ], { excludeNames: [] })
+    expect(options.map((row) => `${row.metalGroup}:${row.name}`)).toEqual([
+      'Gold:14k gold chain',
+      'Gold:Gold Bar',
+      'Silver:Fine Silver',
+      'Copper:pure copper',
+    ])
+    expect(options.find((row) => row.name === '14k gold chain').purity).toBe('58.5')
+    expect(groupMetalOutSelectOptions(options).map((g) => ({
+      label: g.label,
+      names: g.items.map((i) => i.name),
+    }))).toEqual([
+      { label: 'Gold', names: ['14k gold chain', 'Gold Bar'] },
+      { label: 'Silver', names: ['Fine Silver'] },
+      { label: 'Copper', names: ['pure copper'] },
+    ])
+  })
+
   test('hasActiveMetalOut detects pending OUT for same batch', () => {
     expect(hasActiveMetalOut(
       [{ direction: 'OUT', status: 'PENDING', batchLabel: 'BMG-0003', entryDate: '2026-11-20', department: 'melting' }],
@@ -113,6 +187,11 @@ describe('allocateMetalOut', () => {
     )).toBe(true)
     expect(hasActiveMetalOut(
       [{ direction: 'OUT', status: 'REJECTED', batchLabel: 'BMG-0003', entryDate: '2026-11-20', department: 'melting' }],
+      { batchLabel: 'BMG-0003', entryDate: '2026-11-20', department: 'melting' },
+    )).toBe(false)
+    // Approved earlier visit must not block a second Metal Out after return-to-vault.
+    expect(hasActiveMetalOut(
+      [{ direction: 'OUT', status: 'APPROVED', batchLabel: 'BMG-0003', entryDate: '2026-11-20', department: 'melting' }],
       { batchLabel: 'BMG-0003', entryDate: '2026-11-20', department: 'melting' },
     )).toBe(false)
   })

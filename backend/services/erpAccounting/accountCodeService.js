@@ -4,6 +4,18 @@
 
 const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
+/**
+ * Same-type parents are the default. Expense may nest under Income so Cost of
+ * Goods Sold can sit under Sales Revenue in the tree while staying Expense for P&L.
+ */
+function isCompatibleAccountParentType(parentType, childType) {
+  const parent = String(parentType || '').trim()
+  const child = String(childType || '').trim()
+  if (!parent || !child) return true
+  if (parent === child) return true
+  return parent === 'Income' && child === 'Expense'
+}
+
 function createAccountCodeService({
   ChartOfAccount,
   BASE_CURRENCY_CODE,
@@ -87,8 +99,15 @@ function createAccountCodeService({
         throw new Error('Parent account not found')
       }
 
-      if (isDirectParent && accountType && String(cursor.accountType || '') !== String(accountType)) {
-        throw new Error(`Parent account type must match selected account type (${accountType})`)
+      if (
+        isDirectParent
+        && accountType
+        && !isCompatibleAccountParentType(cursor.accountType, accountType)
+      ) {
+        throw new Error(
+          `Parent account type must match selected account type (${accountType}), `
+          + 'or be Income when nesting an Expense (e.g. Cost of Goods under Sales Revenue)',
+        )
       }
 
       depth += 1
@@ -109,15 +128,28 @@ function createAccountCodeService({
     codePrefix,
     currency = BASE_CURRENCY_CODE,
   }) => {
-    const existing = await ChartOfAccount.findOne({
+    const nameRe = new RegExp(`^${escapeRegex(accountName)}$`, 'i')
+    let existing = await ChartOfAccount.findOne({
       parentAccountId: parentAccount?._id || null,
       accountType,
-      accountName: new RegExp(`^${escapeRegex(accountName)}$`, 'i'),
+      accountName: nameRe,
     })
+
+    // After COA reorg (e.g. Purchase Fixing moved under Sales Revenue), reuse the
+    // same name/type under any parent instead of minting a duplicate 92xxxx.
+    if (!existing) {
+      existing = await ChartOfAccount.findOne({ accountType, accountName: nameRe })
+      if (existing && parentAccount?._id
+        && String(existing.parentAccountId || '') !== String(parentAccount._id)) {
+        existing.parentAccountId = parentAccount._id
+      }
+    }
 
     if (existing) {
       if (!existing.isActive) {
         existing.isActive = true
+      }
+      if (existing.isModified()) {
         await existing.save()
       }
       return existing
@@ -175,4 +207,5 @@ function createAccountCodeService({
 
 module.exports = {
   createAccountCodeService,
+  isCompatibleAccountParentType,
 }

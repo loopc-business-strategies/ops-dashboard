@@ -56,23 +56,27 @@ function mixComponentsForShare(job) {
     if (/^alloy$/i.test(name) || /alloyed\s+gold/i.test(name)) continue
     rows.push({ name, gross })
   }
+  const sum = rows.reduce((acc, row) => acc + row.gross, 0)
   const target = Number(job?.targetGross) > 0
     ? Number(job.targetGross)
-    : rows.reduce((sum, row) => sum + row.gross, 0)
-  const sum = rows.reduce((acc, row) => acc + row.gross, 0)
-  if (!(target > 0) || !(sum > target + 0.0005)) {
-    return { target, rows }
+    : sum
+  // Update metal loss: input sum still above finished → scale remain to target.
+  if (target > 0 && sum > target + 0.0005) {
+    let allocated = 0
+    const scaled = rows.map((row, index) => {
+      const isLast = index === rows.length - 1
+      const remain = isLast
+        ? roundMixGrams(target - allocated)
+        : roundMixGrams(row.gross * (target / sum))
+      if (!isLast) allocated = roundMixGrams(allocated + remain)
+      return { ...row, gross: remain }
+    }).filter((row) => row.gross > 0)
+    return { target, rows: scaled }
   }
-  let allocated = 0
-  const scaled = rows.map((row, index) => {
-    const isLast = index === rows.length - 1
-    const remain = isLast
-      ? roundMixGrams(target - allocated)
-      : roundMixGrams(row.gross * (target / sum))
-    if (!isLast) allocated = roundMixGrams(allocated + remain)
-    return { ...row, gross: remain }
-  }).filter((row) => row.gross > 0)
-  return { target, rows: scaled }
+  // + Add metal extras bump targetGross above Post Mix inputs — keep chip shares
+  // on the recipe (input sum), not the bumped gross.
+  const shareBase = (sum > 0 && target > sum + 0.0005) ? sum : (target > 0 ? target : sum)
+  return { target: shareBase, rows }
 }
 
 /**
@@ -159,6 +163,104 @@ export function linesFromJobInputComponents(components = []) {
 
 export function blankMetalOutLine(metal = '') {
   return { metal, qty: '', purity: '', time: '' }
+}
+
+const METAL_GROUP_ORDER = ['gold', 'silver', 'copper', 'alloy', 'cadmium', 'platinum', 'palladium']
+
+function titleCaseMetalGroup(value) {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+    .trim() || 'Other'
+}
+
+function metalGroupSortIndex(key) {
+  const idx = METAL_GROUP_ORDER.indexOf(String(key || '').toLowerCase())
+  return idx === -1 ? METAL_GROUP_ORDER.length : idx
+}
+
+/**
+ * Created inventory products for Metal Out "+ Add metal" select.
+ * Each row carries `metalGroup` (Gold / Silver / …) from mainStock for optgroups.
+ * Excludes soft-deleted rows, stock-type masters, and Metal-In-only "Alloy".
+ */
+export function metalOutProductOptions(products = [], { excludeNames = [] } = {}) {
+  const excluded = new Set(
+    (Array.isArray(excludeNames) ? excludeNames : [])
+      .map((n) => String(n || '').trim().toLowerCase())
+      .filter(Boolean),
+  )
+  const byKey = new Map()
+  for (const item of Array.isArray(products) ? products : []) {
+    if (!item || item.isDeleted || item.deletedAt) continue
+    const raw = String(item.category || '')
+    const pairs = Object.fromEntries(
+      raw.split(';').map((part) => {
+        const i = part.indexOf('=')
+        if (i < 0) return [part.trim(), '']
+        return [part.slice(0, i).trim(), part.slice(i + 1).trim()]
+      }).filter(([k]) => k),
+    )
+    // Only created products (not stock-type masters like "Gold" / "Silver Main Stock").
+    if (String(pairs.recordType || '').trim().toLowerCase() !== 'product') continue
+    const name = String(item.name || '').trim()
+    if (!name || /^alloy$/i.test(name)) continue
+    const key = name.toLowerCase()
+    if (excluded.has(key)) continue
+    if (byKey.has(key)) continue
+    const groupKey = String(pairs.mainStock || pairs.metalType || pairs.productCategory || 'other')
+      .trim()
+      .toLowerCase() || 'other'
+    const purityRaw = pairs.productPurity || pairs.purity || item.purity || ''
+    const purityNum = Number(purityRaw)
+    let purityPct = ''
+    if (Number.isFinite(purityNum) && purityNum > 0) {
+      // Catalog often stores fraction (0.916); Metal Out purity field uses percent (91.6).
+      purityPct = purityNum > 0 && purityNum <= 1.2
+        ? String(Math.round(purityNum * 100 * 1000) / 1000)
+        : String(purityNum)
+    }
+    byKey.set(key, {
+      id: String(item._id || item.id || key),
+      name,
+      kind: 'product',
+      metalGroupKey: groupKey,
+      metalGroup: titleCaseMetalGroup(groupKey),
+      purity: purityPct,
+      unit: item.unit || '',
+    })
+  }
+  return [...byKey.values()].sort((a, b) => {
+    const byGroup = metalGroupSortIndex(a.metalGroupKey) - metalGroupSortIndex(b.metalGroupKey)
+    if (byGroup !== 0) return byGroup
+    const byLabel = String(a.metalGroup || '').localeCompare(String(b.metalGroup || ''))
+    if (byLabel !== 0) return byLabel
+    return a.name.localeCompare(b.name)
+  })
+}
+
+/**
+ * Group products under metal headers for `<optgroup>`:
+ * Gold → gold products, Silver → silver products, …
+ */
+export function groupMetalOutSelectOptions(options = []) {
+  const byGroup = new Map()
+  for (const row of Array.isArray(options) ? options : []) {
+    const key = String(row?.metalGroupKey || 'other').toLowerCase()
+    const label = row?.metalGroup || titleCaseMetalGroup(key)
+    if (!byGroup.has(key)) byGroup.set(key, { key, label, items: [] })
+    byGroup.get(key).items.push(row)
+  }
+  return [...byGroup.values()]
+    .sort((a, b) => {
+      const byOrder = metalGroupSortIndex(a.key) - metalGroupSortIndex(b.key)
+      if (byOrder !== 0) return byOrder
+      return a.label.localeCompare(b.label)
+    })
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
 }
 
 function parseNumber(raw) {
@@ -254,14 +356,15 @@ export function buildMetalOutPayload({
   }
 }
 
-/** True when an active (non-rejected) Metal Out already exists for this batch/day. */
+/** True when a PENDING Metal Out already exists for this batch/day/dept (blocks double-send). */
 export function hasActiveMetalOut(entries = [], { batchLabel, entryDate, department } = {}) {
   const label = String(batchLabel || '').trim().toUpperCase()
   const day = String(entryDate || '').trim()
   const dept = String(department || '').trim().toLowerCase()
   return (Array.isArray(entries) ? entries : []).some((e) => {
     if (String(e?.direction || '').toUpperCase() !== 'OUT') return false
-    if (String(e?.status || '').toUpperCase() === 'REJECTED') return false
+    // Only PENDING blocks — APPROVED visits can return to vault and Metal Out again same day.
+    if (String(e?.status || '').toUpperCase() !== 'PENDING') return false
     if (String(e?.batchLabel || '').trim().toUpperCase() !== label) return false
     if (day && String(e?.entryDate || '') !== day) return false
     if (dept && String(e?.department || '').trim().toLowerCase() !== dept) return false

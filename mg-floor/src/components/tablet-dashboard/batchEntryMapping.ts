@@ -118,7 +118,18 @@ export function stateFromEntry(entry: BatchEntryRow): BatchApprovalState {
 }
 
 /** Metals offered in the Metal In / Out popup; the backend keeps up to 8 lines per batch. */
-export const METAL_OPTIONS = ['Gold', 'Alloy', 'Silver', 'Copper', 'Platinum', 'Palladium']
+export const METAL_OPTIONS = [
+  'Gold',
+  'Gold Bar',
+  'Alloy',
+  'Silver',
+  'Fine Silver',
+  'Copper',
+  'pure copper',
+  'Platinum',
+  'Palladium',
+  'cadmium',
+]
 /** Metal In always starts with gold / alloy / silver / copper rows. */
 export const DEFAULT_METALS = ['Gold', 'Alloy', 'Silver', 'Copper']
 export const MAX_BATCH_LINES = 8
@@ -179,24 +190,26 @@ function mixComponentsForShare(job: {
     if (/^alloy$/i.test(name) || /alloyed\s+gold/i.test(name)) continue
     rows.push({ name, gross })
   }
-  const targetGross = Number(job?.targetGross)
-  const target = targetGross > 0
-    ? targetGross
-    : rows.reduce((sum, row) => sum + row.gross, 0)
   const sum = rows.reduce((acc, row) => acc + row.gross, 0)
-  if (!(target > 0) || !(sum > target + 0.0005)) {
-    return { target, rows }
+  const targetGross = Number(job?.targetGross)
+  const target = targetGross > 0 ? targetGross : sum
+  // Update metal loss: input sum still above finished → scale remain to target.
+  if (target > 0 && sum > target + 0.0005) {
+    let allocated = 0
+    const scaled = rows.map((row, index) => {
+      const isLast = index === rows.length - 1
+      const remain = isLast
+        ? roundMixGrams(target - allocated)
+        : roundMixGrams(row.gross * (target / sum))
+      if (!isLast) allocated = roundMixGrams(allocated + remain)
+      return { ...row, gross: remain }
+    }).filter((row) => row.gross > 0)
+    return { target, rows: scaled }
   }
-  let allocated = 0
-  const scaled = rows.map((row, index) => {
-    const isLast = index === rows.length - 1
-    const remain = isLast
-      ? roundMixGrams(target - allocated)
-      : roundMixGrams(row.gross * (target / sum))
-    if (!isLast) allocated = roundMixGrams(allocated + remain)
-    return { ...row, gross: remain }
-  }).filter((row) => row.gross > 0)
-  return { target, rows: scaled }
+  // + Add metal extras bump targetGross above Post Mix inputs — keep chip shares
+  // on the recipe (input sum), not the bumped gross.
+  const shareBase = (sum > 0 && target > sum + 0.0005) ? sum : (target > 0 ? target : sum)
+  return { target: shareBase, rows }
 }
 
 /**

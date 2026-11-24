@@ -185,7 +185,10 @@ export function MetalEntryModal({
   const alloyFinishedOut = direction === 'OUT' && isAlloyMixBatchCode(choice.batchLabel)
   const usedMetals = new Set(lines.map((l) => l.metal))
   const available = metalOptions.filter((m) => !usedMetals.has(m))
-  const canAddMetal = !alloyFinishedOut && available.length > 0 && lines.length < MAX_BATCH_LINES
+  // Alloy Post Mix OUT: finished row stays locked; extra metals still allowed (+ Add metal).
+  const canAddMetal = available.length > 0 && lines.length < MAX_BATCH_LINES
+  const isFinishedLockedRow = (line: MetalLineEdit) =>
+    Boolean(alloyFinishedOut && Array.isArray(line.compositionParts) && line.compositionParts.length)
 
   const addMetal = (metal: string) => {
     setLines((current) => [...current, { metal, qty: '', purity: '', time: '' }])
@@ -263,7 +266,7 @@ export function MetalEntryModal({
             ) : null}
             {alloyFinishedOut ? (
               <Text style={styles.checkNote}>
-                Finished product from Post Mix — enter Gross (Qty) only. Purity/share matches View mix and stays fixed if gross changes.
+                Finished product from Post Mix — enter Gross (Qty). Purity/share matches View mix (fixed). Use + Add metal for extra lines; overall Gross is the sum.
               </Text>
             ) : null}
             {batchOptions.length > 1 ? (
@@ -296,7 +299,9 @@ export function MetalEntryModal({
               <Text style={[styles.headCell, styles.colField]}>Time</Text>
               <View style={styles.colRemove} />
             </View>
-            {lines.map((line, idx) => (
+            {lines.map((line, idx) => {
+              const finishedLocked = isFinishedLockedRow(line)
+              return (
               <View key={`${line.metal}-${idx}`} style={styles.gridRow}>
                 <Text style={[styles.metalText, styles.colMetal]}>{line.metal}</Text>
                 <TextInput
@@ -311,13 +316,13 @@ export function MetalEntryModal({
                   autoFocus={idx === 0}
                   editable={!busy}
                 />
-                {alloyFinishedOut && Array.isArray(line.compositionParts) && line.compositionParts.length ? (
+                {finishedLocked ? (
                   <View
                     accessible
                     accessibilityLabel={`${title} ${line.metal} Purity ${line.purity}`}
                     style={[styles.colField, styles.compositionStack]}
                   >
-                    {line.compositionParts.map((part) => (
+                    {line.compositionParts!.map((part) => (
                       <View
                         key={`${part.label}-${part.shareText}`}
                         style={[
@@ -338,7 +343,6 @@ export function MetalEntryModal({
                     style={[
                       styles.input,
                       styles.colField,
-                      alloyFinishedOut && styles.inputLocked,
                     ]}
                     value={line.purity}
                     onChangeText={(v) => setField(idx, 'purity', cleanNumberInput(v, PURITY_MAX_LENGTH))}
@@ -346,7 +350,7 @@ export function MetalEntryModal({
                     placeholderTextColor={td.textMuted}
                     keyboardType="decimal-pad"
                     maxLength={PURITY_MAX_LENGTH}
-                    editable={!busy && !alloyFinishedOut}
+                    editable={!busy}
                   />
                 )}
                 <View
@@ -357,7 +361,7 @@ export function MetalEntryModal({
                   <Text style={styles.clockText}>{now}</Text>
                 </View>
                 <View style={styles.colRemove}>
-                  {!alloyFinishedOut && lines.length > 1 ? (
+                  {!finishedLocked && lines.length > 1 ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Remove ${line.metal}`}
@@ -371,7 +375,8 @@ export function MetalEntryModal({
                   ) : null}
                 </View>
               </View>
-            ))}
+              )
+            })}
 
             {canAddMetal ? (
               picking ? (

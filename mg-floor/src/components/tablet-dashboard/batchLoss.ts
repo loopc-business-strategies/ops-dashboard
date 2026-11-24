@@ -1,4 +1,8 @@
-type LineLike = { qty: number | string | null; purity: number | string | null }
+type LineLike = {
+  metal?: string | null
+  qty: number | string | null
+  purity: number | string | null
+}
 
 function toNumber(value: number | string | null | undefined) {
   if (value == null) return null
@@ -20,11 +24,25 @@ export function purityPercent(value: number | string | null | undefined) {
   return p > 100 ? p / 10 : p
 }
 
+/**
+ * Fine gold is gold-bearing lines only. Cadmium / copper / silver / platinum / bare alloy
+ * add gross weight but never FG — even when purity is filled on + Add metal.
+ * Blank metal keeps legacy behavior (tests / older rows with qty+purity only).
+ */
+export function lineCountsAsFineGold(metal?: string | null) {
+  const name = String(metal || '').trim().toLowerCase()
+  if (!name) return true
+  if (/\balloy\b/.test(name) && !/\bgold\b/.test(name)) return false
+  if (/\b(cadmium|copper|silver|platinum|palladium)\b/.test(name) && !/\bgold\b/.test(name)) return false
+  if (/^(cd|cu|ag|pt|pd)$/.test(name)) return false
+  return true
+}
+
 export type BatchTotals = { weight: number | null; fineGold: number | null }
 
 /**
- * Total weight of the lines, plus fine gold from the lines that carry a purity (alloy adds weight
- * only) — the same totals the Operations → Production workbook stores.
+ * Total weight of the lines, plus fine gold from gold-bearing lines that carry a purity
+ * (non-gold extras and alloy add weight only) — same totals as the Operations workbook.
  */
 export function batchTotals(lines: LineLike[]): BatchTotals {
   let weight = 0
@@ -34,6 +52,7 @@ export function batchTotals(lines: LineLike[]): BatchTotals {
     const qty = toNumber(line.qty)
     if (qty == null || qty <= 0) continue
     weight += qty
+    if (!lineCountsAsFineGold(line.metal)) continue
     const pct = purityPercent(line.purity)
     if (pct != null) {
       hasPurity = true

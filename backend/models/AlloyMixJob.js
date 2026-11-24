@@ -73,6 +73,12 @@ const alloyMixJobSchema = new mongoose.Schema(
     /** Snapshot of Post Mix Inputs (OUT): product name + grams. */
     inputComponents: { type: [inputComponentSchema], default: [] },
     purity: { type: Number, default: null },
+    /**
+     * Gold-only fine gold for this mix (g). Survives + Add metal extras that bump
+     * targetGross without changing karat purity — later allocate/receive use this
+     * instead of targetGross × purity.
+     */
+    fineGold: { type: Number, default: null, min: 0 },
     stockLotId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ProductionStockLot',

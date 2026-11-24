@@ -22,8 +22,22 @@ function purityPercent(value) {
 }
 
 /**
- * Total weight of the batch lines, plus fine gold from the lines that carry a purity.
- * Lines without purity (e.g. alloy) add weight but no fine gold, so purity is the blended %.
+ * Fine gold is gold-bearing lines only. Cadmium / copper / silver / platinum / bare alloy
+ * add gross weight but never FG — even when purity is filled on + Add metal.
+ * Blank metal keeps legacy behavior (qty+purity-only rows).
+ */
+function lineCountsAsFineGold(metal) {
+  const name = String(metal || '').trim().toLowerCase()
+  if (!name) return true
+  if (/\balloy\b/.test(name) && !/\bgold\b/.test(name)) return false
+  if (/\b(cadmium|copper|silver|platinum|palladium)\b/.test(name) && !/\bgold\b/.test(name)) return false
+  if (/^(cd|cu|ag|pt|pd)$/.test(name)) return false
+  return true
+}
+
+/**
+ * Total weight of the batch lines, plus fine gold from gold-bearing lines that carry a purity.
+ * Non-gold extras (and alloy) add weight but no fine gold; purity is the blended % of FG ÷ gross.
  */
 function summarizeLines(lines) {
   let weight = 0
@@ -33,6 +47,7 @@ function summarizeLines(lines) {
     const qty = Number(line?.qty)
     if (!Number.isFinite(qty) || qty <= 0) continue
     weight += qty
+    if (!lineCountsAsFineGold(line?.metal)) continue
     const pct = purityPercent(line?.purity)
     if (pct != null) {
       hasPurity = true
@@ -143,7 +158,9 @@ async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
   }).sort({ updatedAt: -1 })
   if (!inRow) return null
 
-  // Floor Metal Out gross (e.g. 551.61) + Post Mix purity → Melting OUT / loss.
+  // Floor Metal Out gross (e.g. 551.61 + extra Cd) + Post Mix purity stamp → Melting OUT.
+  // FG is gold-bearing lines only (summarizeLines); do not apply job % to total Out gross
+  // (that wrongly counted cadmium/copper extras as fine gold).
   // Allocate→vault must not overwrite this when floorOutEntryId is already set.
   const sums = summarizeLines(entry.lines)
   let purityOut = sums.purity
@@ -159,7 +176,15 @@ async function linkAlloyMixFloorApproval(entry, departmentKey, alloyMixCode) {
       : null
     if (jobPurity != null && jobPurity > 0 && sums.weight != null) {
       purityOut = jobPurity
-      fineGoldOut = round((sums.weight * jobPurity) / 100, 4)
+      // Prefer line FG (gold-only). Fallback: job % × gold-bearing weight only.
+      if (sums.fineGold == null) {
+        const goldWeight = (Array.isArray(entry.lines) ? entry.lines : []).reduce((sum, line) => {
+          const qty = Number(line?.qty)
+          if (!Number.isFinite(qty) || qty <= 0 || !lineCountsAsFineGold(line?.metal)) return sum
+          return sum + qty
+        }, 0)
+        if (goldWeight > 0) fineGoldOut = round((goldWeight * jobPurity) / 100, 4)
+      }
     }
   } catch (_) { /* job lookup optional */ }
 
@@ -361,5 +386,6 @@ module.exports = {
   removeDuplicateAlloyMgFloorRows,
   floorBatchKey,
   lineTimestamp,
+  lineCountsAsFineGold,
   summarizeLines,
 }
