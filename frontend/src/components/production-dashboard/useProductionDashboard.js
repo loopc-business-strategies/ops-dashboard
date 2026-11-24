@@ -75,12 +75,13 @@ async function fetchPriorOpsEntries(signal) {
   return { entries }
 }
 
-/** MG only needs yesterday's workbook rows (Yesterday vs Today KPI). */
-function fetchYesterdayOpsEntries(signal) {
-  return productionControlApi.listOperationsEntries(
-    { date: dayKey(addDays(new Date(), -1)), limit: 500 },
-    { signal },
-  ).catch(() => null)
+/**
+ * MG prior-days workbook rows (up to yesterday), same paged fetch as LoopC.
+ * Needed so still-open gold-alloy paths (e.g. BMG from several days ago) reach
+ * carry-over and show Metal IN/OUT/Loss on every department — not only the LIVE chip.
+ */
+function fetchMgPriorOpsEntries(signal) {
+  return fetchPriorOpsEntries(signal)
 }
 
 /**
@@ -238,7 +239,7 @@ export function useProductionDashboard({ refreshMs = 240000 } = {}) {
         )
       }
       if (isLoopc) corePromises.push(fetchPriorOpsEntries(ac.signal))
-      else if (isMg) corePromises.push(fetchYesterdayOpsEntries(ac.signal))
+      else if (isMg) corePromises.push(fetchMgPriorOpsEntries(ac.signal))
 
       const [
         summaryRes,
@@ -356,7 +357,7 @@ export function useProductionDashboard({ refreshMs = 240000 } = {}) {
         )
       }
       if (isLoopc) tasks.push(fetchPriorOpsEntries(ac.signal))
-      else if (isMg) tasks.push(fetchYesterdayOpsEntries(ac.signal))
+      else if (isMg) tasks.push(fetchMgPriorOpsEntries(ac.signal))
       const results = await Promise.all(tasks)
       const [summaryRes, boardRes, widgetsRes, shiftRes, ...rest] = results
       const opsEntriesRes = usesWorkbook ? rest[0] : null
