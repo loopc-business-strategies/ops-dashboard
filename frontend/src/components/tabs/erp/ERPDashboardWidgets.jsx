@@ -540,6 +540,139 @@ const APARWidgetMemo = React.memo(APARWidget)
 const ExpensesWidgetMemo = React.memo(ExpensesWidget)
 const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)
 
+function AccountBalancesWidget({ dashboard, onNavigate = null, baseCurrencyCode = 'USD' }) {
+  const { t } = useLanguage()
+  const muted = '#6B7280'
+  const ink = '#111827'
+  const sections = accountBalanceSections(dashboard, { hideZero: true })
+  const sectionKeyList = sections.map((section) => section.key).join('|')
+  const allRows = sections.flatMap((section) => section.rows)
+  const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
+  const [openByKey, setOpenByKey] = useState(() => (
+    Object.fromEntries(sections.map((section) => [section.key, true]))
+  ))
+
+  useEffect(() => {
+    const keys = sectionKeyList ? sectionKeyList.split('|') : []
+    setOpenByKey((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const key of keys) {
+        if (next[key] === undefined) {
+          next[key] = true
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [sectionKeyList])
+
+  const toggleSection = (key) => {
+    setOpenByKey((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  return (
+    <div style={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      minWidth: 0,
+      width: '100%',
+      boxSizing: 'border-box',
+      marginBottom: 0,
+      padding: 0,
+      background: 'transparent',
+      borderRadius: 0,
+      boxShadow: 'none',
+    }}
+    >
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {allRows.length === 0
+          ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>{t('noAccountsFound')}</p>
+          : sections.map((section) => {
+            const open = openByKey[section.key] !== false
+            return (
+              <div key={section.key}>
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.key)}
+                  aria-expanded={open}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    width: '100%',
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: muted,
+                    background: '#F9FAFB',
+                    border: 'none',
+                    borderBottom: '1px solid #F3F4F6',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-block',
+                      width: '0.7rem',
+                      fontSize: '0.62rem',
+                      lineHeight: 1,
+                      transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.15s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ▸
+                  </span>
+                  <span>
+                    {section.label}
+                    <span style={{ fontWeight: 500, marginLeft: '0.35rem' }}>({section.rows.length})</span>
+                  </span>
+                </button>
+                {open && section.rows.map((a) => (
+                  <div
+                    key={`${section.key}-${a.accountCode}-${a.accountName}`}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB', gap: '0.5rem' }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.accountName}</div>
+                      <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
+                    </div>
+                    <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem', flexShrink: 0 }}>{fmtMoney(a.balance, a.currency || baseCurrencyCode)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem', flexShrink: 0 }}>
+        <span style={{ fontWeight: '700', color: ink }}>{t('total')}</span>
+        <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total, baseCurrencyCode)}</span>
+      </div>
+      {onNavigate && (
+        <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => onNavigate('enquiry')}
+            style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+          >{t('viewFullDetails')}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const AccountBalancesWidgetMemo = React.memo(AccountBalancesWidget)
+
 function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {} }) {
   const { t } = useLanguage()
   const { liveRecalcEnabled = false } = options
@@ -571,65 +704,14 @@ function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null
     case 'margins':
       return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} baseCurrencyCode={baseCurrencyCode} />
 
-    case 'bank': {
-      const sections = accountBalanceSections(dashboard, { hideZero: true })
-      const allRows = sections.flatMap((section) => section.rows)
-      const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
+    case 'bank':
       return (
-        <div style={widgetContainerStyle}>
-          <div style={widgetScrollStyle}>
-          {allRows.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>{t('noAccountsFound')}</p>
-            : sections.map((section) => (
-              <div key={section.key}>
-                <div style={{
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: muted,
-                  background: '#F9FAFB',
-                  borderBottom: '1px solid #F3F4F6',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 1,
-                }}
-                >
-                  {section.label}
-                  <span style={{ fontWeight: 500, marginLeft: '0.35rem' }}>({section.rows.length})</span>
-                </div>
-                {section.rows.map((a) => (
-                  <div
-                    key={`${section.key}-${a.accountCode}-${a.accountName}`}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB', gap: '0.5rem' }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.accountName}</div>
-                      <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
-                    </div>
-                    <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem', flexShrink: 0 }}>{fmtMoney(a.balance, a.currency || baseCurrencyCode)}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem', flexShrink: 0 }}>
-            <span style={{ fontWeight: '700', color: ink }}>{t('total')}</span>
-            <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total, baseCurrencyCode)}</span>
-          </div>
-          {onNavigate && (
-            <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => onNavigate('enquiry')}
-                style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-              >{t('viewFullDetails')}</button>
-            </div>
-          )}
-        </div>
+        <AccountBalancesWidgetMemo
+          dashboard={dashboard}
+          onNavigate={onNavigate}
+          baseCurrencyCode={baseCurrencyCode}
+        />
       )
-    }
 
     case 'cashflow': {
       const cf = dashboard?.cashFlow
