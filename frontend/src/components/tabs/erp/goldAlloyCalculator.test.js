@@ -98,6 +98,27 @@ describe('goldAlloyCalculator', () => {
     expect(summarizeAlloyLines(lines, 266.6667).balanced).toBe(true)
   })
 
+  test('22K gold 505.91 keeps 4 dp mix target and copper (no 3 dp cut-off)', () => {
+    // 505.91 ÷ 0.916 = 552.303493… → 552.3035; copper share 46.3935 (not 46.394).
+    const target = computeCalculatedGrossFromGoldWeight(505.91, 91.6)
+    expect(target).toBe('552.3035')
+    let lines = createBlankAlloyMixLines()
+    lines = addAlloyLineByKey(lines, 'gold')
+    lines = addAlloyLineByKey(lines, 'copper')
+    lines = applyAlloyRecipeToLines(lines, {
+      targetGross: target,
+      goldRatio: 91.6,
+      alloyRatio: 8.4,
+    })
+    const gold = lines.find((l) => l.key === 'gold')
+    const copper = lines.find((l) => l.key === 'copper')
+    expect(gold.gross).toBe(505.91)
+    expect(copper.gross).toBe(46.3935)
+    const summary = summarizeAlloyLines(lines, Number(target))
+    expect(summary.totalGross).toBe(552.3035)
+    expect(summary.balanced).toBe(true)
+  })
+
   test('normalizes purity and computes pure', () => {
     expect(normalizeAlloyPurity(1)).toBe(1)
     expect(normalizeAlloyPurity(0.916)).toBe(0.916)
@@ -493,13 +514,13 @@ describe('goldAlloyCalculator', () => {
     expect(computeAlloyMetalLoss(gold.gross, 200)).toBe(-0.5)
     expect(computeAlloyMixShare(gold.gross, 266)).toBe('0.75')
 
-    expect(silver.gross).toBe(36.508)
-    expect(computeAlloyMetalLoss(silver.gross, 36.6)).toBe(-0.092)
+    expect(silver.gross).toBe(36.5085)
+    expect(computeAlloyMetalLoss(silver.gross, 36.6)).toBe(-0.0915)
 
     // Last metal absorbs rounding so metals always equal finished target.
     expect(metalSum).toBe(266)
-    expect(copper.gross).toBe(29.992)
-    expect(computeAlloyMetalLoss(copper.gross, 30)).toBe(-0.008)
+    expect(copper.gross).toBe(29.9915)
+    expect(computeAlloyMetalLoss(copper.gross, 30)).toBe(-0.0085)
   })
 
   test('gold input 7.5 @ 18K → mix target 10; update 10→9.5 stays balanced', () => {

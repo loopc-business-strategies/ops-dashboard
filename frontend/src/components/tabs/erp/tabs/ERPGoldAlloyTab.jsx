@@ -29,6 +29,7 @@ import {
   removeAlloyExtraLine,
   resolveAlloyUpdateOriginalGross,
   resolveKaratRecipe,
+  formatAlloyGramsDisplay,
   roundAlloyGrams,
   suggestNextAlloyMixBatchNo,
   summarizeAlloyLines,
@@ -66,8 +67,8 @@ const secondaryBtnStyle = {
 
 function formatAlloyMetalLoss(value) {
   const n = Number(value) || 0
-  if (Math.abs(n) < 0.0005) return '0'
-  const abs = Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 3 })
+  if (Math.abs(n) < 0.00005) return '0'
+  const abs = Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 0 })
   return n < 0 ? `-${abs}` : `+${abs}`
 }
 
@@ -1910,7 +1911,7 @@ export default function ERPGoldAlloyTab({
                           <input
                             aria-label={`Gross for ${line.label}`}
                             type="number"
-                            step="0.001"
+                            step="0.0001"
                             value={line.gross}
                             onChange={(e) => updateLine(line.key, { gross: e.target.value })}
                             disabled={formLocked}
@@ -1932,7 +1933,7 @@ export default function ERPGoldAlloyTab({
                         </td>
                         <td style={{ padding: '0.45rem 0.65rem', textAlign: 'right', fontWeight: 700, color: '#0F172A', fontSize: '0.82rem' }}>
                           {Number(line.pure || 0)
-                            ? Number(line.pure).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                            ? formatAlloyGramsDisplay(line.pure)
                             : '—'}
                         </td>
                         {showSingleCalcGross ? (
@@ -1989,7 +1990,7 @@ export default function ERPGoldAlloyTab({
                       Total / target
                     </td>
                     <td style={{ padding: '0.6rem 0.65rem', textAlign: 'right', fontWeight: 800 }}>
-                      {summary.totalGross.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                      {formatAlloyGramsDisplay(summary.totalGross)}
                     </td>
                     <td />
                     <td style={{

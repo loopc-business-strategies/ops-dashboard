@@ -55,13 +55,30 @@ export const GOLD_ALLOY_LINE_TEMPLATES = [
   { key: 'platinum', label: 'platinum', role: 'extra' },
 ]
 
-const GROSS_EPS = 0.0005
+const GROSS_EPS = 0.00005
 
-export function roundAlloyGrams(value, digits = 3) {
+/**
+ * Round alloy weights for calc/post.
+ * Default 4 dp so mix target (e.g. 505.91 ÷ 0.916 = 552.3035) and copper
+ * (46.3935) stay aligned — 3 dp was cutting totals to 552.304 / 46.394.
+ * Pass more digits when a value must stay exact beyond 4 places.
+ */
+export function roundAlloyGrams(value, digits = 4) {
   const n = Number(value)
   if (!Number.isFinite(n)) return 0
-  const f = 10 ** digits
+  const d = Math.max(0, Math.min(8, Number(digits) || 0))
+  const f = 10 ** d
   return Math.round(n * f) / f
+}
+
+/** Display grams: keep at least 3 decimals, up to 4 (no silent cut-off of calc). */
+export function formatAlloyGramsDisplay(value, { maxDigits = 4, minDigits = 0 } = {}) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: minDigits,
+    maximumFractionDigits: Math.max(3, maxDigits),
+  })
 }
 
 /** Normalize purity: 916 → 0.916, 91.6 → 0.916, 0.916 stays. */
