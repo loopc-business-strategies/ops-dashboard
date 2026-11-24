@@ -168,6 +168,33 @@ function groupStockUnitAbbrev(items = []) {
   return best
 }
 
+function VaultStockColumn({ groups, unit }) {
+  if (!groups?.length) return null
+  return (
+    <div className="pd-vault-stock-col">
+      <div className="pd-vault-stock-head" aria-hidden>
+        <span>Item</span>
+        <span>{`Gross(${unit})`}</span>
+        <span>{`Pure(${unit})`}</span>
+      </div>
+      {groups.map((group) => (
+        <section key={group.category} className="pd-vault-stock-section">
+          <h4 className="pd-vault-stock-cat">{group.category}</h4>
+          <div className="pd-vault-stock-list">
+            {group.items.map((item) => (
+              <div key={item.id} className="pd-vault-stock-row">
+                <span title={item.name}>{item.name}</span>
+                <span title={`${item.grossQty} ${item.unit || unit}`}>{formatStockQty(item.grossQty)}</span>
+                <span title={`${item.pureQty} ${item.unit || unit}`}>{formatStockQty(item.pureQty)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 function VaultStock({ inventory }) {
   if (!inventory || inventory.loading) {
     return <p className="pd-vault-stock-note">Loading stock…</p>
@@ -178,30 +205,18 @@ function VaultStock({ inventory }) {
   if (!inventory.groups?.length) {
     return <p className="pd-vault-stock-note">No stock on hand</p>
   }
+  const groups = inventory.groups
+  const unit = groupStockUnitAbbrev(groups.flatMap((g) => g.items || []))
+  const left = []
+  const right = []
+  groups.forEach((group, index) => {
+    if (index % 2 === 0) left.push(group)
+    else right.push(group)
+  })
   return (
-    <div className="pd-vault-stock">
-      {inventory.groups.map((group) => {
-        const u = groupStockUnitAbbrev(group.items)
-        return (
-          <section key={group.category} className="pd-vault-stock-section">
-            <h4 className="pd-vault-stock-cat">{group.category}</h4>
-            <div className="pd-vault-stock-head" aria-hidden>
-              <span>Item</span>
-              <span>{`Gross(${u})`}</span>
-              <span>{`Pure(${u})`}</span>
-            </div>
-            <div className="pd-vault-stock-list">
-              {group.items.map((item) => (
-                <div key={item.id} className="pd-vault-stock-row">
-                  <span title={item.name}>{item.name}</span>
-                  <span title={`${item.grossQty} ${item.unit || u}`}>{formatStockQty(item.grossQty)}</span>
-                  <span title={`${item.pureQty} ${item.unit || u}`}>{formatStockQty(item.pureQty)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )
-      })}
+    <div className={`pd-vault-stock${right.length ? '' : ' pd-vault-stock--single'}`}>
+      <VaultStockColumn groups={left} unit={unit} />
+      <VaultStockColumn groups={right} unit={unit} />
     </div>
   )
 }

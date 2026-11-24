@@ -2163,6 +2163,17 @@
   align-items: start;
 }
 
+.pd-vault-stock--single {
+  grid-template-columns: 1fr;
+}
+
+.pd-vault-stock-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
 .pd-dept-card--vault-stock .pd-vault-stock {
   max-height: none;
   overflow: visible;
@@ -2186,7 +2197,7 @@
 }
 
 .pd-vault-stock-cat {
-  margin: 0.12rem 0 0.06rem;
+  margin: 0.1rem 0 0.04rem;
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -2237,6 +2248,12 @@
   font-size: 9.5px;
   font-weight: 700;
   color: var(--pd-text-soft, #64748b);
+  margin-bottom: 0.04rem;
+}
+
+.pd-vault-stock-col > .pd-vault-stock-head {
+  position: sticky;
+  top: 0;
 }
 
 .pd-vault-stock-row span:first-child {
