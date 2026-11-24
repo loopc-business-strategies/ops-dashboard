@@ -161,6 +161,119 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(tight.deptCards.find((c) => c.key === 'rolling')).toMatchObject({ lossOverLimitCount: 1, lossTodayOverLimit: true })
   })
 
+  test('Gold Alloy Vault hops collapse to one mix — Metal IN is Post Mix, not 552+551.61+551.51', () => {
+    const t0 = '2026-11-24T04:40:00.000Z'
+    const t1 = '2026-11-24T04:50:00.000Z'
+    const t2 = '2026-11-24T05:00:00.000Z'
+    const alloy = (overrides) => ({
+      source: 'gold_alloy',
+      date: dayKey(),
+      alloyMixCode: 'BMG-0001',
+      batchNumber: 'BMG-0001',
+      employeeName: 'Nan',
+      departmentManagerName: 'Nan',
+      ...overrides,
+    })
+    const rows = [
+      alloy({
+        _id: 'v1',
+        departmentKey: 'vault_room',
+        transferFromDepartment: 'post_mix',
+        transferToDepartment: 'melting',
+        metalIn: 552.304,
+        metalOut: 552.304,
+        metalLoss: 0,
+        batchStartedAt: t0,
+        batchOverAt: t0,
+      }),
+      alloy({
+        _id: 'm1',
+        departmentKey: 'melting',
+        transferFromDepartment: 'vault_room',
+        transferToDepartment: 'vault_room',
+        metalIn: 552.304,
+        metalOut: 551.61,
+        metalLoss: 0.694,
+        batchStartedAt: t0,
+        batchOverAt: t1,
+      }),
+      alloy({
+        _id: 'v2',
+        departmentKey: 'vault_room',
+        transferFromDepartment: 'melting',
+        transferToDepartment: 'rolling',
+        metalIn: 551.61,
+        metalOut: 551.61,
+        metalLoss: 0,
+        batchStartedAt: t1,
+        batchOverAt: t1,
+      }),
+      alloy({
+        _id: 'r1',
+        departmentKey: 'rolling',
+        transferFromDepartment: 'vault_room',
+        transferToDepartment: 'vault_room',
+        metalIn: 551.61,
+        metalOut: 551.51,
+        metalLoss: 0.1,
+        batchStartedAt: t1,
+        batchOverAt: t2,
+      }),
+      alloy({
+        _id: 'v3',
+        departmentKey: 'vault_room',
+        transferFromDepartment: 'rolling',
+        transferToDepartment: 'bangle_area',
+        metalIn: 551.51,
+        metalOut: 551.51,
+        metalLoss: 0,
+        batchStartedAt: t2,
+        batchOverAt: t2,
+      }),
+      alloy({
+        _id: 'b1',
+        departmentKey: 'bangle_area',
+        transferFromDepartment: 'vault_room',
+        metalIn: 551.51,
+        metalOut: null,
+        metalLoss: null,
+        batchStartedAt: t2,
+        batchOverAt: null,
+      }),
+    ]
+    const next = applyLoopcOpsEntriesToModel(baseModel(), rows, null, { keepModelWhenEmpty: true })
+    const vault = next.deptCards.find((c) => c.key === 'vault_room')
+    expect(vault).toMatchObject({
+      metalIn: 552.304,
+      metalOut: 551.51,
+      metalLoss: 0.794,
+      activeBatchCount: 1,
+      hasData: true,
+    })
+    expect(vault.lossRows).toEqual([
+      expect.objectContaining({ label: 'BMG-0001', loss: 0.794 }),
+    ])
+    expect(vault.metalIn + vault.metalIn).not.toBe(1655.424)
+    expect(next.deptCards.find((c) => c.key === 'melting')).toMatchObject({
+      metalIn: 552.304,
+      metalOut: 551.61,
+      metalLoss: 0.694,
+      activeBatchCount: 1,
+    })
+    expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({
+      metalIn: 551.61,
+      metalOut: 551.51,
+      metalLoss: 0.1,
+      activeBatchCount: 1,
+    })
+    expect(next.deptCards.find((c) => c.key === 'bangle_area')).toMatchObject({
+      metalIn: 551.51,
+      metalOut: null,
+      status: 'Running',
+      activeBatchCount: 1,
+    })
+  })
+
   test('the manager assigned on the tablets replaces the last approver on that department card', () => {
     const rows = [mgFloorRow(), mgFloorRow({ _id: 'm1', departmentKey: 'melting' })]
     const departmentManagers = { rolling: { id: 'u1', name: 'Ravi' } }

@@ -3,7 +3,10 @@ import { formatGrams } from './formatters'
 import { resolveDeptCardDisplay } from './deptCardDisplay'
 import { minutesDown } from './useUnfixedBreakdowns'
 import { DASHBOARD_DEPARTMENTS } from './departmentConfig'
-import { formatAlloyMetalLossLabel } from '../tabs/operations/alloyMetalLossDisplay'
+import {
+  formatAlloyMetalLossLabel,
+  formatAlloyMetalLossParts,
+} from '../tabs/operations/alloyMetalLossDisplay'
 import {
   DeptIcon,
   IconEmployees,
@@ -26,7 +29,12 @@ function toneClass(key) {
 
 function formatLoss(v) {
   if (v == null || !Number.isFinite(Number(v))) return '—'
-  return Number(v).toFixed(2)
+  const n = Math.round(Number(v) * 1e4) / 1e4
+  // At least 2 dp (16.60); up to 4 so alloy 0.794 is not cut to 0.79.
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })
 }
 
 /** One batch's loss in grams; above the department's loss limit it turns red and shows its %. */
@@ -35,8 +43,18 @@ function LossRow({ row }) {
     <li className={row.overLimit ? 'pd-dept-loss-row--over' : undefined}>
       <span>{row.label}</span>
       <strong title={row.lossPct != null ? `${row.lossPct}% of Metal In` : undefined}>
-        {formatLoss(row.loss)}
-        {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+        <span className="pd-dept-loss-value-stack">
+          <span>
+            {formatLoss(row.loss)}
+            {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+          </span>
+          {row.alloyLossHead ? (
+            <span className="pd-dept-loss-alloy" title={row.alloyLossLabel || row.alloyLossHead}>
+              <span>{row.alloyLossHead}</span>
+              {row.alloyLossMetals ? <span>{row.alloyLossMetals}</span> : null}
+            </span>
+          ) : null}
+        </span>
       </strong>
     </li>
   )
@@ -254,29 +272,49 @@ function AlloyMixList({
         <ul className="pd-alloy-mix-list" aria-label="Open alloy mixes">
           {jobs.map((job) => {
             const awaitingReceive = job.status === 'pending_receive' || job.pendingReceive
+            const status = String(job.status || '').trim().toLowerCase()
+            const runningHere = !awaitingReceive
+              && status !== 'closed'
+              && (status === 'in_department' || status === 'in_vault' || Boolean(job.currentDepartment))
             const canAlloc = typeof onAllocateMix === 'function'
               && !awaitingReceive
               && job.canAllocate !== false
+            const alloyParts = formatAlloyMetalLossParts(job)
             const alloyLoss = formatAlloyMetalLossLabel(job)
             return (
-            <li key={job.id || job.mixCode}>
-              <span>
-                {job.mixCode || 'MIX'}
+            <li
+              key={job.id || job.mixCode}
+              className={runningHere ? 'pd-alloy-mix-list__item pd-alloy-mix-list__item--running' : 'pd-alloy-mix-list__item'}
+              data-alloy-running={runningHere ? 'true' : undefined}
+            >
+              <span className="pd-alloy-mix-code">
+                {runningHere ? (
+                  <span className="pd-alloy-mix-running-badge" title="Batch is here now">
+                    <span className="pd-alloy-mix-live-dot" aria-hidden />
+                    Live
+                  </span>
+                ) : null}
+                <span className="pd-alloy-mix-code-id">{job.mixCode || 'MIX'}</span>
                 {awaitingReceive
-                  ? ' · awaiting receive'
+                  ? <span className="pd-alloy-mix-wait">awaiting receive</span>
                   : job.hasOpenFloorDescendants
-                    ? ' · split on floor'
-                    : ''}
+                    ? <span className="pd-alloy-mix-wait">split on floor</span>
+                    : null}
               </span>
-              <strong>
-                {job.karat ? `${job.karat}K ` : ''}
-                {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-              </strong>
-              {alloyLoss ? (
-                <span className="pd-alloy-mix-inputs" title="Gold Alloy Update metal loss (AML)">
-                  {alloyLoss}
-                </span>
-              ) : null}
+              <div className="pd-alloy-mix-stats">
+                <strong className="pd-alloy-mix-weight">
+                  {job.karat ? `${job.karat}K ` : ''}
+                  {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                </strong>
+                {alloyParts?.head ? (
+                  <span className="pd-alloy-mix-inputs" title={alloyLoss || alloyParts.head}>
+                    <span className="pd-alloy-mix-loss-stack">
+                      <span>{alloyParts.head}</span>
+                      {alloyParts.metalsLine ? <span>{alloyParts.metalsLine}</span> : null}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
               {canAlloc ? (
                 <button
                   type="button"
@@ -355,6 +393,7 @@ function DeptCard({
   onMarkFixed,
   vaultInventory = null,
   alloyMixJobs = [],
+  alloyJobsByCode = {},
   onAllocateMix = null,
 }) {
   const calling = !breakdown && callCount > 0
@@ -368,10 +407,38 @@ function DeptCard({
     ? `EMPLOYEES (${ui.employeeCount})`
     : (suppressDemo ? 'EMPLOYEES (—)' : 'EMPLOYEES')
   const mixes = Array.isArray(alloyMixJobs) ? alloyMixJobs : []
+  const hasLiveMix = mixes.some((job) => {
+    const awaiting = job.status === 'pending_receive' || job.pendingReceive
+    const st = String(job.status || '').trim().toLowerCase()
+    return !awaiting && st !== 'closed' && (st === 'in_department' || st === 'in_vault' || Boolean(job.currentDepartment))
+  })
+  const lossRows = (ui.lossRows || []).map((row) => {
+    const code = String(row.label || '')
+      .replace(/\s*\(yesterday\)\s*/i, '')
+      .trim()
+      .toUpperCase()
+    const job = alloyJobsByCode?.[code]
+    if (!job) return row
+    const jobGross = Number(job.metalLossGross)
+    const rowLoss = Number(row.loss)
+    // Au/Cu stack only on path-total rows (Vault BMG 0.794), not Melting 0.694 alone.
+    if (!(Number.isFinite(jobGross) && jobGross > 0 && Number.isFinite(rowLoss)
+      && Math.abs(rowLoss - jobGross) <= 0.0005)) {
+      return row
+    }
+    const parts = formatAlloyMetalLossParts(job)
+    if (!parts?.head) return row
+    return {
+      ...row,
+      alloyLossHead: parts.head,
+      alloyLossMetals: parts.metalsLine,
+      alloyLossLabel: formatAlloyMetalLossLabel(job),
+    }
+  })
 
   return (
     <article
-      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${isVault ? ' pd-dept-card--vault-stock' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}${breakdown ? ' pd-dept-card--breakdown' : ''}`}
+      className={`pd-dept-card ${toneClass(ui.key)} pd-dept-card--${tone}${ui.isAssembly ? ' pd-dept-card--assembly' : ''}${isVault ? ' pd-dept-card--vault-stock' : ''}${selected ? ' pd-dept-card--selected' : ''}${calling ? ' pd-dept-card--calling' : ''}${breakdown ? ' pd-dept-card--breakdown' : ''}${hasLiveMix ? ' pd-dept-card--live-mix' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(card.key)}
@@ -382,6 +449,7 @@ function DeptCard({
         }
       }}
       aria-pressed={selected}
+      data-live-mix={hasLiveMix ? 'true' : undefined}
     >
       <div className="pd-dept-card-head">
         <span className="pd-dept-icon-wrap" aria-hidden>
@@ -444,11 +512,6 @@ function DeptCard({
 
       {/* Scrollable mid section — keeps footer (batch / vault balance) from being clipped */}
       <div className="pd-dept-card-body">
-      <AlloyMixList
-        jobs={mixes}
-        departmentKey={ui.key}
-        onAllocateMix={onAllocateMix}
-      />
       <div className="pd-dept-people">
         <div className="pd-dept-people-side">
           <span className="pd-dept-people-ico" aria-hidden>
@@ -535,9 +598,9 @@ function DeptCard({
         </div>
         <ul className="pd-dept-loss-list">
           {loopcMode ? (
-            ui.lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
+            lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
               <>
-                {ui.lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
+                {lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
                 <li className="pd-dept-loss-avg">
                   <span>Today Avg</span>
                   <strong>{formatLoss(ui.lossTodayAvg)}</strong>
@@ -553,9 +616,9 @@ function DeptCard({
                 <strong>—</strong>
               </li>
             )
-          ) : ui.lossRows.length ? (
+          ) : lossRows.length ? (
             <>
-              {ui.lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
+              {lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
               <li className={`pd-dept-loss-avg${card.lossTodayOverLimit ? ' pd-dept-loss-row--over' : ''}`}>
                 <span>Avg</span>
                 <strong>
@@ -572,6 +635,12 @@ function DeptCard({
           )}
         </ul>
       </div>
+
+      <AlloyMixList
+        jobs={mixes}
+        departmentKey={ui.key}
+        onAllocateMix={onAllocateMix}
+      />
 
       {card.longRunning ? (
         <p className="pd-dept-long-batch" role="status">
@@ -606,6 +675,7 @@ function renderDeptCard(card, props) {
     onMarkFixed,
     vaultInventory,
     alloyMixByDept,
+    alloyJobsByCode,
     onAllocateMix,
   } = props
   return (
@@ -625,6 +695,7 @@ function renderDeptCard(card, props) {
       onMarkFixed={onMarkFixed}
       vaultInventory={card.key === 'vault_room' ? vaultInventory : null}
       alloyMixJobs={alloyMixByDept?.[card.key] || []}
+      alloyJobsByCode={alloyJobsByCode}
       onAllocateMix={onAllocateMix}
     />
   )
@@ -655,6 +726,16 @@ export default function DepartmentOverview({
   kpi = null,
 }) {
   const list = cards || []
+  const alloyJobsByCode = useMemo(() => {
+    const map = {}
+    Object.values(alloyMixByDept || {}).forEach((jobs) => {
+      for (const job of Array.isArray(jobs) ? jobs : []) {
+        const code = String(job?.mixCode || '').trim().toUpperCase()
+        if (code) map[code] = job
+      }
+    })
+    return map
+  }, [alloyMixByDept])
   const cardProps = {
     batchMonitorRows,
     employeeRatings,
@@ -669,6 +750,7 @@ export default function DepartmentOverview({
     onMarkFixed,
     vaultInventory,
     alloyMixByDept,
+    alloyJobsByCode,
     onAllocateMix,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null

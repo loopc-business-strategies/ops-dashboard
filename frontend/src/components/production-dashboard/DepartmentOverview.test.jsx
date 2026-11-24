@@ -164,6 +164,7 @@ describe('DepartmentOverview alloy mix allocate', () => {
             mixCode: 'BMG-0001',
             karat: 22,
             targetGross: 551.6,
+            status: 'in_department',
             currentDepartment: 'melting',
             metalLossGross: 0.703,
             metalLossByMetal: [
@@ -175,7 +176,11 @@ describe('DepartmentOverview alloy mix allocate', () => {
       />,
     )
     expect(screen.getByText(/BMG-0001/)).toBeTruthy()
-    expect(screen.getByText(/Alloy loss 0\.703 g · Au 0\.644 · Cu 0\.059/)).toBeTruthy()
+    expect(screen.getByText('Live')).toBeTruthy()
+    expect(document.querySelector('[data-alloy-running="true"]')).toBeTruthy()
+    expect(document.querySelector('[data-live-mix="true"]')).toBeTruthy()
+    expect(screen.getByText('Alloy loss 0.703 g')).toBeTruthy()
+    expect(screen.getByText(/Au 0\.644\s+Cu 0\.059/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Allocate' })).toBeNull()
   })
 

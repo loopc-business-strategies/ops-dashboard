@@ -107,6 +107,40 @@ describe('Production workbook purity and MG Floor rows', () => {
     expect(document.querySelector('tr[data-alloy-current="true"]')).toBeTruthy()
   })
 
+  test('Now here Loss shows cumulative total and Au/Cu addon line', () => {
+    const row = mapEntryToRow({
+      ...floorEntry,
+      source: 'gold_alloy',
+      departmentKey: 'bangle_area',
+      batchNumber: 'BMG-0001',
+      alloyMixCode: 'BMG-0001',
+      metalIn: 551.51,
+      metalOut: null,
+      metalLoss: null,
+      purity: 91.67,
+      transferFromDepartment: 'vault_room',
+    })
+    render(
+      <DepartmentTable
+        rows={[{
+          ...row,
+          alloyCurrentHere: true,
+          alloyCurrentDept: 'bangle_area',
+          alloyLossCumulative: true,
+          metalLossDisplay: '0.794 g',
+          lossPct: 0.14,
+          fineLoss: 0.728,
+          alloyLossLabel: 'Alloy loss 0.794 g · Au 0.728 · Cu 0.066',
+          alloyLossHead: 'Alloy loss 0.794 g',
+          alloyLossMetals: 'Au 0.728  Cu 0.066',
+        }]}
+      />,
+    )
+    expect(screen.getByText('0.794 g')).toBeTruthy()
+    expect(screen.getByText('Alloy loss 0.794 g')).toBeTruthy()
+    expect(screen.getByText(/Au 0\.728\s+Cu 0\.066/)).toBeTruthy()
+  })
+
   test('from/to department badges show on Vault and Melting/Rolling/Bangle rows', () => {
     const vault = mapEntryToRow({
       ...floorEntry,

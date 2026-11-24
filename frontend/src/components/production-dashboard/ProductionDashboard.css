@@ -1765,6 +1765,7 @@
 .pd-dept-card {
   --pd-dept-tone: #64748b;
   --pd-dept-tone-soft: #f1f5f9;
+  position: relative;
   border: 1px solid var(--pd-border);
   border-radius: 10px;
   background: #ffffff;
@@ -1926,7 +1927,17 @@
   background: currentColor;
 }
 
-.pd-status-pill--running { background: #DCFCE7; color: #15803D; }
+.pd-status-pill--running {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+  font-weight: 800;
+}
+.pd-status-pill--running .pd-status-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+  animation: pd-live-dot-blink 1.1s ease-in-out infinite;
+}
 .pd-status-pill--waiting { background: #ffedd5; color: #c2410c; }
 .pd-status-pill--completed { background: var(--pd-primary-soft); color: #0F766E; }
 .pd-status-pill--idle { background: #E8F0FE; color: #1E3A5F; }
@@ -2251,7 +2262,26 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  max-width: 11rem;
+  max-width: 14rem;
+}
+
+.pd-dept-loss-value-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.pd-dept-loss-alloy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #9a3412;
+  white-space: nowrap;
 }
 
 .pd-dept-loss-list li {
@@ -4468,35 +4498,223 @@
 }
 
 .pd-alloy-mix-panel {
-  margin: 0 0 0.45rem;
+  margin: 0.4rem 0 0;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .pd-alloy-mix-list {
   list-style: none;
   margin: 0;
-  padding: 0.35rem 0.45rem;
-  border: 1px solid #fde68a;
-  border-radius: 0.4rem;
-  background: #fffbeb;
+  padding: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #f8fafc;
   display: grid;
   gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
   max-height: 9.5rem;
   overflow: auto;
 }
 
-.pd-alloy-mix-list li {
+.pd-alloy-mix-list li,
+.pd-alloy-mix-list__item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto auto;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 11px;
-  color: #78350f;
+  gap: 0.4rem 0.5rem;
+  font-size: 10.5px;
+  color: #334155;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  width: fit-content;
+  max-width: 100%;
 }
 
-.pd-alloy-mix-list li strong {
+.pd-alloy-mix-list li strong,
+.pd-alloy-mix-list__item strong,
+.pd-alloy-mix-weight {
   font-weight: 800;
-  color: #9a3412;
+  color: #0f172a;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Live batch — soft mint shell + frosted stats panel.
+ * Beat `.pd-alloy-mix-list li` specificity so fill actually applies.
+ * Numbers sit on a light panel so green never washes them out.
+ */
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running {
+  position: relative;
+  overflow: hidden;
+  align-items: stretch;
+  gap: 0.4rem 0.5rem;
+  padding: 0.38rem 0.45rem 0.38rem 0.6rem;
+  border: 1px solid #86efac;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 48%, #f8fffb 100%);
+  color: #0f172a;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 6px 14px -10px rgba(16, 185, 129, 0.4);
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running::before,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 0.5rem 0 0 0.5rem;
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running::after,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running::after {
+  content: none;
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running > *,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pd-alloy-mix-code {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem 0.35rem;
+  min-width: 0;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.pd-alloy-mix-code-id {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running .pd-alloy-mix-code-id,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running .pd-alloy-mix-code-id {
+  color: #064e3b;
+}
+
+.pd-alloy-mix-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.08rem;
+  min-width: 0;
+  text-align: right;
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running .pd-alloy-mix-stats,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running .pd-alloy-mix-stats {
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(167, 243, 208, 0.9);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running .pd-alloy-mix-weight,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running .pd-alloy-mix-weight {
+  color: #0f172a;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.pd-alloy-mix-running-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.12rem 0.4rem 0.12rem 0.32rem;
+  border-radius: 999px;
+  border: 1px solid #047857;
+  background: #059669;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  box-shadow: 0 1px 2px rgba(4, 120, 87, 0.25);
+}
+
+.pd-alloy-mix-live-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #bbf7d0;
+  box-shadow: 0 0 0 0 rgba(187, 247, 208, 0.8);
+  animation: pd-live-dot-blink 1.1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.pd-alloy-mix-wait {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running .pd-alloy-mix-inputs,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running .pd-alloy-mix-inputs,
+.pd-alloy-mix-list li.pd-alloy-mix-list__item--running .pd-alloy-mix-loss-stack,
+.pd-alloy-mix-list .pd-alloy-mix-list__item--running .pd-alloy-mix-loss-stack {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+/* Dept card holding a live mix — stronger green presence. */
+.pd-dept-card--live-mix {
+  border-color: #10b981;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 42%);
+  animation: pd-dept-live-halo 2s ease-in-out infinite;
+}
+
+@keyframes pd-live-dot-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.75);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+    box-shadow: 0 0 0 7px rgba(110, 231, 183, 0);
+  }
+}
+
+@keyframes pd-dept-live-halo {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(16, 185, 129, 0.28),
+      0 12px 28px -12px rgba(15, 23, 42, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(16, 185, 129, 0.18),
+      0 16px 32px -10px rgba(16, 185, 129, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-alloy-mix-live-dot,
+  .pd-status-pill--running .pd-status-dot,
+  .pd-dept-card--live-mix {
+    animation: none;
+  }
 }
 
 .pd-alloy-mix-alloc {
@@ -4526,10 +4744,24 @@
 
 .pd-alloy-mix-inputs {
   margin: 0;
-  color: #c2410c;
-  font-size: 11px;
+  color: #b45309;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
+}
+
+.pd-alloy-mix-loss-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  width: 100%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pd-alloy-mix-list__item .pd-alloy-mix-alloc {
+  align-self: center;
 }
 
 .pd-alloy-mix-alloc-weight {

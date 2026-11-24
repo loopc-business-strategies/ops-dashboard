@@ -370,16 +370,26 @@ function metalLossCell(row) {
   const floor = row.metalGain == null
     ? (row.metalLossDisplay ?? formatWeight(row.metalLoss))
     : <span style={overLimitStyle} title={GAIN_TITLE}>Gain +{formatWeight(row.metalGain)}</span>
-  if (!row.alloyLossLabel) return floor
+  if (!row.alloyLossLabel && !row.alloyLossHead) return floor
+  const lossTitle = row.alloyLossCumulative
+    ? `Batch total Metal Loss so far (path) — ${row.alloyLossLabel || row.alloyLossHead}`
+    : `Gold Alloy Update metal loss (AML) — ${row.alloyLossLabel || row.alloyLossHead}`
+  // Prefer stacked lines: total / Alloy loss … / Au …  Cu …
+  const head = row.alloyLossHead || null
+  const metals = row.alloyLossMetals || null
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, lineHeight: 1.25, maxWidth: '100%' }}>
-      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{floor}</span>
-      <span
-        style={alloyLossLine}
-        title={`Gold Alloy Update metal loss (AML) — ${row.alloyLossLabel}`}
-      >
-        {row.alloyLossLabel}
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.2, maxWidth: '100%' }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }} title={row.alloyLossCumulative ? 'Cumulative Metal Loss for this mix' : undefined}>
+        {floor}
       </span>
+      {head || metals ? (
+        <>
+          {head ? <span style={alloyLossLine} title={lossTitle}>{head}</span> : null}
+          {metals ? <span style={{ ...alloyLossLine, whiteSpace: 'nowrap' }} title={lossTitle}>{metals}</span> : null}
+        </>
+      ) : (
+        <span style={alloyLossLine} title={lossTitle}>{row.alloyLossLabel}</span>
+      )}
     </span>
   )
 }

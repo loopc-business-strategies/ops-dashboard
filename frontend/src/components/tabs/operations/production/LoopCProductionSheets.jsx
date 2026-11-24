@@ -8,6 +8,8 @@ import ProductionSummary from './ProductionSummary'
 import ProductionFilters from './ProductionFilters'
 import DepartmentGroup from './DepartmentGroup'
 import {
+  enrichAlloyCurrentHereLoss,
+  formatAlloyMetalLossParts,
   indexAlloyMixJobsByCode,
 } from '../alloyMetalLossDisplay'
 import {
@@ -157,7 +159,9 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
     })
 
     // 1…n across Vault + floor depts for the same mix (Post → Melting → Vault → Update → …).
-    return assignAlloyMoveSequences(mapped)
+    const sequenced = assignAlloyMoveSequences(mapped)
+    // Now here row: show cumulative Metal Loss + Au/Cu addon AML (display-only).
+    return enrichAlloyCurrentHereLoss(sequenced, alloyJobsByCode)
   }, [entries, alloyJobsByCode])
 
   const filteredRows = useMemo(
@@ -182,8 +186,43 @@ export default function LoopCProductionSheets({ dashboardSource = true, mgFloorS
 
   const summary = useMemo(() => {
     const visible = groups.flatMap((g) => g.rows)
-    return computeSummary(visible)
-  }, [groups])
+    const base = computeSummary(visible)
+    // Unique open mix jobs on the visible sheet → Total Metal Loss Au/Cu stack.
+    const codes = new Set()
+    visible.forEach((row) => {
+      if (!row?.fromGoldAlloy) return
+      const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+      if (code) codes.add(code)
+    })
+    let gross = 0
+    const byMetal = new Map()
+    codes.forEach((code) => {
+      const job = alloyJobsByCode[code]
+      if (!job) return
+      const g = Number(job.metalLossGross)
+      if (Number.isFinite(g) && g > 0) gross += g
+      for (const row of job.metalLossByMetal || []) {
+        const key = String(row.stockCode || row.name || '').toUpperCase() || 'METAL'
+        const loss = Number(row.lossGross)
+        if (!(Number.isFinite(loss) && loss > 0)) continue
+        const prev = byMetal.get(key) || { ...row, lossGross: 0 }
+        prev.lossGross = (Number(prev.lossGross) || 0) + loss
+        byMetal.set(key, prev)
+      }
+    })
+    if (!codes.size) {
+      return { ...base, alloyLossHead: null, alloyLossMetals: null }
+    }
+    const parts = formatAlloyMetalLossParts({
+      metalLossGross: gross > 0 ? gross : base.totalMetalLoss,
+      metalLossByMetal: [...byMetal.values()],
+    })
+    return {
+      ...base,
+      alloyLossHead: parts?.head || null,
+      alloyLossMetals: parts?.metalsLine || null,
+    }
+  }, [groups, alloyJobsByCode])
 
   const handleApply = () => setAppliedFilters({ ...draftFilters })
   const handleClear = () => {

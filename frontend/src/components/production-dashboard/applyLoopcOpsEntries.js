@@ -35,6 +35,113 @@ function metalLossOf(entry) {
   return null
 }
 
+function isGoldAlloyEntry(entry) {
+  if (String(entry?.source || '').trim() === 'gold_alloy') return true
+  const code = String(entry?.alloyMixCode || entry?.batchNumber || '').trim()
+  return /^(?:BMG|AMX)-/i.test(code)
+}
+
+function mixCodeOf(entry) {
+  return String(entry?.alloyMixCode || entry?.batchNumber || '').trim().toUpperCase()
+}
+
+function byBatchStartAsc(a, b) {
+  const ta = a?.batchStartedAt ? new Date(a.batchStartedAt).getTime() : 0
+  const tb = b?.batchStartedAt ? new Date(b.batchStartedAt).getTime() : 0
+  if (ta !== tb) return ta - tb
+  return String(a?._id || a?.id || '').localeCompare(String(b?._id || b?.id || ''))
+}
+
+/** Floor-dept Metal Loss summed per mix (Melting + Rolling + …) — Vault hops are 0. */
+function buildAlloyPathLossByMix(allEntries = []) {
+  const map = new Map()
+  for (const entry of allEntries) {
+    if (!isGoldAlloyEntry(entry)) continue
+    if (String(entry?.departmentKey || '').trim().toLowerCase() === 'vault_room') continue
+    const code = mixCodeOf(entry)
+    if (!code) continue
+    const loss = metalLossOf(entry)
+    if (loss == null || !(loss > 0)) continue
+    map.set(code, Math.round(((map.get(code) || 0) + loss) * 1e4) / 1e4)
+  }
+  return map
+}
+
+/**
+ * Gold Alloy visits the same mix through Vault several times (Post → Melting → Vault →
+ * Rolling → …). Summing every hop inflated Metal IN/OUT (e.g. 552+551.61+551.51 =
+ * 1655). Collapse to one row per mix per department — same idea as Ops alloyBatchMetals.
+ * Vault Metal Loss uses path floor loss (Melting+Rolling) so BMG does not show 0.00.
+ */
+function collapseGoldAlloyDeptRows(rows = [], { pathLossByMix = null, departmentKey = '' } = {}) {
+  const alloy = []
+  const other = []
+  for (const entry of rows) {
+    if (isGoldAlloyEntry(entry)) alloy.push(entry)
+    else other.push(entry)
+  }
+  if (!alloy.length) return rows
+
+  const byMix = new Map()
+  for (const entry of alloy) {
+    const code = mixCodeOf(entry) || `row-${entry?._id || entry?.id || alloy.indexOf(entry)}`
+    if (!byMix.has(code)) byMix.set(code, [])
+    byMix.get(code).push(entry)
+  }
+
+  const isVault = String(departmentKey || '').trim().toLowerCase() === 'vault_room'
+  const collapsed = []
+  for (const [code, visits] of byMix) {
+    const sorted = [...visits].sort(byBatchStartAsc)
+    const first = sorted[0]
+    const last = sorted[sorted.length - 1]
+    const post = sorted.find(
+      (v) => String(v.transferFromDepartment || '').trim().toLowerCase() === 'post_mix',
+    )
+    const inn = numOrNull(post?.metalIn) ?? numOrNull(first.metalIn)
+    let out = null
+    for (let i = sorted.length - 1; i >= 0; i -= 1) {
+      const o = numOrNull(sorted[i].metalOut)
+      if (o != null) {
+        out = o
+        break
+      }
+    }
+    let lossSum = 0
+    let hasLoss = false
+    sorted.forEach((v) => {
+      const loss = metalLossOf(v)
+      if (loss == null) return
+      lossSum += loss
+      hasLoss = true
+    })
+    const pathLoss = pathLossByMix?.get(code)
+    if (isVault && pathLoss != null && pathLoss > 0) {
+      lossSum = pathLoss
+      hasLoss = true
+    }
+    const open = sorted.find((v) => !v.batchOverAt) || last
+    const allClosed = sorted.every((v) => Boolean(v.batchOverAt))
+    collapsed.push({
+      ...open,
+      _id: open._id || open.id || code,
+      batchNumber: code,
+      alloyMixCode: code,
+      source: 'gold_alloy',
+      metalIn: inn,
+      metalOut: out,
+      metalLoss: hasLoss ? lossSum : null,
+      batchStartedAt: first.batchStartedAt || open.batchStartedAt || null,
+      batchOverAt: allClosed ? (last.batchOverAt || open.batchOverAt || null) : null,
+      transferFromDepartment: post
+        ? 'post_mix'
+        : (first.transferFromDepartment || open.transferFromDepartment || ''),
+      transferToDepartment: last.transferToDepartment || open.transferToDepartment || '',
+    })
+  }
+  return [...collapsed, ...other]
+}
+
 function meanLoss(entries) {
   const losses = (entries || [])
     .map((e) => metalLossOf(e))
@@ -172,9 +279,18 @@ export function buildLoopcOpsDashboardOverlay(
     byDeptAll.get(key).push(e)
   })
 
+  const pathLossByMix = buildAlloyPathLossByMix(list)
+  const pathLossByMixAll = buildAlloyPathLossByMix(allList)
+
   const deptCards = DASHBOARD_DEPARTMENTS.map((dept) => {
-    const rows = byDept.get(dept.key) || []
-    const rowsAll = byDeptAll.get(dept.key) || []
+    const rows = collapseGoldAlloyDeptRows(byDept.get(dept.key) || [], {
+      pathLossByMix,
+      departmentKey: dept.key,
+    })
+    const rowsAll = collapseGoldAlloyDeptRows(byDeptAll.get(dept.key) || [], {
+      pathLossByMix: pathLossByMixAll,
+      departmentKey: dept.key,
+    })
     const hasData = rows.length > 0
     const lossLimitPct = numOrNull(lossLimits?.[dept.key])
 
@@ -353,17 +469,31 @@ export function buildLoopcOpsDashboardOverlay(
     }
   })
 
+  // KPI metals/batches: today's workbook only (carry-over stays on cards, not in today totals),
+  // collapsed per dept so Gold Alloy Vault hops are not triple-counted.
   let totalIn = 0
   let totalOut = 0
   let totalLoss = 0
   let hasAny = false
-  todayList.forEach((e) => {
-    const inn = numOrNull(e.metalIn)
-    const out = numOrNull(e.metalOut)
-    const loss = metalLossOf(e)
-    if (inn != null) { totalIn += inn; hasAny = true }
-    if (out != null) { totalOut += out; hasAny = true }
-    if (loss != null) totalLoss += loss
+  let totalBatches = 0
+  let completed = 0
+  DASHBOARD_DEPARTMENTS.forEach((dept) => {
+    const collapsed = collapseGoldAlloyDeptRows(
+      todayList.filter((e) => String(e?.departmentKey || '') === dept.key),
+    )
+    totalBatches += collapsed.length
+    completed += collapsed.filter((e) => entryStatus(e) === 'Completed').length
+    collapsed.forEach((e) => {
+      const inn = numOrNull(e.metalIn)
+      const out = numOrNull(e.metalOut)
+      const loss = metalLossOf(e)
+      if (inn != null) { totalIn += inn; hasAny = true }
+      if (out != null) { totalOut += out; hasAny = true }
+      // Vault Gold Alloy path loss is display-only (floor depts already count Melting/Rolling).
+      if (loss != null && !(dept.key === 'vault_room' && isGoldAlloyEntry(e))) {
+        totalLoss += loss
+      }
+    })
   })
 
   const empSet = new Set()
@@ -374,14 +504,21 @@ export function buildLoopcOpsDashboardOverlay(
   const managers = list.map((e) => String(e.departmentManagerName || '').trim()).filter(Boolean)
   const floorManager = managers[0] || null
   const running = list.filter((e) => entryStatus(e) === 'Running').length
-  const completed = todayList.filter((e) => entryStatus(e) === 'Completed').length
 
   const yesterday = dayKey(addDays(new Date(), -1))
   let yesterdayOutput = null
+  const yByDept = new Map()
   allList.forEach((e) => {
     if (String(e?.date || '').trim() !== yesterday) return
-    const out = numOrNull(e.metalOut)
-    if (out != null) yesterdayOutput = (yesterdayOutput || 0) + out
+    const key = String(e?.departmentKey || '').trim() || '_none'
+    if (!yByDept.has(key)) yByDept.set(key, [])
+    yByDept.get(key).push(e)
+  })
+  yByDept.forEach((rows) => {
+    collapseGoldAlloyDeptRows(rows).forEach((e) => {
+      const out = numOrNull(e.metalOut)
+      if (out != null) yesterdayOutput = (yesterdayOutput || 0) + out
+    })
   })
 
   return {
@@ -395,7 +532,7 @@ export function buildLoopcOpsDashboardOverlay(
       employees: empSet.size || null,
       floorManager,
       activeBatches: running,
-      totalBatches: todayList.length || null,
+      totalBatches: totalBatches || null,
       completedBatches: completed,
       metalIn: hasAny ? totalIn : null,
       metalOut: hasAny ? totalOut : null,

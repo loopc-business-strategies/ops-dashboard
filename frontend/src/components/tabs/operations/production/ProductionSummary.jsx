@@ -35,18 +35,39 @@ const value = {
   textOverflow: 'ellipsis',
 }
 
+const alloySub = {
+  margin: '0.2rem 0 0',
+  fontSize: '0.72rem',
+  fontWeight: 800,
+  color: '#9A3412',
+  lineHeight: 1.25,
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
+
 /**
  * Compact filter-aware summary cards for LoopC Production sheets.
+ * Total Metal Loss stacks Alloy loss + Au/Cu addons when present (MG Gold Alloy).
  */
 export default function ProductionSummary({ summary }) {
   const s = summary || {}
+  const alloyHead = s.alloyLossHead || null
+  const alloyMetals = s.alloyLossMetals || null
   const items = [
     { key: 'depts', label: 'Total Departments', value: String(s.totalDepartments ?? 0) },
     { key: 'emps', label: 'Total Employees', value: String(s.totalEmployees ?? 0) },
     { key: 'batches', label: 'Total Batches', value: String(s.totalBatches ?? 0) },
     { key: 'in', label: 'Total Metal IN', value: formatWeight(s.totalMetalIn ?? 0) },
     { key: 'out', label: 'Total Metal OUT', value: formatWeight(s.totalMetalOut ?? 0) },
-    { key: 'loss', label: 'Total Metal Loss', value: formatWeight(s.totalMetalLoss ?? 0) },
+    {
+      key: 'loss',
+      label: 'Total Metal Loss',
+      value: formatWeight(s.totalMetalLoss ?? 0),
+      alloyHead,
+      alloyMetals,
+    },
   ]
 
   return (
@@ -55,6 +76,12 @@ export default function ProductionSummary({ summary }) {
         <div key={item.key} style={card}>
           <p style={label}>{item.label}</p>
           <p style={value}>{item.value}</p>
+          {item.alloyHead ? (
+            <p style={alloySub} title={item.alloyHead}>{item.alloyHead}</p>
+          ) : null}
+          {item.alloyMetals ? (
+            <p style={{ ...alloySub, marginTop: '0.1rem' }} title={item.alloyMetals}>{item.alloyMetals}</p>
+          ) : null}
         </div>
       ))}
       <style>{`

@@ -167,7 +167,8 @@ async function removeOpenAlloyOpsVisit({ session, mixCode, departmentKey }) {
 
 /**
  * Merge legacy split rows (opsKey used to include :in: / :out:) onto one visit per
- * mix + department. Safe to repeat.
+ * mix + department. Also drops OUT-only orphans when a completed visit already
+ * exists (Floor OUT closed Melting/Rolling before allocate → Vault). Safe to repeat.
  */
 async function mergeSplitAlloyOpsRows({ session = null, mixCode = '' } = {}) {
   const filter = {
@@ -196,16 +197,41 @@ async function mergeSplitAlloyOpsRows({ session = null, mixCode = '' } = {}) {
       }).sort({ createdAt: 1 }),
       session,
     )
-    if (!inRow) continue
-    inRow.metalOut = outRow.metalOut
-    inRow.purityOut = outRow.purityOut ?? inRow.purityOut
-    inRow.fineGoldOut = outRow.fineGoldOut ?? inRow.fineGoldOut
-    inRow.batchOverAt = outRow.batchOverAt || inRow.batchOverAt
-    if (outRow.floorOutEntryId) inRow.floorOutEntryId = outRow.floorOutEntryId
-    if (inRow.metalIn != null && inRow.metalOut != null) {
-      inRow.metalLoss = Math.max(0, toQty(inRow.metalIn - inRow.metalOut))
+    if (inRow) {
+      inRow.metalOut = outRow.metalOut
+      inRow.purityOut = outRow.purityOut ?? inRow.purityOut
+      inRow.fineGoldOut = outRow.fineGoldOut ?? inRow.fineGoldOut
+      inRow.batchOverAt = outRow.batchOverAt || inRow.batchOverAt
+      if (outRow.floorOutEntryId) inRow.floorOutEntryId = outRow.floorOutEntryId
+      const toDept = String(outRow.transferToDepartment || '').trim()
+      if (toDept && !inRow.transferToDepartment) inRow.transferToDepartment = toDept
+      if (inRow.metalIn != null && inRow.metalOut != null) {
+        inRow.metalLoss = Math.max(0, toQty(inRow.metalIn - inRow.metalOut))
+      }
+      await inRow.save(writeOpts(session))
+      await outRow.deleteOne(writeOpts(session))
+      merged += 1
+      continue
     }
-    await inRow.save(writeOpts(session))
+
+    // Completed visit already has IN+OUT (Floor locked) — orphan allocate OUT is noise.
+    const completed = await withSession(
+      OperationsProductionEntry.findOne({
+        source: 'gold_alloy',
+        alloyMixCode: outRow.alloyMixCode,
+        departmentKey: outRow.departmentKey,
+        metalIn: { $ne: null },
+        metalOut: { $ne: null },
+        _id: { $ne: outRow._id },
+      }).sort({ updatedAt: -1, createdAt: -1 }),
+      session,
+    )
+    if (!completed) continue
+    const toDept = String(outRow.transferToDepartment || '').trim()
+    if (toDept && !completed.transferToDepartment) {
+      completed.transferToDepartment = toDept
+      await completed.save(writeOpts(session))
+    }
     await outRow.deleteOne(writeOpts(session))
     merged += 1
   }
@@ -266,6 +292,26 @@ async function upsertOpsRow({
       }
       await open.save(writeOpts(session))
       return open
+    }
+
+    // Floor Metal Out often closes Melting/Rolling before allocate → Vault.
+    // Do NOT create a second OUT-only row (orphan noise); stamp transferTo on the
+    // completed visit and keep Floor OUT weights (same as live: one visit per dept).
+    const closed = await withSession(
+      OperationsProductionEntry.findOne({
+        source: 'gold_alloy',
+        alloyMixCode: code,
+        departmentKey,
+        metalIn: { $ne: null },
+        metalOut: { $ne: null },
+      }).sort({ updatedAt: -1, createdAt: -1 }),
+      session,
+    )
+    if (closed) {
+      if (toDept) closed.transferToDepartment = toDept
+      closed.departmentManagerName = actor?.name || closed.departmentManagerName
+      await closed.save(writeOpts(session))
+      return closed
     }
   }
 
