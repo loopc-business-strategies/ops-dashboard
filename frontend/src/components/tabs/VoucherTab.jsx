@@ -506,14 +506,31 @@ export default function VoucherTab({
       ...(year ? { year } : {}),
       ...(months.length ? { months: toMonthCsv(months) } : {}),
     }
-    if (force || !peekSharedVoucherList(token, query)) setLoadingList(true)
-    try {
-      const res = await loadSharedVoucherList(token, query, { force })
+    const applyList = (res) => {
       const txs = sortVouchers(
-        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
-        voucherType
+        (res?.transactions || []).filter((t) => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType,
       )
       setVouchers(txs)
+    }
+    const cached = peekSharedVoucherList(token, query)
+    if (!force && cached?.transactions?.length) {
+      applyList(cached)
+      setLoadingList(false)
+      if (cached.listComplete !== false) return
+    } else if (force || !cached) {
+      setLoadingList(true)
+    }
+    try {
+      const res = await loadSharedVoucherList(token, query, {
+        force,
+        onPage: (partial) => {
+          applyList(partial)
+          // First page is enough to drop the spinner; older pages keep appending.
+          setLoadingList(false)
+        },
+      })
+      applyList(res)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load vouchers')
     } finally {
