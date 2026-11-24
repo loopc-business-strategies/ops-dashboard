@@ -1360,7 +1360,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         isActive: true,
         accountType: 'Asset',
         $or: [{ accountName: /cash|bank/i }, { accountCode: /^10/ }],
-      }).select('accountCode accountName').lean(),
+      }).select('accountCode accountName currency').lean(),
       ChartOfAccount.find({ accountType: 'Asset' }).select('accountName accountCode').lean(),
       ChartOfAccount.find({ accountType: 'Liability' }).select('accountName accountCode').lean(),
       Ledger.find({
@@ -1477,11 +1477,20 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
 
     const cashBankBalances = bankAccounts.map((account) => {
       const balance = outstandingMap.get(String(account._id)) || 0
-      return { accountCode: account.accountCode, accountName: account.accountName, balance: toMoney(balance) }
-    })
+      return {
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        currency: String(account.currency || BASE_CURRENCY_CODE || 'USD').toUpperCase(),
+        balance: toMoney(balance),
+      }
+    }).sort((a, b) => String(a.accountCode || '').localeCompare(String(b.accountCode || '')))
     const totalBankBalance = cashBankBalances.reduce((s, a) => s + Number(a.balance || 0), 0)
-    const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName))
-    const cashRows = cashBankBalances.filter((a) => /cash/i.test(a.accountName))
+    const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName) || /^101/.test(String(a.accountCode || '')))
+    const cashRows = cashBankBalances.filter((a) => {
+      const code = String(a.accountCode || '')
+      if (/bank/i.test(a.accountName) || /^101/.test(code)) return false
+      return /cash/i.test(a.accountName) || /^100/.test(code) || /^102/.test(code)
+    })
 
     const monthlyOutflows = monthlyCashFlow.map((m) => Number(m.outflow || m.cashOut || 0))
     const monthlyInflows = monthlyCashFlow.map((m) => Number(m.inflow || m.cashIn || 0))

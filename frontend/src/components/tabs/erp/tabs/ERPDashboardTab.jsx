@@ -220,6 +220,15 @@ export default function ERPDashboardTab({
                         <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{widgetLabel(meta)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {meta.viewTab && (
+                          <button
+                            type="button"
+                            draggable={false}
+                            onDragStart={(ev) => ev.stopPropagation()}
+                            onClick={() => setActiveTab(meta.viewTab)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
+                          >{t('viewArrow')}</button>
+                        )}
                         {meta.expandable && (
                           <button
                             type="button"
@@ -232,15 +241,6 @@ export default function ERPDashboardTab({
                           >⛶</button>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
-                        {meta.viewTab && (
-                          <button
-                            type="button"
-                            draggable={false}
-                            onDragStart={(ev) => ev.stopPropagation()}
-                            onClick={() => setActiveTab(meta.viewTab)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
-                          >{t('viewArrow')}</button>
-                        )}
                         <button
                           type="button"
                           draggable={false}

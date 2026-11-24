@@ -12,6 +12,7 @@ import { useLanguage } from '../../../context/LanguageContext'
 import { formatAmount, formatMoney } from '../../../utils/money'
 import { ERP_TAB_COLORS } from './erpTabPresentation'
 import { filterAndSortDashboardMarginRows } from './dashboardMarginRows'
+import { cashBankBalanceGroups } from './categorizeCashBankBalances'
 
 const ERP_LINK = ERP_TAB_COLORS.link
 const ERP_POSITIVE = ERP_TAB_COLORS.positive
@@ -362,7 +363,8 @@ function APARWidget({ dashboard, onNavigate, baseCurrencyCode = 'USD' }) {
         {onNavigate && (
           <div style={{ marginTop: '0.6rem', textAlign: 'right', flexShrink: 0 }}>
             <button
-              onClick={() => onNavigate('apar')}
+              type="button"
+              onClick={() => onNavigate('enquiry')}
               style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
             >{t('viewFullDetails')}</button>
           </div>
@@ -570,22 +572,50 @@ function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null
       return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} baseCurrencyCode={baseCurrencyCode} />
 
     case 'bank': {
-      const bankRows = dashboard?.bankBalances || []
-      const cashRows = dashboard?.cashBalances || []
-      const allRows = [...bankRows, ...cashRows]
+      const groups = cashBankBalanceGroups(dashboard)
+      const sections = [
+        { key: 'bank', label: 'Bank Accounts', rows: groups.bank },
+        { key: 'cash', label: 'Cash Accounts', rows: groups.cash },
+        { key: 'other', label: 'Other', rows: groups.other },
+      ].filter((section) => section.rows.length > 0)
+      const allRows = sections.flatMap((section) => section.rows)
       const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
       return (
         <div style={widgetContainerStyle}>
           <div style={widgetScrollStyle}>
           {allRows.length === 0
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', padding: '0.75rem' }}>{t('noAccountsFound')}</p>
-            : allRows.map((a, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB' }}>
-                <div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink }}>{a.accountName}</div>
-                  <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
+            : sections.map((section) => (
+              <div key={section.key}>
+                <div style={{
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: muted,
+                  background: '#F9FAFB',
+                  borderBottom: '1px solid #F3F4F6',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1,
+                }}
+                >
+                  {section.label}
+                  <span style={{ fontWeight: 500, marginLeft: '0.35rem' }}>({section.rows.length})</span>
                 </div>
-                <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem' }}>{fmtMoney(a.balance, a.currency || baseCurrencyCode)}</span>
+                {section.rows.map((a) => (
+                  <div
+                    key={`${section.key}-${a.accountCode}-${a.accountName}`}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', borderBottom: '1px solid #F9FAFB', gap: '0.5rem' }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.accountName}</div>
+                      <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
+                    </div>
+                    <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem', flexShrink: 0 }}>{fmtMoney(a.balance, a.currency || baseCurrencyCode)}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -596,7 +626,8 @@ function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null
           {onNavigate && (
             <div style={{ padding: '0 0.75rem 0.6rem', textAlign: 'right', flexShrink: 0 }}>
               <button
-                onClick={() => onNavigate('bank')}
+                type="button"
+                onClick={() => onNavigate('enquiry')}
                 style={{ background: 'none', border: 'none', color: ERP_LINK, cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
               >{t('viewFullDetails')}</button>
             </div>
