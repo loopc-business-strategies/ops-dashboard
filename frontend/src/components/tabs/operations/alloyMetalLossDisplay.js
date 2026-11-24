@@ -10,7 +10,7 @@ const STOCK_SHORT = {
   XPT: 'Pt',
 }
 
-function roundG(n, digits = 3) {
+function roundG(n, digits = 4) {
   const x = Number(n)
   if (!Number.isFinite(x)) return null
   const f = 10 ** digits

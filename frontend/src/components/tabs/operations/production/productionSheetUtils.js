@@ -120,9 +120,14 @@ export function formatMinutes(mins) {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
+/** Grams display: up to 4 dp so Loss 0.694 is not cut to 0.69. */
 export function formatWeight(value) {
   if (value == null || !Number.isFinite(value)) return '—'
-  return `${Number(value.toFixed(2))} g`
+  const rounded = Math.round(Number(value) * 1e4) / 1e4
+  return `${rounded.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  })} g`
 }
 
 export function formatPurity(value) {
@@ -176,7 +181,8 @@ export function isOverLossLimit(lossPct, lossLimitPct) {
   return lossPct != null && lossLimitPct != null && lossPct > lossLimitPct
 }
 
-const round3 = (n) => Math.round(n * 1000) / 1000
+/** Match Gold Alloy / mix calc — 4 dp, no 3-dp cut-off on Loss totals. */
+const roundGrams = (n) => Math.round(n * 10000) / 10000
 
 /** Unique batch identity within one department table (Gold Alloy mix = one batch across visits). */
 export function departmentBatchIdentity(row) {
@@ -211,7 +217,7 @@ export function computeDepartmentTotals(rows) {
   const num = (v) => v != null && Number.isFinite(v)
   const sum = (key, pick = list) => {
     const vals = pick.map((r) => r[key]).filter(num)
-    return vals.length ? round3(vals.reduce((a, b) => a + b, 0)) : null
+    return vals.length ? roundGrams(vals.reduce((a, b) => a + b, 0)) : null
   }
   const finished = list.filter((r) => num(r.metalIn) && num(r.metalOut))
   const withFineIn = list.filter((r) => num(r.metalIn) && num(r.fineGold))
@@ -504,7 +510,7 @@ export function alloyBatchMetals(rows) {
   floor.forEach((r) => {
     if (Number.isFinite(r.metalLoss) && r.metalLoss > 0) metalLoss += r.metalLoss
   })
-  metalLoss = round3(metalLoss)
+  metalLoss = roundGrams(metalLoss)
 
   const floorOuts = floor
     .filter((r) => Number.isFinite(r.metalOut))
@@ -519,12 +525,12 @@ export function alloyBatchMetals(rows) {
   if (floorOuts.length) {
     metalOut = floorOuts[floorOuts.length - 1].metalOut
   } else if (metalLoss > 0 && Number.isFinite(metalIn)) {
-    metalOut = Math.max(0, round3(metalIn - metalLoss))
+    metalOut = Math.max(0, roundGrams(metalIn - metalLoss))
   }
 
   return {
-    metalIn: Number.isFinite(metalIn) ? round3(metalIn) : 0,
-    metalOut: Number.isFinite(metalOut) ? round3(metalOut) : 0,
+    metalIn: Number.isFinite(metalIn) ? roundGrams(metalIn) : 0,
+    metalOut: Number.isFinite(metalOut) ? roundGrams(metalOut) : 0,
     metalLoss,
   }
 }
@@ -568,9 +574,9 @@ export function computeSummary(rows) {
     departmentsWithData: deptsWithRows.size,
     totalEmployees: employees.size,
     totalBatches: byBatch.size,
-    totalMetalIn: round3(metalIn),
-    totalMetalOut: round3(metalOut),
-    totalMetalLoss: round3(metalLoss),
+    totalMetalIn: roundGrams(metalIn),
+    totalMetalOut: roundGrams(metalOut),
+    totalMetalLoss: roundGrams(metalLoss),
   }
 }
 

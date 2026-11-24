@@ -763,7 +763,7 @@ export default function DepartmentTable({
         <input
           type="number"
           min="0"
-          step="0.01"
+          step="0.0001"
           style={{ ...inputStyle, textAlign: 'right' }}
           value={draft[key] == null ? '' : draft[key]}
           onChange={(e) => {

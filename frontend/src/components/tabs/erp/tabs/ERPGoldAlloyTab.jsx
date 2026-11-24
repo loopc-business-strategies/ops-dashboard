@@ -68,7 +68,8 @@ const secondaryBtnStyle = {
 function formatAlloyMetalLoss(value) {
   const n = Number(value) || 0
   if (Math.abs(n) < 0.00005) return '0'
-  const abs = Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 0 })
+  // Keep up to 4 dp (e.g. −0.694) — do not cut to 2 like Ops used to.
+  const abs = formatAlloyGramsDisplay(Math.abs(n), { maxDigits: 4, minDigits: 0 })
   return n < 0 ? `-${abs}` : `+${abs}`
 }
 
@@ -1384,10 +1385,10 @@ export default function ERPGoldAlloyTab({
                             fontSize: '0.85rem',
                           }}
                           >
-                            {Number(row.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                            {formatAlloyGramsDisplay(row.targetGross || 0)} g
                             {showMetalLoss && originalRow ? (
                               <div style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                                was {Number(originalRow.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g original
+                                was {formatAlloyGramsDisplay(originalRow.targetGross || 0)} g original
                               </div>
                             ) : null}
                           </td>
@@ -1423,7 +1424,7 @@ export default function ERPGoldAlloyTab({
                             <div style={{ fontWeight: 700 }}>{row.finishedName || '—'}</div>
                             {!isHistory && row.finishedQtyAfter != null ? (
                               <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>
-                                on hand {Number(row.finishedQtyAfter).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                                on hand {formatAlloyGramsDisplay(row.finishedQtyAfter)} g
                               </div>
                             ) : null}
                             {row.linkedPrior ? (
@@ -1449,7 +1450,7 @@ export default function ERPGoldAlloyTab({
                                 const lineLoss = inputLossByKey.get(lossKey)
                                 return (
                                   <div key={`${row.id}-${item.itemId || item.name}-${item.gross}`}>
-                                    {item.name}: {Number(item.gross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                                    {item.name}: {formatAlloyGramsDisplay(item.gross || 0)} g
                                     {showMetalLoss && lineLoss != null && Math.abs(lineLoss) >= 0.0005 ? (
                                       <span style={{
                                         marginLeft: '0.35rem',
@@ -1673,7 +1674,7 @@ export default function ERPGoldAlloyTab({
                 {mixFormMode === 'view' ? 'Viewing' : 'Editing'}
                 {' '}
                 {editingPosted.karat ? `${editingPosted.karat}K ` : ''}
-                {Number(editingPosted.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                {formatAlloyGramsDisplay(editingPosted.targetGross || 0)} g
                 {' → '}
                 {editingPosted.finishedName || 'finished'}
                 {editingPosted.isHistory ? ' · prior history (inventory already restored)' : ''}
@@ -1828,7 +1829,7 @@ export default function ERPGoldAlloyTab({
                     <option key={option.id} value={option.id}>
                       {option.label || option.name}
                       {option.quantity != null
-                        ? ` · on hand ${Number(option.quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+                        ? ` · on hand ${formatAlloyGramsDisplay(option.quantity)} g`
                         : ''}
                     </option>
                   ))}
@@ -1905,7 +1906,7 @@ export default function ERPGoldAlloyTab({
                           fontSize: '0.82rem',
                         }}
                         >
-                          {line.stockId ? onHand.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '—'}
+                          {line.stockId ? formatAlloyGramsDisplay(onHand) : '—'}
                         </td>
                         <td style={{ padding: '0.35rem 0.65rem' }}>
                           <input
@@ -2252,7 +2253,7 @@ export default function ERPGoldAlloyTab({
                   style={{ ...fieldStyle, fontWeight: 800 }}
                 />
                 <div style={{ marginTop: 4, fontSize: '0.7rem', color: '#64748B' }}>
-                  was {Number(updateOriginalFinishedGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                  was {formatAlloyGramsDisplay(updateOriginalFinishedGross || 0)} g
                 </div>
               </div>
               <div>
@@ -2268,7 +2269,7 @@ export default function ERPGoldAlloyTab({
                 }}
                 >
                   {updateFinishedPure
-                    ? `${updateFinishedPure.toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+                    ? `${formatAlloyGramsDisplay(updateFinishedPure)} g`
                     : '—'}
                   {normalizeAlloyPurity(updateFinishedPurityPct) > 0 ? (
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#047857', marginTop: 2 }}>
@@ -2304,7 +2305,7 @@ export default function ERPGoldAlloyTab({
                   </td>
                   <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 800, fontSize: '0.82rem' }}>
                     {Number(updateFinishedGross) > 0
-                      ? Number(updateFinishedGross).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                      ? formatAlloyGramsDisplay(updateFinishedGross)
                       : '—'}
                   </td>
                   <td style={{
@@ -2318,7 +2319,7 @@ export default function ERPGoldAlloyTab({
                   </td>
                   <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontWeight: 700, fontSize: '0.82rem', color: '#334155' }}>
                     {updateFinishedPure
-                      ? updateFinishedPure.toLocaleString(undefined, { maximumFractionDigits: 3 })
+                      ? formatAlloyGramsDisplay(updateFinishedPure)
                       : '—'}
                   </td>
                   <td style={{
@@ -2354,7 +2355,7 @@ export default function ERPGoldAlloyTab({
                         title="Metal gross = mix share × Allowed wt (updates when purity/share changes)"
                       >
                         {Number(line.gross) > 0
-                          ? Number(line.gross).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                          ? formatAlloyGramsDisplay(line.gross)
                           : '—'}
                       </td>
                       <td style={{ padding: '0.35rem 0.5rem' }}>
@@ -2381,7 +2382,7 @@ export default function ERPGoldAlloyTab({
                       }}
                       >
                         {Number(line.pure) > 0
-                          ? Number(line.pure).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                          ? formatAlloyGramsDisplay(line.pure)
                           : '—'}
                       </td>
                       <td style={{
@@ -2405,12 +2406,12 @@ export default function ERPGoldAlloyTab({
                   </td>
                   <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 800, fontSize: '0.85rem' }}>
                     {Number(updateFinishedGross) > 0
-                      ? `${Number(updateFinishedGross).toLocaleString(undefined, { maximumFractionDigits: 3 })} g`
+                      ? `${formatAlloyGramsDisplay(updateFinishedGross)} g`
                       : '—'}
                   </td>
                   <td colSpan={2} style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontSize: '0.78rem', color: '#047857', fontWeight: 700 }}>
                     {normalizeAlloyPurity(updateFinishedPurityPct) > 0
-                      ? `${normalizeAlloyPurity(updateFinishedPurityPct).toFixed(2)} · ${updateAchievedKarat || '—'}K · pure ${updateFinishedPure || '—'}`
+                      ? `${normalizeAlloyPurity(updateFinishedPurityPct).toFixed(2)} · ${updateAchievedKarat || '—'}K · pure ${formatAlloyGramsDisplay(updateFinishedPure || 0)}`
                       : '—'}
                   </td>
                   <td style={{

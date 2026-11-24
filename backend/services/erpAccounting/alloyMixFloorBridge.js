@@ -22,8 +22,9 @@ function httpError(status, message) {
   return err
 }
 
+/** 4 dp — align with Gold Alloy calc so 552.3035 / 0.694 are not cut to 3 dp. */
 function toQty(n) {
-  return Math.round(Number(n || 0) * 1000) / 1000
+  return Math.round(Number(n || 0) * 10000) / 10000
 }
 
 /**
