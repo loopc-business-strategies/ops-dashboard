@@ -28,7 +28,7 @@ export const ERP_DASH_CARD_MIN_HEIGHT = '440px'
 export const ERP_DASH_ALL_WIDGETS = [
   { id: 'margins', labelKey: 'widgetMargins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 2 },
   { id: 'fixing', labelKey: 'erpNetPosition', label: 'Net Position', icon: '📌', color: '#fdf2f8', desc: 'Metal position by type (XAU–XPD)', cols: 2, viewTab: 'fixing-register' },
-  { id: 'bank', labelKey: 'widgetBankCash', label: 'Bank & Cash Balances', icon: '🏦', color: '#ede9fe', desc: 'All account balances overview', cols: 2, viewTab: 'enquiry' },
+  { id: 'bank', labelKey: 'widgetBankCash', label: 'Account Balances', icon: '🏦', color: '#ede9fe', desc: 'All accounts by type — zeros hidden', cols: 2, viewTab: 'enquiry' },
   { id: 'cashflow', labelKey: 'cashFlow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },
   { id: 'expenses', labelKey: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown and monthly trend', cols: 2, expandable: true },
   { id: 'volume', labelKey: 'widgetVolume', label: 'Total Volume Traded', icon: '📦', color: '#ffedd5', desc: 'Trade volume by metal type', cols: 2 },

@@ -12,7 +12,7 @@ import { useLanguage } from '../../../context/LanguageContext'
 import { formatAmount, formatMoney } from '../../../utils/money'
 import { ERP_TAB_COLORS } from './erpTabPresentation'
 import { filterAndSortDashboardMarginRows } from './dashboardMarginRows'
-import { cashBankBalanceGroups } from './categorizeCashBankBalances'
+import { accountBalanceSections } from './categorizeCashBankBalances'
 
 const ERP_LINK = ERP_TAB_COLORS.link
 const ERP_POSITIVE = ERP_TAB_COLORS.positive
@@ -572,12 +572,7 @@ function ERPDashWidgetBody({ id, dashboard, chatMessages = [], onNavigate = null
       return <MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} baseCurrencyCode={baseCurrencyCode} />
 
     case 'bank': {
-      const groups = cashBankBalanceGroups(dashboard)
-      const sections = [
-        { key: 'bank', label: 'Bank Accounts', rows: groups.bank },
-        { key: 'cash', label: 'Cash Accounts', rows: groups.cash },
-        { key: 'other', label: 'Other', rows: groups.other },
-      ].filter((section) => section.rows.length > 0)
+      const sections = accountBalanceSections(dashboard, { hideZero: true })
       const allRows = sections.flatMap((section) => section.rows)
       const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
       return (

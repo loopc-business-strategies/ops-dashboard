@@ -652,7 +652,7 @@
   "erpDashWidgetsPartial": "{n} of {total} widgets",
   "erpDashWidgetsSelected": "{n} widgets selected",
   "widgetMargins": "Customer & Supplier Margins",
-  "widgetBankCash": "Bank & Cash Balances",
+  "widgetBankCash": "Account Balances",
   "widgetVolume": "Total Volume Traded",
   "widgetApar": "Accounts Payable & Receivable",
   "widgetNotif": "Notifications & Alerts",

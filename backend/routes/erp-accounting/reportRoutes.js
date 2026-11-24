@@ -1347,7 +1347,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       accountMetaMap,
       customers,
       vendors,
-      bankAccounts,
+      allAccounts,
       assets,
       liabilities,
       ledgerEntries,
@@ -1356,11 +1356,9 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       loadAccountMetaMap(ChartOfAccount),
       Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName accountType openingBalance marginPercent').lean(),
       Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName marginPercent').lean(),
-      ChartOfAccount.find({
-        isActive: true,
-        accountType: 'Asset',
-        $or: [{ accountName: /cash|bank/i }, { accountCode: /^10/ }],
-      }).select('accountCode accountName currency').lean(),
+      ChartOfAccount.find({ isActive: true })
+        .select('_id accountCode accountName currency accountType')
+        .lean(),
       ChartOfAccount.find({ accountType: 'Asset' }).select('accountName accountCode').lean(),
       ChartOfAccount.find({ accountType: 'Liability' }).select('accountName accountCode').lean(),
       Ledger.find({
@@ -1372,6 +1370,14 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         .populate('creditAccountId', 'accountCode accountName accountType')
         .lean(),
     ])
+
+    // Liquid bank/cash subset — used for runway / legacy bank+cash widget lists.
+    const bankAccounts = allAccounts.filter((account) => {
+      if (String(account.accountType || '') !== 'Asset') return false
+      const name = String(account.accountName || '')
+      const code = String(account.accountCode || '')
+      return /cash|bank/i.test(name) || /^10/.test(code)
+    })
 
     const periodLedger = ledgerEntries.filter((entry) => {
       const entryDate = new Date(entry.date)
@@ -1462,7 +1468,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const monthlyCashFlow = buildMonthlyCashFlow(ledgerEntries, accountMetaMap, today, toMoney)
 
     const balanceAccountIds = new Set()
-    bankAccounts.forEach((account) => balanceAccountIds.add(String(account._id)))
+    allAccounts.forEach((account) => balanceAccountIds.add(String(account._id)))
     customers.forEach((customer) => {
       if (customer.ledgerAccountId?._id) balanceAccountIds.add(String(customer.ledgerAccountId._id))
     })
@@ -1475,15 +1481,19 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       getAgingMapForAccounts(Ledger, customerLedgerIds),
     ])
 
-    const cashBankBalances = bankAccounts.map((account) => {
+    const toBalanceRow = (account) => {
       const balance = outstandingMap.get(String(account._id)) || 0
       return {
         accountCode: account.accountCode,
         accountName: account.accountName,
+        accountType: account.accountType || '',
         currency: String(account.currency || BASE_CURRENCY_CODE || 'USD').toUpperCase(),
         balance: toMoney(balance),
       }
-    }).sort((a, b) => String(a.accountCode || '').localeCompare(String(b.accountCode || '')))
+    }
+    const byAccountCode = (a, b) => String(a.accountCode || '').localeCompare(String(b.accountCode || ''))
+    const allAccountBalances = allAccounts.map(toBalanceRow).sort(byAccountCode)
+    const cashBankBalances = bankAccounts.map(toBalanceRow).sort(byAccountCode)
     const totalBankBalance = cashBankBalances.reduce((s, a) => s + Number(a.balance || 0), 0)
     const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName) || /^101/.test(String(a.accountCode || '')))
     const cashRows = cashBankBalances.filter((a) => {
@@ -1897,6 +1907,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       bankBalances: bankRows,
       cashBalances: cashRows,
       allCashBankBalances: cashBankBalances,
+      allAccountBalances,
       totalBankBalance: toMoney(totalBankBalance),
       cashFlow: {
         inflow: toMoney(cashInflow),
