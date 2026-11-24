@@ -134,7 +134,38 @@ function VaultBalanceStrip() {
 }
 
 function formatStockQty(value) {
-  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })
+  const n = Number(value || 0)
+  if (!Number.isFinite(n)) return '0'
+  return n.toLocaleString(undefined, { maximumFractionDigits: 3 })
+}
+
+/** Short unit for headers: grams → g, kilogram → kg, etc. */
+function stockUnitAbbrev(unit) {
+  const raw = String(unit || '').trim().toLowerCase()
+  if (!raw) return 'g'
+  if (raw === 'g' || raw === 'gram' || raw === 'grams') return 'g'
+  if (raw === 'kg' || raw === 'kilo' || raw === 'kilos' || raw === 'kilogram' || raw === 'kilograms') return 'kg'
+  if (raw === 'mg' || raw === 'milligram' || raw === 'milligrams') return 'mg'
+  if (raw === 'oz' || raw === 'ounce' || raw === 'ounces') return 'oz'
+  if (raw === 'pcs' || raw === 'pc' || raw === 'piece' || raw === 'pieces') return 'pcs'
+  return raw
+}
+
+function groupStockUnitAbbrev(items = []) {
+  const counts = new Map()
+  for (const item of items) {
+    const key = stockUnitAbbrev(item?.unit)
+    counts.set(key, (counts.get(key) || 0) + 1)
+  }
+  let best = 'g'
+  let bestCount = 0
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      best = key
+      bestCount = count
+    }
+  }
+  return best
 }
 
 function VaultStock({ inventory }) {
@@ -149,27 +180,28 @@ function VaultStock({ inventory }) {
   }
   return (
     <div className="pd-vault-stock">
-      {inventory.groups.map((group) => (
-        <section key={group.category}>
-          <h4 className="pd-vault-stock-cat">{group.category}</h4>
-          <div className="pd-vault-stock-head" aria-hidden>
-            <span>Item</span>
-            <span>Gross</span>
-            <span>Pure</span>
-            <span>Unit</span>
-          </div>
-          <div className="pd-vault-stock-list">
-            {group.items.map((item) => (
-              <div key={item.id} className="pd-vault-stock-row">
-                <span>{item.name}</span>
-                <span>{formatStockQty(item.grossQty)}</span>
-                <span>{formatStockQty(item.pureQty)}</span>
-                <span>{item.unit}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+      {inventory.groups.map((group) => {
+        const u = groupStockUnitAbbrev(group.items)
+        return (
+          <section key={group.category} className="pd-vault-stock-section">
+            <h4 className="pd-vault-stock-cat">{group.category}</h4>
+            <div className="pd-vault-stock-head" aria-hidden>
+              <span>Item</span>
+              <span>{`Gross(${u})`}</span>
+              <span>{`Pure(${u})`}</span>
+            </div>
+            <div className="pd-vault-stock-list">
+              {group.items.map((item) => (
+                <div key={item.id} className="pd-vault-stock-row">
+                  <span title={item.name}>{item.name}</span>
+                  <span title={`${item.grossQty} ${item.unit || u}`}>{formatStockQty(item.grossQty)}</span>
+                  <span title={`${item.pureQty} ${item.unit || u}`}>{formatStockQty(item.pureQty)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }

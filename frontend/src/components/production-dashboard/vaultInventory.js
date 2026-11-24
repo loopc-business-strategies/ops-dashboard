@@ -35,6 +35,7 @@ export function buildVaultStockGroups(products) {
     const pairs = decodeInventoryCategoryPairs(item.category)
     const meta = decodeInventoryCategoryMeta(item.category)
     const grossQty = Math.max(0, Number(item.quantity || 0))
+    // Vault card: only on-hand stock (qty 0 stays out of the list).
     if (!(grossQty > 0)) return
     const purity = pairs.productPurity || pairs.purity || meta.purity || ''
     const row = {
@@ -52,6 +53,11 @@ export function buildVaultStockGroups(products) {
     }
     byCategory.get(category).items.push(row)
   })
+  // Within each metal: higher gross first so the main balances read first.
+  for (const group of groups) {
+    group.items.sort((a, b) => (Number(b.grossQty) || 0) - (Number(a.grossQty) || 0)
+      || String(a.name || '').localeCompare(String(b.name || '')))
+  }
   groups.sort((a, b) => {
     const byOrder = vaultCategorySortIndex(a.category) - vaultCategorySortIndex(b.category)
     if (byOrder !== 0) return byOrder

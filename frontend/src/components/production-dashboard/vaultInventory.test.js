@@ -28,4 +28,17 @@ describe('buildVaultStockGroups', () => {
 
     expect(groups.map((group) => group.category)).toEqual(['Gold', 'Silver', 'Copper', 'Alloy', 'Cadmium'])
   })
+
+  test('sorts items within a category by gross qty descending', () => {
+    const groups = buildVaultStockGroups([
+      { _id: 'g1', name: '22k alloyed gold', category: 'mainStock=gold;recordType=product;productPurity=0.9166', quantity: 551.51, unit: 'grams' },
+      { _id: 'g2', name: 'Gold Bar', category: 'mainStock=gold;recordType=product;productPurity=1', quantity: 1694.866, unit: 'grams' },
+      { _id: 'g3', name: '14 k chain', category: 'mainStock=gold;recordType=product;productPurity=0.585', quantity: 10.06, unit: 'grams' },
+    ])
+    expect(groups[0].items.map((row) => row.name)).toEqual([
+      'Gold Bar',
+      '22k alloyed gold',
+      '14 k chain',
+    ])
+  })
 })
