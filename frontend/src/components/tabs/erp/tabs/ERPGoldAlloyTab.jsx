@@ -1221,26 +1221,32 @@ export default function ERPGoldAlloyTab({
                       const linkNote = row.isGroupHead
                         ? (isHistory ? 'Latest history' : (isUpdated ? 'Current updated' : 'Current posted'))
                         : (isUpdated ? 'Prior update · linked' : 'Original post · linked')
-                      // Compare to the next older version in this linked group (Posted → Updated).
+                      // Newest first: prior = next older; original = oldest in the linked group.
                       const priorRow = group.rows[rowIndex + 1] || null
-                      const showMetalLoss = Boolean(priorRow) && (
-                        isUpdated || Number(row.targetGross) !== Number(priorRow.targetGross)
+                      const originalRow = group.rows[group.rows.length - 1] || null
+                      const showMetalLoss = Boolean(originalRow) && originalRow !== row && (
+                        isUpdated || Number(row.targetGross) !== Number(originalRow.targetGross)
                       )
+                      // Addon / cumulative from original Post Mix (not overwrite vs prior only).
+                      // e.g. Melting −0.694 then Rolling −0.1 → current shows −0.794.
                       const finishedLoss = showMetalLoss
+                        ? computeAlloyMetalLoss(row.targetGross, originalRow.targetGross)
+                        : 0
+                      const stepLoss = showMetalLoss && priorRow
                         ? computeAlloyMetalLoss(row.targetGross, priorRow.targetGross)
                         : 0
                       const inputLossByKey = new Map()
-                      if (showMetalLoss) {
+                      if (showMetalLoss && originalRow) {
                         ;(row.consumed || []).forEach((item) => {
-                          const priorGross = Number(
-                            (priorRow.consumed || []).find((c) => (
+                          const originalGross = Number(
+                            (originalRow.consumed || []).find((c) => (
                               String(c.itemId || '') === String(item.itemId || '')
                               || String(c.name || '') === String(item.name || '')
                             ))?.gross || 0,
                           )
                           inputLossByKey.set(
                             String(item.itemId || item.name || ''),
-                            computeAlloyMetalLoss(item.gross, priorGross),
+                            computeAlloyMetalLoss(item.gross, originalGross),
                           )
                         })
                       }
@@ -1351,7 +1357,12 @@ export default function ERPGoldAlloyTab({
                             </div>
                             {showMetalLoss && finishedLoss < 0 ? (
                               <div style={{ fontSize: '0.68rem', color: '#B91C1C', marginTop: 3, fontWeight: 800 }}>
-                                Update · metal loss {formatAlloyMetalLoss(finishedLoss)} g
+                                Update · metal loss {formatAlloyMetalLoss(finishedLoss)} g total
+                                {Math.abs(stepLoss - finishedLoss) >= 0.0005 ? (
+                                  <span style={{ fontWeight: 600, color: '#94A3B8' }}>
+                                    {` · this step ${formatAlloyMetalLoss(stepLoss)} g`}
+                                  </span>
+                                ) : null}
                               </div>
                             ) : null}
                           </td>
@@ -1373,9 +1384,9 @@ export default function ERPGoldAlloyTab({
                           }}
                           >
                             {Number(row.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
-                            {showMetalLoss && priorRow ? (
+                            {showMetalLoss && originalRow ? (
                               <div style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                                was {Number(priorRow.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                                was {Number(originalRow.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g original
                               </div>
                             ) : null}
                           </td>
@@ -1392,7 +1403,13 @@ export default function ERPGoldAlloyTab({
                             {showMetalLoss ? `${formatAlloyMetalLoss(finishedLoss)} g` : '—'}
                             {showMetalLoss ? (
                               <div style={{ fontSize: '0.66rem', color: '#94A3B8', fontWeight: 600, marginTop: 2 }}>
-                                vs prior version
+                                total from original
+                                {Math.abs(stepLoss - finishedLoss) >= 0.0005 ? (
+                                  <>
+                                    <br />
+                                    {`this step ${formatAlloyMetalLoss(stepLoss)} g`}
+                                  </>
+                                ) : null}
                               </div>
                             ) : null}
                           </td>
