@@ -675,7 +675,7 @@ export default function ERPGoldAlloyTab({
     })
   }
 
-  const reversePostedMix = async (posted, { skipConfirm = false } = {}) => {
+  const reversePostedMix = async (posted, { skipConfirm = false, preserveMetalLoss = false } = {}) => {
     const reason = String(posted?.reason || '').trim()
     if (!reason) {
       if (typeof setError === 'function') setError('Cannot reverse mix: missing reason')
@@ -688,7 +688,7 @@ export default function ERPGoldAlloyTab({
     }
     try {
       setMixActionId(posted.id)
-      await erpAccountingAPI.reverseAlloyMix(token, { reason })
+      await erpAccountingAPI.reverseAlloyMix(token, { reason, preserveMetalLoss: Boolean(preserveMetalLoss) })
       if (typeof loadInventory === 'function') await loadInventory()
       await reloadPostedMixes()
       return true
@@ -849,7 +849,11 @@ export default function ERPGoldAlloyTab({
       ).trim().toUpperCase()
 
       if (!historyOnly) {
-        const reversed = await reversePostedMix(updatePosted, { skipConfirm: true })
+        // Keep prior AML on Metal Loss — this Update adds its own step entry.
+        const reversed = await reversePostedMix(updatePosted, {
+          skipConfirm: true,
+          preserveMetalLoss: true,
+        })
         if (!reversed) return
       }
 

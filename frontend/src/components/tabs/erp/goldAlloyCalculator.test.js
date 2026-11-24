@@ -588,7 +588,7 @@ describe('goldAlloyCalculator', () => {
     // After 1st Update, display gross is remain (99); vault take stays on consumeGross (100).
     expect(resolveAlloyUpdateOriginalGross({ gross: 99, consumeGross: 100 })).toBe(100)
     expect(resolveAlloyUpdateOriginalGross({ gross: 99 })).toBe(99)
-    // 2nd Update: vault still consumes original; AML lossGross is cumulative from original.
+    // 2nd Update: vault still consumes original; AML lossGross is this step only.
     const payload = buildAlloyMixPayload({
       karat: 14,
       targetGross: 98.5,
@@ -616,12 +616,12 @@ describe('goldAlloyCalculator', () => {
     expect(consumeSum).toBeCloseTo(100, 3)
     expect(consumeSum - payload.targetGross).toBeCloseTo(1.5, 3)
     expect(payload.lines.find((l) => l.itemId === 'au').remainGross).toBe(70)
-    // 71 − 70 = 1 cumulative (not 0.5 this-step vs prior 70.5).
-    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(1, 3)
-    expect(payload.lines.find((l) => l.itemId === 'ag').lossGross).toBeCloseTo(0.5, 3)
+    // This step: 70.5 − 70 = 0.5 (prior Melting AML stays on account 5500).
+    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(0.5, 3)
+    expect(payload.lines.find((l) => l.itemId === 'ag').lossGross).toBe(0)
   })
 
-  test('buildAlloyMixPayload AML lossGross is cumulative from original consume', () => {
+  test('buildAlloyMixPayload AML lossGross is this Update step vs prior remain', () => {
     const payload = buildAlloyMixPayload({
       karat: 22,
       targetGross: 551.6,
@@ -647,8 +647,8 @@ describe('goldAlloyCalculator', () => {
     })
     expect(payload.lines.find((l) => l.itemId === 'au').gross).toBe(506.038)
     expect(payload.lines.find((l) => l.itemId === 'au').remainGross).toBe(505.828)
-    // Cumulative: 506.038 − 505.828 = 0.210 (not this-step 0.082 vs prior 505.91).
-    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(0.21, 3)
+    // This step vs prior: 505.91 − 505.828 = 0.082 (not full 0.210 from original).
+    expect(payload.lines.find((l) => l.itemId === 'au').lossGross).toBeCloseTo(0.082, 3)
     expect(payload.lines.find((l) => l.itemId === 'cu').lossGross).toBeCloseTo(0.019, 3)
   })
 

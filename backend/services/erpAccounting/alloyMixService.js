@@ -434,7 +434,7 @@ function createAlloyMixService({
       }
 
       // Inventory oxidation: prefer UI remain (consume − remain). Else input-share.
-      // Metal Loss AML: prefer client lossGross (cumulative from original). Else oxidation.
+      // Metal Loss AML: prefer client lossGross (this Update step). Else oxidation.
       const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
         ? (metalLossGross / totalInputGross)
         : 0
@@ -456,7 +456,7 @@ function createAlloyMixService({
             row.remainGross = toQty(Number(row.gross) - oxidationLoss)
           }
           row.lossGross = oxidationLoss
-          // AML: cumulative from original when provided; clamp to physical oxidation.
+          // AML: this-Update grams when provided; clamp to physical oxidation.
           const amlRaw = row.amlLossGross != null ? Number(row.amlLossGross) : oxidationLoss
           row.amlLossGross = toQty(Math.max(0, Math.min(amlRaw, oxidationLoss)))
         } else {
@@ -647,6 +647,8 @@ function createAlloyMixService({
     user,
     tenant,
     reason = '',
+    /** When true (Update Mix), keep prior AML metal_payment rows so each Update books its own Metal Loss entry. */
+    preserveMetalLoss = false,
   } = {}) {
     const tenantKey = String(tenant || '').trim().toLowerCase()
     if (!allowedTenants.includes(tenantKey)) {
@@ -751,12 +753,14 @@ function createAlloyMixService({
         }
       }
 
-      const metalLossVoided = await reverseMetalLossPositionVouchers({
-        user,
-        session,
-        reasonBase,
-        deletedAt,
-      })
+      const metalLossVoided = preserveMetalLoss
+        ? 0
+        : await reverseMetalLossPositionVouchers({
+          user,
+          session,
+          reasonBase,
+          deletedAt,
+        })
 
       // Fail closed: no active consume/receive for this mix may remain after reverse.
       const leftover = (allMoves || []).filter((move) => {

@@ -581,9 +581,9 @@ export function validateAlloyMixPost({
  * Build alloy-mix API body.
  * When a line has originalGross > gross (Update oxidation), consume originalGross
  * so vault still loses the burned metal; finished target stays at the new gross sum.
- * Metal Loss AML uses lossGross = original consume − remain (cumulative from first
- * Post). Update Mix reverse+reposts AML, so this-step-only would void prior Melting
- * loss and leave only the latest Rolling delta on account 5500.
+ * Metal Loss AML uses lossGross = this Update only (prior remain − new remain).
+ * Update Mix keeps prior AML vouchers (preserveMetalLoss) so 2 Updates → 2 Metal
+ * Loss account entries that sum to the cumulative total.
  */
 export function buildAlloyMixPayload({
   karat,
@@ -605,6 +605,7 @@ export function buildAlloyMixPayload({
       const consume = Number.isFinite(original) && original > remain + 0.0005
         ? original
         : remain
+      const priorRemain = Number(line.priorRemainGross)
       const payload = {
         itemId: String(line.stockId),
         gross: consume,
@@ -614,7 +615,11 @@ export function buildAlloyMixPayload({
       // Remain in finished after oxidation (inventory / Inputs OUT).
       if (consume > remain + 0.0005) {
         payload.remainGross = remain
-        // Cumulative AML from original vault take (not vs prior remain only).
+      }
+      // This-Update AML only — prior Melting AML stays on account 5500.
+      if (Number.isFinite(priorRemain) && priorRemain >= 0) {
+        payload.lossGross = roundAlloyGrams(Math.max(0, priorRemain - remain))
+      } else if (consume > remain + 0.0005) {
         payload.lossGross = roundAlloyGrams(Math.max(0, consume - remain))
       }
       return payload

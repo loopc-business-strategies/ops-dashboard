@@ -1588,7 +1588,7 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
   let allocatedRemain = 0
   const lines = priorInputs.map((c, index) => {
     const priorRemain = toQty(c.gross)
-    // Original vault take (cumulative AML). Fall back to prior remain for legacy jobs.
+    // Original vault take for inventory re-consume. Fall back to prior remain for legacy jobs.
     const consume = toQty(
       c.consumeGross != null && Number(c.consumeGross) > QTY_EPS
         ? c.consumeGross
@@ -1604,8 +1604,8 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
       // Re-consume original vault take after reverse (not only prior remain).
       gross: consume,
       remainGross: remain,
-      // Cumulative from original — reverse voids prior AML, so this must be total.
-      lossGross: toQty(Math.max(0, consume - remain)),
+      // This-step AML only — prior Update AML is preserved on account 5500.
+      lossGross: toQty(Math.max(0, priorRemain - remain)),
       role: c.role || '',
       label: c.label || c.role || '',
     }
@@ -1634,6 +1634,8 @@ async function autoUpdateAlloyMixAfterMetalOut({ user, batchLabel, outGross, ten
     user,
     tenant: tenantKey,
     reason: job.reasonBase,
+    // Keep Melting AML; this call only adds the new Rolling (etc.) Metal Loss entry.
+    preserveMetalLoss: true,
   })
 
   const description = `Gold alloy mix (${karat}K ${nextTarget} g · updated)`

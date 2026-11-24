@@ -507,7 +507,7 @@ describe('alloy mix floor bridge', () => {
     expect(String(openVault.transferFromDepartment || '').toLowerCase()).toBe('melting')
     expect(vaultRows.filter((r) => String(r.transferFromDepartment || '').toLowerCase() === 'update_mix')).toHaveLength(0)
 
-    // Original vault take kept so a later Update can post cumulative AML.
+    // Original vault take kept for inventory re-consume on later Updates.
     expect(liveJob.inputComponents.every((c) => Number(c.consumeGross) > 0)).toBe(true)
     const amlAfterFirst = await Transaction.find({
       isDeleted: { $ne: true },
@@ -519,8 +519,9 @@ describe('alloy mix floor bridge', () => {
       0,
     )
     expect(firstAmlGrams).toBeCloseTo(0.7, 5)
+    const firstAmlCount = amlAfterFirst.length
 
-    // Second floor OUT (e.g. Rolling): AML must stay cumulative (~0.8), not overwrite to 0.1.
+    // Second floor OUT (e.g. Rolling): keep Melting AML + add this-step ~0.1 → two bookings.
     const second = await autoUpdateAlloyMixAfterMetalOut({
       user,
       batchLabel: mixCode,
@@ -528,7 +529,6 @@ describe('alloy mix floor bridge', () => {
       tenant: 'mg',
     })
     expect(second?.success).toBe(true)
-    expect(Number(second.metalLossGross)).toBeCloseTo(0.8, 5)
 
     const amlLive = await Transaction.find({
       isDeleted: { $ne: true },
@@ -539,6 +539,7 @@ describe('alloy mix floor bridge', () => {
       (s, tx) => s + (tx.voucherMeta?.lineItems || []).reduce((a, li) => a + Number(li.pureWeight || 0), 0),
       0,
     )
+    expect(amlLive.length).toBeGreaterThan(firstAmlCount)
     expect(liveAmlGrams).toBeCloseTo(0.8, 5)
   })
 })
