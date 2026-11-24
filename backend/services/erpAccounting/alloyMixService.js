@@ -434,7 +434,7 @@ function createAlloyMixService({
       }
 
       // Inventory oxidation: prefer UI remain (consume − remain). Else input-share.
-      // Metal Loss AML: prefer client lossGross (this Update vs prior). Else oxidation.
+      // Metal Loss AML: prefer client lossGross (cumulative from original). Else oxidation.
       const lossRatio = totalInputGross > 0 && metalLossGross > GROSS_EPS
         ? (metalLossGross / totalInputGross)
         : 0
@@ -456,7 +456,7 @@ function createAlloyMixService({
             row.remainGross = toQty(Number(row.gross) - oxidationLoss)
           }
           row.lossGross = oxidationLoss
-          // AML: this-Update grams when provided; clamp to physical oxidation.
+          // AML: cumulative from original when provided; clamp to physical oxidation.
           const amlRaw = row.amlLossGross != null ? Number(row.amlLossGross) : oxidationLoss
           row.amlLossGross = toQty(Math.max(0, Math.min(amlRaw, oxidationLoss)))
         } else {

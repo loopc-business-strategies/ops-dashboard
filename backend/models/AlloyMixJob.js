@@ -36,7 +36,10 @@ const inputComponentSchema = new mongoose.Schema(
     name: { type: String, trim: true, default: '' },
     role: { type: String, trim: true, default: '' },
     label: { type: String, trim: true, default: '' },
+    /** Remain in finished bar (after oxidation). */
     gross: { type: Number, default: 0, min: 0 },
+    /** Original vault take — kept so later Updates can post cumulative AML. */
+    consumeGross: { type: Number, default: null, min: 0 },
   },
   { _id: false },
 )
