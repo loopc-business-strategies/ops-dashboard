@@ -323,6 +323,7 @@ const defaultBranding = {
   featureFlags: {
     procurementPlus: true,
     reportPdfDownload: true,
+    voucherListPdfExport: true,
     masterDocumentSettings: true,
     erpAdvancedListFilters: true,
     chatTranslate: true,
@@ -427,6 +428,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       reportPdfDownload: true,
+      voucherListPdfExport: true,
       masterDocumentSettings: true,
       erpAdvancedListFilters: true,
       chatTranslate: true,
@@ -472,6 +474,8 @@ const tenantBranding = {
     featureFlags: {
       departmentsComingSoon: true,
       procurementPlus: true,
+      reportPdfDownload: true,
+      voucherListPdfExport: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
@@ -492,7 +496,7 @@ export function isReportPdfDownloadEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.reportPdfDownload === true
 }
 
-/** List-level Export PDF / Print on all voucher tabs (MG first). */
+/** List-level Export PDF / Print on all voucher tabs (all tenants). */
 export function isVoucherListPdfExportEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.voucherListPdfExport === true
 }
