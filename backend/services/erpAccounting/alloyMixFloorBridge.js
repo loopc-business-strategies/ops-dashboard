@@ -1927,6 +1927,152 @@ async function autoUpdateAlloyMixAfterMetalOut({
   return result
 }
 
+/**
+ * Vault Room only: pick a catalog product, add gross (+ optional purity) onto an
+ * in-vault mix — bumps targetGross / lot weight, appends inputComponents, stock-out.
+ */
+async function addMetalToVaultMix({
+  user,
+  mixId,
+  productId,
+  gross,
+  purity = null,
+  note = '',
+  session = null,
+} = {}) {
+  const { catalogOnHandFromMovements } = require('../../utils/catalogOnHandQuantity')
+  const InventoryItem = require('../../models/InventoryItem')
+  const StockMovement = require('../../models/StockMovement')
+
+  const addGross = toQty(gross)
+  if (!(addGross > QTY_EPS)) throw httpError(400, 'Gross must be greater than zero')
+  const itemId = String(productId || '').trim()
+  if (!itemId) throw httpError(400, 'Select a stock product')
+
+  const job = await withSession(AlloyMixJob.findById(mixId), session)
+  if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
+  if (!(job.status === 'in_vault' && job.currentDepartment === VAULT)) {
+    throw httpError(400, 'Add metal is only allowed while the mix is in Vault Room')
+  }
+  if (await hasOpenFloorDescendant(job._id, await loadOpenChildrenByParent(session))) {
+    throw httpError(400, 'Cannot add metal while a split is still on the floor')
+  }
+
+  const item = await withSession(InventoryItem.findById(itemId), session)
+  if (!item || item.isDeleted) throw httpError(404, 'Stock product not found')
+  const productName = String(item.name || '').trim()
+  if (!productName) throw httpError(400, 'Stock product has no name')
+  if (/^alloy$/i.test(productName)) throw httpError(400, 'Cannot add finished Alloy as vault metal')
+
+  const onHand = await catalogOnHandFromMovements(StockMovement, item._id)
+  if (onHand + 1e-9 < addGross) {
+    throw httpError(
+      400,
+      `Insufficient stock for ${productName}. Available: ${toQty(onHand)} g, requested: ${addGross} g.`,
+    )
+  }
+
+  const category = String(item.category || '')
+  const pairs = Object.fromEntries(
+    category.split(';').map((part) => {
+      const i = part.indexOf('=')
+      if (i < 0) return [part.trim(), '']
+      return [part.slice(0, i).trim(), part.slice(i + 1).trim()]
+    }).filter(([k]) => k),
+  )
+  if (String(pairs.recordType || '').trim().toLowerCase() !== 'product') {
+    throw httpError(400, 'Select a created inventory product (not a stock-type master)')
+  }
+
+  let purityPct = null
+  const purityRaw = purity != null && purity !== ''
+    ? Number(purity)
+    : Number(pairs.productPurity || pairs.purity || item.purity || 0)
+  if (Number.isFinite(purityRaw) && purityRaw > 0) {
+    purityPct = purityRaw > 0 && purityRaw <= 1.2 ? purityRaw * 100 : purityRaw
+  }
+
+  const nextOnHand = toQty(onHand - addGross)
+  await StockMovement.create([{
+    itemId: item._id,
+    itemName: productName,
+    change: -addGross,
+    quantityBefore: toQty(onHand),
+    quantityAfter: nextOnHand,
+    reason: `${String(job.reasonBase || job.mixCode || 'mix').trim()} — vault add metal ${productName}`,
+    actorId: user?._id || null,
+    actorName: user?.name || '',
+  }], writeOpts(session))
+
+  item.quantity = nextOnHand
+  item.updatedBy = user?._id || item.updatedBy
+  await item.save(writeOpts(session))
+
+  const priorTarget = toQty(job.targetGross)
+  const priorRecipe = sumInputComponentGross(job.inputComponents)
+  // Seed gold-only FG before extras bump so later allocate does not treat copper/cadmium as gold.
+  let fineGold = job.fineGold != null && Number.isFinite(Number(job.fineGold))
+    ? toQty(job.fineGold)
+    : null
+  if (fineGold == null) {
+    const purityJob = job.purity != null ? Number(job.purity) : null
+    if (purityJob != null && Number.isFinite(purityJob) && purityJob > 0) {
+      const fgBase = priorRecipe > QTY_EPS && priorTarget > priorRecipe + 0.0005
+        ? priorRecipe
+        : priorTarget
+      if (fgBase > QTY_EPS) fineGold = toQty((fgBase * purityJob) / 100)
+    }
+  }
+
+  const components = Array.isArray(job.inputComponents) ? [...job.inputComponents] : []
+  components.push({
+    itemId: item._id,
+    name: productName,
+    role: 'extra',
+    label: productName,
+    gross: addGross,
+    consumeGross: addGross,
+  })
+  job.inputComponents = components
+  job.markModified('inputComponents')
+  job.targetGross = toQty(priorTarget + addGross)
+
+  const metalKey = String(pairs.mainStock || pairs.metalType || productName).toLowerCase()
+  const isGold = /gold|xau|\bau\b/.test(metalKey) || /gold|xau|\bau\b/.test(productName.toLowerCase())
+  if (isGold && purityPct != null && purityPct > 0) {
+    fineGold = toQty((fineGold != null ? fineGold : 0) + (addGross * (purityPct / 100)))
+  }
+  if (fineGold != null) job.fineGold = fineGold
+
+  job.updatedById = user?._id || job.updatedById
+  job.updatedByName = user?.name || job.updatedByName || ''
+  job.history.push({
+    at: new Date(),
+    action: 'update',
+    fromDepartment: VAULT,
+    toDepartment: VAULT,
+    note: String(note || '').trim()
+      || `Vault add metal ${productName} +${addGross} g`
+        + (purityPct != null ? ` @ ${purityPct}%` : ''),
+    actorId: user?._id || null,
+    actorName: user?.name || '',
+  })
+  await job.save(writeOpts(session))
+
+  if (job.stockLotId) {
+    const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
+    if (lot) {
+      lot.grossWeight = job.targetGross
+      lot.netWeight = job.targetGross
+      await lot.save(writeOpts(session))
+    }
+  }
+
+  return serializeJob(job, {
+    childrenByParent: await loadOpenChildrenByParent(session),
+  })
+}
+
 module.exports = {
   VAULT,
   MIX_CODE_PREFIX,
@@ -1939,6 +2085,7 @@ module.exports = {
   findOpenJobByReason,
   allocateMixJob,
   receiveMixJob,
+  addMetalToVaultMix,
   listMixJobs,
   serializeJob,
   serializeJobs,

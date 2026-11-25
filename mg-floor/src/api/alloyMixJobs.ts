@@ -99,3 +99,56 @@ export async function receiveAlloyMixJob(opts: {
     },
   )
 }
+
+export type InventoryProductRow = {
+  _id?: string
+  id?: string
+  name?: string
+  category?: string
+  purity?: number | string
+  unit?: string
+  quantity?: number
+  isDeleted?: boolean
+  deletedAt?: string | null
+}
+
+/** Created stock products for Vault Add metal picker. */
+export async function listInventoryProducts(opts: {
+  token: string
+  signal?: AbortSignal
+}) {
+  return apiRequest<{
+    success: boolean
+    products: InventoryProductRow[]
+  }>('/api/mg-floor/inventory-products', {
+    token: opts.token,
+    signal: opts.signal,
+  })
+}
+
+/** Vault Room only — bump mix targetGross with selected product gross (+ optional purity). */
+export async function addMetalToVaultMixJob(opts: {
+  token: string
+  mixId: string
+  productId: string
+  gross: number
+  purity?: number | null
+  note?: string
+}) {
+  return apiRequest<{
+    success: boolean
+    job: AlloyMixJob
+  }>(
+    `/api/mg-floor/alloy-mix-jobs/${encodeURIComponent(opts.mixId)}/add-metal`,
+    {
+      method: 'POST',
+      token: opts.token,
+      body: {
+        productId: opts.productId,
+        gross: opts.gross,
+        ...(opts.purity != null && Number.isFinite(opts.purity) ? { purity: opts.purity } : {}),
+        note: opts.note || '',
+      },
+    },
+  )
+}

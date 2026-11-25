@@ -853,4 +853,63 @@ router.post(
   },
 )
 
+/** Created inventory products for Vault "Add metal" picker (same catalog as ERP). */
+router.get(
+  '/inventory-products',
+  ...mgProtect,
+  requireProductionPermission('view'),
+  async (req, res) => {
+    try {
+      const InventoryItem = require('../models/InventoryItem')
+      const StockMovement = require('../models/StockMovement')
+      const { applyCatalogOnHandQuantities } = require('../utils/catalogOnHandQuantity')
+      const products = await InventoryItem.find({ isDeleted: { $ne: true } })
+        .sort({ name: 1 })
+        .limit(500)
+        .lean()
+      await applyCatalogOnHandQuantities({ InventoryItem, StockMovement, products })
+      res.json({ success: true, products })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
+/** Vault Room only: add a stock product (gross + purity) onto an in-vault mix. */
+router.post(
+  '/alloy-mix-jobs/:id/add-metal',
+  ...mgProtect,
+  requireProductionPermission('createPass'),
+  validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+  validateBody(Joi.object({
+    productId: Joi.string().trim().min(1).max(40).required(),
+    gross: Joi.number().positive().required(),
+    purity: Joi.number().min(0).max(100).allow(null).optional(),
+    note: Joi.string().trim().allow('').max(500).optional(),
+  })),
+  async (req, res) => {
+    try {
+      const { addMetalToVaultMix } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const { runInTransaction } = require('../utils/mongoTransaction')
+      const job = await runInTransaction(async (session) => addMetalToVaultMix({
+        user: req.user,
+        mixId: req.params.id,
+        productId: req.body.productId,
+        gross: req.body.gross,
+        purity: req.body.purity,
+        note: req.body.note,
+        session,
+      }))
+      emitWorkbookUpdate(req, 'alloy-mix-add-metal', {
+        mixCode: job?.mixCode,
+        department: job?.currentDepartment || 'vault_room',
+        targetGross: job?.targetGross,
+      })
+      res.json({ success: true, job })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
 module.exports = router

@@ -13,8 +13,10 @@ import {
 } from 'react-native'
 import { buttonShadow, tabletDashboard as td } from '@/src/theme'
 import {
+  addMetalToVaultMixJob,
   allocateAlloyMixJob,
   listAlloyMixJobs,
+  listInventoryProducts,
   receiveAlloyMixJob,
   type AlloyMixJob,
 } from '@/src/api/alloyMixJobs'
@@ -28,6 +30,11 @@ import {
   sumInputComponentGrams,
 } from './alloyMixAllocate'
 import { IdleFade } from './IdleFade'
+import {
+  groupVaultMetalOptions,
+  vaultMetalProductOptions,
+  type VaultMetalProductOption,
+} from './vaultAddMetal'
 
 /** Soft refresh so ERP Post / PD allocate appear without remount (no socket on tablet). */
 const MIX_JOBS_POLL_MS = 60000
@@ -61,7 +68,14 @@ export function AlloyMixPanel({
   const [allocating, setAllocating] = useState<AlloyMixJob | null>(null)
   const [allocWeight, setAllocWeight] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+  const [addingMetal, setAddingMetal] = useState<AlloyMixJob | null>(null)
+  const [metalCatalog, setMetalCatalog] = useState<VaultMetalProductOption[]>([])
+  const [selectedMetal, setSelectedMetal] = useState<VaultMetalProductOption | null>(null)
+  const [metalPickerOpen, setMetalPickerOpen] = useState(false)
+  const [addGross, setAddGross] = useState('')
+  const [addPurity, setAddPurity] = useState('')
   const requestRef = useRef(0)
+  const isVault = department === 'vault_room'
 
   const load = useCallback(async (opts?: { soft?: boolean }) => {
     if (!token || !department) {
@@ -137,11 +151,105 @@ export function AlloyMixPanel({
     [department],
   )
 
+  const metalGroups = useMemo(() => groupVaultMetalOptions(metalCatalog), [metalCatalog])
+
+  const loadMetalCatalog = useCallback(async () => {
+    if (!token || !isVault) {
+      setMetalCatalog([])
+      return
+    }
+    try {
+      const res = await listInventoryProducts({ token })
+      setMetalCatalog(vaultMetalProductOptions(res.products || []))
+    } catch {
+      setMetalCatalog([])
+    }
+  }, [token, isVault])
+
+  useEffect(() => {
+    loadMetalCatalog()
+  }, [loadMetalCatalog, refreshKey])
+
   const openAllocate = (job: AlloyMixJob) => {
+    setAddingMetal(null)
     setAllocating(job)
     setAllocWeight(String(job.targetGross ?? ''))
     setSuccessMsg('')
     setError('')
+  }
+
+  const openAddMetal = (job: AlloyMixJob) => {
+    setAllocating(null)
+    setAddingMetal(job)
+    setSelectedMetal(null)
+    setMetalPickerOpen(false)
+    setAddGross('')
+    setAddPurity('')
+    setSuccessMsg('')
+    setError('')
+    loadMetalCatalog()
+  }
+
+  const closeAddMetal = (force = false) => {
+    if (busyId && !force) return
+    setAddingMetal(null)
+    setSelectedMetal(null)
+    setMetalPickerOpen(false)
+    setAddGross('')
+    setAddPurity('')
+  }
+
+  const pickMetal = (opt: VaultMetalProductOption) => {
+    setSelectedMetal(opt)
+    setAddPurity(opt.purity || '')
+    setMetalPickerOpen(false)
+  }
+
+  const onSaveAddMetal = async () => {
+    if (!token || !addingMetal || !selectedMetal) {
+      setError('Select a metal product')
+      return
+    }
+    const gross = Number(String(addGross).replace(',', '.'))
+    if (!Number.isFinite(gross) || gross <= 0) {
+      setError('Enter gross greater than zero')
+      return
+    }
+    const purityRaw = String(addPurity || '').trim()
+    const purityNum = purityRaw ? Number(purityRaw.replace(',', '.')) : null
+    if (purityRaw && (!Number.isFinite(purityNum) || (purityNum as number) < 0 || (purityNum as number) > 100)) {
+      setError('Purity must be between 0 and 100')
+      return
+    }
+    const mixCode = addingMetal.mixCode
+    setBusyId(addingMetal.id)
+    setError('')
+    try {
+      const res = await addMetalToVaultMixJob({
+        token,
+        mixId: addingMetal.id,
+        productId: selectedMetal.id,
+        gross,
+        purity: purityNum,
+      })
+      const metalName = selectedMetal.name
+      const nextGross = res.job?.targetGross
+      setBusyId('')
+      closeAddMetal(true)
+      await load({ soft: true })
+      setSuccessMsg(
+        `Added ${metalName} +${gross} g to ${mixCode}`
+        + (nextGross != null ? ` · now ${nextGross} g` : ''),
+      )
+      return
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message?: string }).message || 'Add metal failed')
+        : 'Add metal failed'
+      setError(message)
+    } finally {
+      setBusyId('')
+    }
   }
 
   const onAllocate = async (toDepartment: string) => {
@@ -341,21 +449,39 @@ export function AlloyMixPanel({
                       ? 'In vault'
                       : 'On floor'}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Allocate ${job.mixCode}`}
-                disabled={Boolean(busyId) || idle || job.canAllocate === false}
-                onPress={() => (idle ? onIdlePress?.() : openAllocate(job))}
-                style={({ pressed }) => [
-                  styles.allocBtn,
-                  pressed && styles.allocBtnPressed,
-                  (busyId === job.id || idle || job.canAllocate === false) && styles.allocBtnDisabled,
-                ]}
-              >
-                <Text style={styles.allocBtnText}>
-                  {busyId === job.id ? 'Allocating…' : 'Allocate to'}
-                </Text>
-              </Pressable>
+              <View style={styles.actionRow}>
+                {isVault && job.status === 'in_vault' && !job.hasOpenFloorDescendants ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add metal to ${job.mixCode}`}
+                    disabled={Boolean(busyId) || idle}
+                    onPress={() => (idle ? onIdlePress?.() : openAddMetal(job))}
+                    style={({ pressed }) => [
+                      styles.addMetalBtn,
+                      pressed && styles.allocBtnPressed,
+                      (busyId === job.id || idle) && styles.allocBtnDisabled,
+                    ]}
+                  >
+                    <Text style={styles.addMetalBtnText}>Add metal</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Allocate ${job.mixCode}`}
+                  disabled={Boolean(busyId) || idle || job.canAllocate === false}
+                  onPress={() => (idle ? onIdlePress?.() : openAllocate(job))}
+                  style={({ pressed }) => [
+                    styles.allocBtn,
+                    styles.allocBtnFlex,
+                    pressed && styles.allocBtnPressed,
+                    (busyId === job.id || idle || job.canAllocate === false) && styles.allocBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.allocBtnText}>
+                    {busyId === job.id ? 'Allocating…' : 'Allocate to'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -422,6 +548,100 @@ export function AlloyMixPanel({
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={Boolean(addingMetal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => closeAddMetal()}
+      >
+        <View style={styles.modalBackdrop} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss add metal"
+            style={styles.modalDismissFill}
+            onPress={() => closeAddMetal()}
+          />
+          <View style={styles.modalCard} pointerEvents="auto">
+            <Text style={styles.modalTitle}>Add metal</Text>
+            <Text style={styles.modalSub}>
+              {addingMetal?.mixCode} · {addingMetal?.targetGross} g
+              {addingMetal?.finishedProductName ? ` · ${addingMetal.finishedProductName}` : ''}
+            </Text>
+            <Text style={styles.weightLabel}>Metal (created stock product)</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMetalPickerOpen((v) => !v)}
+              style={styles.metalSelect}
+            >
+              <Text style={selectedMetal ? styles.metalSelectValue : styles.metalSelectPlaceholder}>
+                {selectedMetal ? selectedMetal.name : 'Select metal…'}
+              </Text>
+            </Pressable>
+            {metalPickerOpen ? (
+              <ScrollView style={styles.metalPickerList} nestedScrollEnabled>
+                {metalGroups.length === 0 ? (
+                  <Text style={styles.empty}>No created stock products found.</Text>
+                ) : (
+                  metalGroups.map((group) => (
+                    <View key={group.key}>
+                      <Text style={styles.metalGroupLabel}>{group.label}</Text>
+                      {group.items.map((opt) => (
+                        <Pressable
+                          key={opt.id}
+                          accessibilityRole="button"
+                          onPress={() => pickMetal(opt)}
+                          style={({ pressed }) => [
+                            styles.destRow,
+                            selectedMetal?.id === opt.id && styles.destRowSelected,
+                            pressed && styles.destRowPressed,
+                          ]}
+                        >
+                          <Text style={styles.destText}>{opt.name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            ) : null}
+            <Text style={styles.weightLabel}>Gross (g)</Text>
+            <TextInput
+              value={addGross}
+              onChangeText={setAddGross}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              style={styles.weightInput}
+            />
+            <Text style={styles.weightLabel}>Purity (%)</Text>
+            <TextInput
+              value={addPurity}
+              onChangeText={setAddPurity}
+              keyboardType="decimal-pad"
+              placeholder={selectedMetal?.purity || 'optional'}
+              style={styles.weightInput}
+            />
+            {error && addingMetal ? <Text style={styles.error}>{error}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(busyId)}
+              onPress={onSaveAddMetal}
+              style={({ pressed }) => [
+                styles.allocBtn,
+                pressed && styles.allocBtnPressed,
+                busyId && styles.allocBtnDisabled,
+              ]}
+            >
+              <Text style={styles.allocBtnText}>
+                {busyId === addingMetal?.id ? 'Saving…' : 'Save'}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => closeAddMetal()} style={styles.cancelBtn}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   )
@@ -563,6 +783,18 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   meta: { color: '#64748B', fontSize: 11, marginTop: 2, marginBottom: 6 },
+  actionRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  addMetalBtn: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#B45309',
+    borderRadius: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMetalBtnText: { color: '#B45309', fontWeight: '800', fontSize: 13 },
   allocBtn: {
     backgroundColor: '#B45309',
     borderRadius: 6,
@@ -570,14 +802,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...buttonShadow,
   },
+  allocBtnFlex: { flex: 1 },
   allocBtnPressed: { opacity: 0.85 },
   allocBtnDisabled: { opacity: 0.5 },
   allocBtnText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  metalSelect: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  metalSelectValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  metalSelectPlaceholder: { fontSize: 15, fontWeight: '600', color: '#94A3B8' },
+  metalPickerList: { maxHeight: 200, marginBottom: 8 },
+  metalGroupLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+    marginTop: 6,
+    marginBottom: 2,
+    paddingHorizontal: 4,
+  },
+  destRowSelected: { backgroundColor: '#E5E7EB' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.45)',
     justifyContent: 'center',
     padding: 24,
+  },
+  modalDismissFill: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
   modalCard: {
     backgroundColor: '#FFF',
@@ -586,6 +844,8 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     width: '100%',
     alignSelf: 'center',
+    zIndex: 2,
+    elevation: 8,
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
   modalSub: { color: '#64748B', marginBottom: 4, marginTop: 2 },

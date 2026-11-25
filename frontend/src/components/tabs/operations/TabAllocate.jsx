@@ -39,6 +39,10 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   const [outEntries, setOutEntries] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
   const [localError, setLocalError] = useState('')
+  const [addMetalJob, setAddMetalJob] = useState(null)
+  const [addMetalProductId, setAddMetalProductId] = useState('')
+  const [addMetalGross, setAddMetalGross] = useState('')
+  const [addMetalPurity, setAddMetalPurity] = useState('')
 
   const pendingIncoming = useMemo(
     () => (jobs || []).filter((j) => j.status === 'pending_receive' || j.pendingReceive),
@@ -93,6 +97,7 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
 
   const openAllocate = (job) => {
     setMetalOutJob(null)
+    setAddMetalJob(null)
     setAllocating(job)
     setAllocWeight(String(job.targetGross ?? ''))
     setLocalError('')
@@ -107,6 +112,7 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
 
   const openMetalOut = (job) => {
     setAllocating(null)
+    setAddMetalJob(null)
     const now = clockNow()
     const alloyOut = isAlloyMixBatchCode(job?.mixCode)
     const withTime = alloyOut
@@ -123,6 +129,78 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
     setMetalOutJob(null)
     setMetalOutLines([])
     setLocalError('')
+  }
+
+  const openAddMetal = (job) => {
+    setAllocating(null)
+    setMetalOutJob(null)
+    setAddMetalJob(job)
+    setAddMetalProductId('')
+    setAddMetalGross('')
+    setAddMetalPurity('')
+    setLocalError('')
+  }
+
+  const closeAddMetal = (force = false) => {
+    if (busyId && !force) return
+    setAddMetalJob(null)
+    setAddMetalProductId('')
+    setAddMetalGross('')
+    setAddMetalPurity('')
+    setLocalError('')
+  }
+
+  const onPickAddMetalProduct = (productId) => {
+    setAddMetalProductId(productId)
+    const opt = metalCatalog.find((p) => p.id === productId)
+    setAddMetalPurity(opt?.purity || '')
+  }
+
+  const submitAddMetal = async () => {
+    if (!addMetalJob) return
+    if (!addMetalProductId) {
+      setLocalError('Select a metal product')
+      return
+    }
+    const gross = Number(String(addMetalGross).replace(',', '.'))
+    if (!Number.isFinite(gross) || gross <= 0) {
+      setLocalError('Enter gross greater than zero')
+      return
+    }
+    const purityRaw = String(addMetalPurity || '').trim()
+    const purityNum = purityRaw ? Number(purityRaw.replace(',', '.')) : null
+    if (purityRaw && (!Number.isFinite(purityNum) || purityNum < 0 || purityNum > 100)) {
+      setLocalError('Purity must be between 0 and 100')
+      return
+    }
+    const productName = metalCatalog.find((p) => p.id === addMetalProductId)?.name || 'metal'
+    const mixCode = addMetalJob.mixCode || 'MIX'
+    const mixId = addMetalJob.id
+    setBusyId(mixId)
+    setLocalError('')
+    try {
+      const res = await mgFloorAlloyMixApi.addMetal(mixId, {
+        productId: addMetalProductId,
+        gross,
+        ...(purityNum != null ? { purity: purityNum } : {}),
+      })
+      const nextGross = res?.job?.targetGross
+      setBusyId('')
+      closeAddMetal(true)
+      await refresh?.()
+      showToast?.(
+        'Metal added',
+        `${productName} +${gross} g → ${mixCode}`
+        + (nextGross != null ? ` · now ${nextGross} g` : ''),
+      )
+      return
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Add metal failed'
+      setLocalError(msg)
+      showToast?.('Add metal failed', msg)
+    } finally {
+      setBusyId('')
+    }
   }
 
   const updateMetalOutLine = (index, patch) => {
@@ -387,15 +465,29 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                         ) : null}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className={B.sec}
-                          disabled={Boolean(busyId) || outSent}
-                          title={outSent ? 'Metal Out already sent for FM approval today' : 'Send Metal Out like MG Floor tablet'}
-                          onClick={() => openMetalOut(job)}
-                        >
-                          Metal Out
-                        </button>
+                        {dept.key === 'vault_room' ? (
+                          <button
+                            type="button"
+                            className={B.sec}
+                            disabled={Boolean(busyId) || Boolean(job.hasOpenFloorDescendants)}
+                            title={job.hasOpenFloorDescendants
+                              ? 'Cannot add metal while a split is still on the floor'
+                              : 'Add created stock metal onto this vault mix'}
+                            onClick={() => openAddMetal(job)}
+                          >
+                            Add metal
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={B.sec}
+                            disabled={Boolean(busyId) || outSent}
+                            title={outSent ? 'Metal Out already sent for FM approval today' : 'Send Metal Out like MG Floor tablet'}
+                            onClick={() => openMetalOut(job)}
+                          >
+                            Metal Out
+                          </button>
+                        )}
                         {canAlloc ? (
                           <button
                             type="button"
@@ -755,6 +847,108 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
             {localError ? (
               <p role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 600, marginTop: 8 }}>{localError}</p>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {addMetalJob ? (
+        <div
+          role="dialog"
+          aria-label={`Add metal ${addMetalJob.mixCode || 'mix'}`}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+          onClick={() => closeAddMetal()}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeAddMetal() }}
+        >
+          <div
+            style={{
+              width: 'min(440px, 100%)', background: '#fff', borderRadius: 14, padding: 16,
+              border: `1px solid ${C.border}`, boxShadow: '0 18px 40px rgba(15,23,42,.2)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <strong style={{ color: C.t1 }}>Add metal · {addMetalJob.mixCode || 'MIX'}</strong>
+                <div style={{ fontSize: 12, color: C.t4, marginTop: 2 }}>
+                  Vault Room · {Number(addMetalJob.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                  {addMetalJob.finishedProductName ? ` · ${addMetalJob.finishedProductName}` : ''}
+                </div>
+              </div>
+              <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={() => closeAddMetal()}>Close</button>
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3, marginBottom: 10 }}>
+              Metal (created stock product)
+              <select
+                value={addMetalProductId}
+                disabled={Boolean(busyId)}
+                onChange={(e) => onPickAddMetalProduct(e.target.value)}
+                style={{
+                  height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                  background: C.inp, fontWeight: 600,
+                }}
+              >
+                <option value="">Select metal…</option>
+                {groupMetalOutSelectOptions(metalCatalog).map((group) => (
+                  <optgroup key={group.key} label={group.label}>
+                    {group.items.map((opt) => (
+                      <option key={opt.id} value={opt.id}>{opt.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3, marginBottom: 10 }}>
+              Gross (g)
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={addMetalGross}
+                disabled={Boolean(busyId)}
+                onChange={(e) => setAddMetalGross(e.target.value)}
+                style={{
+                  height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                  background: C.inp, fontWeight: 600,
+                }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+              Purity (%)
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={addMetalPurity}
+                disabled={Boolean(busyId)}
+                onChange={(e) => setAddMetalPurity(e.target.value)}
+                placeholder="optional"
+                style={{
+                  height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                  background: C.inp, fontWeight: 600,
+                }}
+              />
+            </label>
+            {localError ? (
+              <p role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 600, marginTop: 8 }}>{localError}</p>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button
+                type="button"
+                className={B.pri}
+                disabled={Boolean(busyId)}
+                onClick={submitAddMetal}
+              >
+                {busyId === addMetalJob.id ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={() => closeAddMetal()}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -553,6 +553,46 @@ function registerInventoryRoutes(deps) {
     },
   )
 
+  const alloyMixAddMetalSchema = Joi.object({
+    productId: Joi.string().trim().min(1).max(40).required(),
+    gross: Joi.number().positive().required(),
+    purity: Joi.number().min(0).max(100).allow(null).optional(),
+    note: Joi.string().trim().allow('').max(500).optional(),
+  })
+
+  router.post(
+    '/inventory/alloy-mix/jobs/:id/add-metal',
+    protect,
+    validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+    validateBody(alloyMixAddMetalSchema),
+    async (req, res) => {
+      try {
+        if (!canWriteInventory(req.user)) {
+          return res.status(403).json({ success: false, message: 'Forbidden' })
+        }
+        const { addMetalToVaultMix } = require('../../services/erpAccounting/alloyMixFloorBridge')
+        const { runInTransaction } = require('../../utils/mongoTransaction')
+        const job = await runInTransaction(async (session) => addMetalToVaultMix({
+          user: req.user,
+          mixId: req.params.id,
+          productId: req.body.productId,
+          gross: req.body.gross,
+          purity: req.body.purity,
+          note: req.body.note,
+          session,
+        }))
+        emitAlloyMixProductionUpdate(req, 'alloy-mix-add-metal', {
+          mixCode: job?.mixCode || null,
+          department: job?.currentDepartment || 'vault_room',
+          targetGross: job?.targetGross ?? null,
+        })
+        res.json({ success: true, job })
+      } catch (error) {
+        respondRouteError(res, error, { tag: 'erp-accounting/inventory/alloy-mix/jobs/add-metal' })
+      }
+    },
+  )
+
   router.get('/inventory/stock-ledger', protect, async (req, res) => {
     try {
       if (!canReadErpInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
