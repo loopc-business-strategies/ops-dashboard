@@ -237,7 +237,7 @@ export function useErpExportActions({
       setError(getReportNotReadyMessage(reportView, 'printing'))
       return
     }
-    openPrintWindow('ERP Financial Statement', body)
+    openPrintWindow('ERP Financial Statement', body, { landscape: true })
     showNotification('✅ Statement print layout opened')
   }, [
     reports,

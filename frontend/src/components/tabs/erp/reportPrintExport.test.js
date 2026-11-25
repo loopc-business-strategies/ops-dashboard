@@ -36,6 +36,44 @@ describe('reportPrintExport helpers', () => {
     expect(meta.title).toBe('Ledger Report - 1010')
   })
 
+  it('prints trial balance with currency statement layout and compact numbers', async () => {
+    const html = await buildReportPrintHtml({
+      reportView: 'trial',
+      reports: {
+        trialBalance: {
+          totalDebit: 2063778.69,
+          totalCredit: 2063778.69,
+          difference: 0,
+          trialBalance: [{
+            accountCode: '101001',
+            accountName: 'NATIONAL BANK OF UZBEKISTAN-USD',
+            accountType: 'Asset',
+            debit: 2063778.69,
+            credit: 0,
+            net: 2063778.69,
+          }],
+        },
+      },
+      branding: {},
+      defaultBranding: {},
+      user: { name: 'Nan' },
+      formatMoney,
+      formatMoneyAbs: formatMoney,
+      formatReportDirectionalBalance: () => '',
+      buildBrandingLogoTag: async () => '',
+      displayCurrency: 'USD',
+      baseCurrency: 'USD',
+      convertAmount: (value) => Number(value || 0),
+      columns: { debit: true, credit: true, net: true, showMetal: true, metalType: '' },
+    })
+    expect(html).toContain('Account Head')
+    expect(html).toContain('NATIONAL BANK OF UZBEKISTAN-USD')
+    expect(html).toContain('2,063,778.69')
+    expect(html).not.toContain('USD 2,063,778.69')
+    expect(html).not.toContain('<th>Type</th>')
+    expect(html).not.toContain('Gold g')
+  })
+
   it('prints the summary as grouped sections and leaves out zero balances', async () => {
     const html = await buildReportPrintHtml({
       reportView: 'summary',

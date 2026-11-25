@@ -26,6 +26,22 @@ const METAL_TEXT_KEY = {
   alloy: 'alloyText',
 }
 
+const MONEY_CELL_STYLE = {
+  textAlign: 'right',
+  whiteSpace: 'nowrap',
+  fontVariantNumeric: 'tabular-nums',
+  fontFamily: 'Consolas, "Courier New", monospace',
+  minWidth: '6.5rem',
+  boxSizing: 'border-box',
+}
+
+const TEXT_CELL_STYLE = {
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  maxWidth: '16rem',
+  boxSizing: 'border-box',
+}
+
 export function currencyRowMetaMap(rows = [], formatGrams) {
   const map = new Map()
   rows.forEach((row) => {
@@ -61,24 +77,35 @@ export default function CurrencyStatementTable({
       indexes: pair.indexes.filter((index) => visible.has(index)),
     }))
     .filter((pair) => pair.indexes.length)
+  const moneyColCount = pairs.reduce((sum, pair) => sum + pair.indexes.length, 0)
+  const minWidthPx = 280 + moneyColCount * 110 + metalDefs.length * 80 + (onOpenAccount ? 88 : 0)
   return (
-    <table className="erp-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+    <table
+      className="erp-table erp-statement-table"
+      style={{
+        width: '100%',
+        minWidth: `${minWidthPx}px`,
+        borderCollapse: 'collapse',
+        fontSize: '0.82rem',
+        tableLayout: 'auto',
+      }}
+    >
       <thead>
         <tr>
-          <th rowSpan={2} style={{ textAlign: 'left' }}>Account Head</th>
-          <th rowSpan={2} style={{ textAlign: 'left' }}>Code</th>
-          <th rowSpan={2}>Division</th>
+          <th rowSpan={2} style={{ textAlign: 'left', minWidth: '9rem' }}>Account Head</th>
+          <th rowSpan={2} style={{ textAlign: 'left', minWidth: '4.5rem' }}>Code</th>
+          <th rowSpan={2} style={{ minWidth: '4rem' }}>Division</th>
           {pairs.map((pair) => (
             <th key={pair.title} colSpan={pair.indexes.length} style={{ textAlign: 'center' }}>{pair.title}</th>
           ))}
           {metalDefs.map((def) => (
-            <th key={def.kind} rowSpan={2} className="num">{def.header}</th>
+            <th key={def.kind} rowSpan={2} className="num" style={{ minWidth: '4.5rem' }}>{def.header}</th>
           ))}
-          {onOpenAccount && <th rowSpan={2}>Action</th>}
+          {onOpenAccount && <th rowSpan={2} style={{ minWidth: '5rem' }}>Action</th>}
         </tr>
         <tr>
           {pairs.flatMap((pair) => pair.indexes.map((index) => (
-            <th key={`${pair.title}-${index}`} className="num">{index % 2 === 1 ? 'Debit' : 'Credit'}</th>
+            <th key={`${pair.title}-${index}`} className="num" style={{ minWidth: '6.5rem' }}>{index % 2 === 1 ? 'Debit' : 'Credit'}</th>
           )))}
         </tr>
       </thead>
@@ -90,17 +117,17 @@ export default function CurrencyStatementTable({
           const bold = kind && kind !== 'account'
           return (
             <tr key={`${kind}-${metaKey}-${rowIndex}`} style={{ background: rowFill(kind), fontWeight: bold ? '700' : '500' }}>
-              <td>
+              <td style={TEXT_CELL_STYLE}>
                 {cells[0]}
                 {meta?.isActive === false ? <span style={{ marginLeft: '0.35rem', color: '#64748B', fontSize: '0.75rem' }}>Closed</span> : null}
               </td>
-              <td>{cells[1]}</td>
-              <td>{cells[2]}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{cells[1]}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{cells[2]}</td>
               {pairs.flatMap((pair) => pair.indexes.map((index) => (
-                <td key={index} style={{ textAlign: 'right' }}>{cells[index]}</td>
+                <td key={index} className="num" style={MONEY_CELL_STYLE} title={cells[index] || undefined}>{cells[index]}</td>
               )))}
               {metalDefs.map((def) => (
-                <td key={def.kind} style={{ textAlign: 'right' }}>{meta?.[METAL_TEXT_KEY[def.kind]] || ''}</td>
+                <td key={def.kind} className="num" style={MONEY_CELL_STYLE}>{meta?.[METAL_TEXT_KEY[def.kind]] || ''}</td>
               ))}
               {onOpenAccount && (
                 <td>

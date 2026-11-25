@@ -364,6 +364,7 @@ const tenantBranding = {
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'activity-log', 'vendors', 'inventory', 'stock-master', 'gold-alloy', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,
+      reportPdfDownload: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
@@ -399,6 +400,7 @@ const tenantBranding = {
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'period-closing', 'transactions', 'reports', 'activity-log', 'vendors', 'inventory', 'stock-master', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,
+      reportPdfDownload: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,

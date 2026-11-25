@@ -131,16 +131,27 @@ export function renderReportPdfHeader(doc, { title, periodText, summaryLines, co
 export function buildReportPdfColumnStyles(reportView, tableWidth, columns = DEFAULT_REPORT_MONEY_COLUMNS) {
   const w = tableWidth
   if (reportView === 'trial' || reportView === 'summary') {
-    if (columns?.debit === false || columns?.credit === false || columns?.net === false || columns?.showMetal) return {}
-    const fixed = 44 + 48 + 64 + 64 + 64
-    return {
-      0: { cellWidth: 44 },
-      1: { cellWidth: Math.max(w - fixed, 100) },
-      2: { cellWidth: 48 },
-      3: { cellWidth: 64, halign: 'right' },
-      4: { cellWidth: 64, halign: 'right' },
-      5: { cellWidth: 64, halign: 'right' },
+    const moneyHeaders = trialMoneyHeaders(columns, reportMoneyHeaderLabels(''))
+    const metalHeaders = trialMetalHeaders(columns?.showMetal, columns?.metalType)
+    const moneyCount = moneyHeaders.length
+    const metalCount = metalHeaders.length
+    const moneyWidth = Math.max(52, Math.min(68, Math.floor(w * 0.11)))
+    const metalWidth = metalCount ? Math.max(40, Math.min(52, Math.floor(w * 0.07))) : 0
+    const codeWidth = 44
+    const typeWidth = 48
+    const fixed = codeWidth + typeWidth + moneyCount * moneyWidth + metalCount * metalWidth
+    const styles = {
+      0: { cellWidth: codeWidth, overflow: 'ellipsize' },
+      1: { cellWidth: Math.max(w - fixed, 88), overflow: 'linebreak' },
+      2: { cellWidth: typeWidth, overflow: 'ellipsize' },
     }
+    for (let index = 0; index < moneyCount; index += 1) {
+      styles[3 + index] = { cellWidth: moneyWidth, halign: 'right', overflow: 'ellipsize' }
+    }
+    for (let index = 0; index < metalCount; index += 1) {
+      styles[3 + moneyCount + index] = { cellWidth: metalWidth, halign: 'right', overflow: 'ellipsize' }
+    }
+    return styles
   }
   if (reportView === 'pnl' || reportView === 'balanceSheet') {
     const fixed = 44 + 44 + 68

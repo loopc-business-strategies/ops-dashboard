@@ -27,10 +27,10 @@ import {
 const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`
 
 describe('isReportPdfDownloadEnabled', () => {
-  it('is enabled for loopc only in phase 1', () => {
+  it('is enabled for loopc, mg, and cg', () => {
     expect(isReportPdfDownloadEnabled('loopc')).toBe(true)
-    expect(isReportPdfDownloadEnabled('mg')).toBe(false)
-    expect(isReportPdfDownloadEnabled('cg')).toBe(false)
+    expect(isReportPdfDownloadEnabled('mg')).toBe(true)
+    expect(isReportPdfDownloadEnabled('cg')).toBe(true)
   })
 })
 

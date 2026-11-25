@@ -165,7 +165,7 @@ export function useErpTabPresentationSlice(scope) {
   const tenantBranding = resolveErpUserTenantBranding(user)
   const branding = resolveStatementPrintSettings({ reportBranding, user, tenantBranding })
   const buildBrandingLogoTag = buildBrandingLogoTagHelper
-  const openPrintWindow = (title, bodyHtml) => openPrintWindowHelper(title, bodyHtml, setError)
+  const openPrintWindow = (title, bodyHtml, options) => openPrintWindowHelper(title, bodyHtml, setError, options)
   const {
     updateJvLine,
     resolveJvLineAccount,

@@ -15,8 +15,13 @@ import {
   REPORT_PDF_TOTAL_ROW_FILL,
 } from './reportExportHelpers'
 import { trialBalanceRowsForView } from './trialBalanceReportRows'
-import { DEFAULT_REPORT_MONEY_COLUMNS, reportMoneyHeaderLabels, trialMetalHeaders, trialMetalValues, trialMoneyHeaders, trialMoneyValues } from './reportDisplayOptions'
-import { buildCurrencyBalanceSheetModel, buildCurrencyProfitLossModel, buildCurrencyTrialBalanceModel, formatTrialRange } from './currencyTrialBalanceExport'
+import {
+  DEFAULT_REPORT_MONEY_COLUMNS,
+  TRIAL_METAL_KIND_DEFS,
+  formatReportGrams,
+  resolveVisibleTrialMetalKinds,
+} from './reportDisplayOptions'
+import { buildCurrencyBalanceSheetModel, buildCurrencyProfitLossModel, buildCurrencyTrialBalanceModel, formatTrialMoneyCell, formatTrialRange } from './currencyTrialBalanceExport'
 import { getTenantBranding } from '../../../config/tenantBranding'
 import { loadPdfTools } from './lazyExportLibs'
 
@@ -134,14 +139,18 @@ export async function buildReportPrintHtml({
           <div class="card"><div class="card-label">Expense</div><div class="card-value">${formatMoney(reports.profitLoss?.totalExpense)}</div></div>
           <div class="card"><div class="card-label">Net Profit</div><div class="card-value">${formatMoney(reports.profitLoss?.netProfit)}</div></div>
         </div>`}
-        <div class="section"><p class="section-title">Income Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.incomeBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
-        <div class="section"><p class="section-title">Expense Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.expenseBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
-        <div class="section"><p class="section-title">Purchases and sales</p><table><thead><tr><th>Type</th><th>Doc No</th><th>Date</th><th>Party</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.metalVouchers?.vouchers || []).map((row) => `<tr><td>${row.type === 'sale' ? 'Sale' : 'Purchase'}</td><td>${row.vocNo || ''}</td><td>${row.date ? String(row.date).slice(0, 10) : ''}</td><td>${[row.partyCode, row.partyName].filter(Boolean).join(' ')}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}<tr><td colspan="4">Total sales</td><td class="num">${formatMoney(reports.profitLoss?.metalVouchers?.totalSales)}</td></tr><tr><td colspan="4">Total purchases</td><td class="num">${formatMoney(reports.profitLoss?.metalVouchers?.totalPurchases)}</td></tr></tbody></table></div>
+        <div class="section"><p class="section-title">Income Breakdown</p><table><thead><tr><th>Code</th><th class="text">Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.incomeBreakdown || []).map((row) => `<tr><td>${escapePrintCell(row.accountCode)}</td><td class="text">${escapePrintCell(row.accountName)}</td><td class="num">${escapePrintCell(formatTrialMoneyCell(row.amount))}</td></tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">Expense Breakdown</p><table><thead><tr><th>Code</th><th class="text">Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.expenseBreakdown || []).map((row) => `<tr><td>${escapePrintCell(row.accountCode)}</td><td class="text">${escapePrintCell(row.accountName)}</td><td class="num">${escapePrintCell(formatTrialMoneyCell(row.amount))}</td></tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">Purchases and sales</p><table><thead><tr><th>Type</th><th>Doc No</th><th>Date</th><th class="text">Party</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.metalVouchers?.vouchers || []).map((row) => `<tr><td>${row.type === 'sale' ? 'Sale' : 'Purchase'}</td><td>${escapePrintCell(row.vocNo || '')}</td><td>${row.date ? String(row.date).slice(0, 10) : ''}</td><td class="text">${escapePrintCell([row.partyCode, row.partyName].filter(Boolean).join(' '))}</td><td class="num">${escapePrintCell(formatTrialMoneyCell(row.amount))}</td></tr>`).join('')}<tr><td colspan="4">Total sales</td><td class="num">${escapePrintCell(formatTrialMoneyCell(reports.profitLoss?.metalVouchers?.totalSales))}</td></tr><tr><td colspan="4">Total purchases</td><td class="num">${escapePrintCell(formatTrialMoneyCell(reports.profitLoss?.metalVouchers?.totalPurchases))}</td></tr></tbody></table></div>
         ${signatureBlock}
       `
   }
   if (reportView === 'balanceSheet') {
-    const section = (sectionTitle, rows, fallbackDirection) => `<div class="section"><p class="section-title">${sectionTitle}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
+    const section = (sectionTitle, rows, fallbackDirection) => `<div class="section"><p class="section-title">${sectionTitle}</p><table><thead><tr><th>Code</th><th class="text">Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => {
+      const label = `${row.accountName || ''}${row.isReclassified ? ' (reclassified)' : ''}`
+      const balance = String(formatReportDirectionalBalance(row, fallbackDirection) || '').replace(/^[A-Z]{3}\s+/, '')
+      return `<tr><td>${escapePrintCell(row.accountCode)}</td><td class="text">${escapePrintCell(label)}</td><td class="num">${escapePrintCell(balance)}</td></tr>`
+    }).join('')}</tbody></table></div>`
     return `
         ${head}
         ${suppressSummary ? '' : `<div class="summary">
@@ -155,15 +164,18 @@ export async function buildReportPrintHtml({
         ${signatureBlock}
       `
   }
-  if (reportView === 'summary') {
-    const rows = trialBalanceRowsForView('summary', reports.trialBalance?.trialBalance || [])
+  if (reportView === 'summary' || reportView === 'trial') {
+    const rows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
     const model = buildCurrencyTrialBalanceModel({
       rows,
       convert: convertAmount || ((value) => Number(value || 0)),
       baseCurrency,
       displayCurrency: displayCurrency || baseCurrency,
     })
-    const headers = model.head[0] || []
+    const metalKinds = resolvePrintMetalKinds(rows, columns)
+    const metalDefs = TRIAL_METAL_KIND_DEFS.filter((def) => metalKinds.includes(def.kind))
+    const metaByCode = new Map(rows.map((row) => [String(row.accountCode || ''), row]))
+    const headers = [...(model.head[0] || []), ...metalDefs.map((def) => def.header)]
     return `
         ${head}
         ${suppressSummary ? '' : `<div class="summary">
@@ -171,24 +183,60 @@ export async function buildReportPrintHtml({
           <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
           <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
         </div>`}
-        <div class="section"><p class="section-title">${title}</p><table><thead><tr>${headers.map((label, index) => `<th${index >= 3 ? ' class="num"' : ''}>${escapePrintCell(label)}</th>`).join('')}</tr></thead><tbody>${model.body.map((row, rowIndex) => {
+        <div class="section"><p class="section-title">${title}</p><table><thead><tr>${headers.map((label, index) => `<th${index >= 3 ? ' class="num"' : ' class="text"'}>${escapePrintCell(label)}</th>`).join('')}</tr></thead><tbody>${model.body.map((row, rowIndex) => {
           const kind = model.kinds[rowIndex]
           const strong = kind && kind !== 'account'
-          return `<tr>${row.map((cell, col) => `<td${strong ? ' style="font-weight:700;"' : ''}${col >= 3 ? ' class="num"' : ''}>${escapePrintCell(cell)}</td>`).join('')}</tr>`
+          const accountCode = String(row[1] || '')
+          const meta = metaByCode.get(accountCode)
+          const metalCells = metalDefs.map((def) => formatReportGrams(meta?.[def.netKey]))
+          const cells = [...row, ...metalCells]
+          return `<tr>${cells.map((cell, col) => `<td${strong ? ' style="font-weight:700;"' : ''}${col >= 3 ? ' class="num"' : (col === 0 ? ' class="text"' : '')}>${escapePrintCell(cell)}</td>`).join('')}</tr>`
         }).join('')}</tbody></table></div>
         ${signatureBlock}
       `
   }
+
+  const { head: tableHead, body: tableBody } = buildReportPdfTable({
+    reportView,
+    reports,
+    ledgerReportRows,
+    formatMoney: (value) => formatTrialMoneyCell(value),
+    formatReportDirectionalBalance: (row, fallbackDirection) => {
+      const raw = formatReportDirectionalBalance(row, fallbackDirection)
+      return String(raw || '').replace(/^[A-Z]{3}\s+/, '')
+    },
+    forPdf: false,
+    columns,
+    displayCurrency,
+  })
+  const printNumFrom = {
+    dayBook: 5,
+    outstanding: 3,
+    forex: 1,
+    ledger: 4,
+  }
+  const numFrom = printNumFrom[reportView] ?? 3
   return `
         ${head}
-        ${suppressSummary ? '' : `<div class="summary">
-          <div class="card"><div class="card-label">Trial Debit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalDebit)}</div></div>
-          <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
-          <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
-        </div>`}
-        <div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th>${trialMoneyHeaders(columns, reportMoneyHeaderLabels(displayCurrency)).map((label) => `<th class="num">${label}</th>`).join('')}${trialMetalHeaders(columns.showMetal, columns.metalType).map((label) => `<th class="num">${label}</th>`).join('')}</tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td>${trialMoneyValues(row, columns, formatMoney).map((value) => `<td class="num">${value}</td>`).join('')}${trialMetalValues(row, columns.showMetal, columns.metalType).map((value) => `<td class="num">${value}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">${title}</p>${renderPrintHtmlTable(tableHead, tableBody, { numFromCol: numFrom })}</div>
         ${signatureBlock}
       `
+}
+
+function resolvePrintMetalKinds(rows = [], columns = DEFAULT_REPORT_MONEY_COLUMNS) {
+  if (columns?.showMetal === false) return []
+  const visible = resolveVisibleTrialMetalKinds(columns?.metalType || '')
+  const defs = TRIAL_METAL_KIND_DEFS.filter((def) => visible.includes(def.kind))
+  if (columns?.metalType) return defs.map((def) => def.kind)
+  return defs
+    .filter((def) => rows.some((row) => Math.abs(Number(row?.[def.netKey] || 0)) >= 0.0005))
+    .map((def) => def.kind)
+}
+
+function renderPrintHtmlTable(head = [], body = [], { numFromCol = 0 } = {}) {
+  const headers = head[0] || []
+  if (!headers.length) return '<p>No rows to print.</p>'
+  return `<table><thead><tr>${headers.map((label, index) => `<th class="${index >= numFromCol ? 'num' : 'text'}">${escapePrintCell(label)}</th>`).join('')}</tr></thead><tbody>${(body || []).map((row) => `<tr>${(row || []).map((cell, col) => `<td class="${col >= numFromCol ? 'num' : 'text'}">${escapePrintCell(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`
 }
 
 function escapePrintCell(value) {
@@ -293,16 +341,9 @@ async function exportCurrencyTrialBalancePdf({
     body: model.body,
     startY: 112,
     margin: { left: margin, right: margin, top: 112, bottom: 32 },
-    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2 },
-    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center' },
-    columnStyles: {
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
-      6: { halign: 'right' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-    },
+    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2, overflow: 'ellipsize', valign: 'middle' },
+    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center', overflow: 'linebreak' },
+    columnStyles: currencyPdfColumnStyles(),
     didParseCell: (data) => {
       if (data.section !== 'body') return
       const kind = model.kinds[data.row.index]
@@ -369,16 +410,9 @@ async function exportCurrencyProfitLossPdf({
     body: model.body,
     startY: 112,
     margin: { left: margin, right: margin, top: 112, bottom: 32 },
-    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2 },
-    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center' },
-    columnStyles: {
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
-      6: { halign: 'right' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-    },
+    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2, overflow: 'ellipsize', valign: 'middle' },
+    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center', overflow: 'linebreak' },
+    columnStyles: currencyPdfColumnStyles(),
     didParseCell: (data) => {
       if (data.section !== 'body') return
       const kind = model.kinds[data.row.index]
@@ -415,6 +449,20 @@ async function exportCurrencyProfitLossPdf({
   doc.save(`currency-profit-loss-${stamp}.pdf`)
 }
 
+function currencyPdfColumnStyles() {
+  return {
+    0: { cellWidth: 150, overflow: 'linebreak', halign: 'left' },
+    1: { cellWidth: 52, overflow: 'ellipsize' },
+    2: { cellWidth: 42, overflow: 'ellipsize' },
+    3: { cellWidth: 62, halign: 'right', overflow: 'ellipsize' },
+    4: { cellWidth: 62, halign: 'right', overflow: 'ellipsize' },
+    5: { cellWidth: 68, halign: 'right', overflow: 'ellipsize' },
+    6: { cellWidth: 68, halign: 'right', overflow: 'ellipsize' },
+    7: { cellWidth: 62, halign: 'right', overflow: 'ellipsize' },
+    8: { cellWidth: 62, halign: 'right', overflow: 'ellipsize' },
+  }
+}
+
 async function exportCurrencyBalanceSheetPdf({
   reports,
   branding,
@@ -448,16 +496,9 @@ async function exportCurrencyBalanceSheetPdf({
     body: model.body,
     startY: 112,
     margin: { left: margin, right: margin, top: 112, bottom: 32 },
-    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2 },
-    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center' },
-    columnStyles: {
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
-      6: { halign: 'right' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-    },
+    styles: { fontSize: 7, cellPadding: 2, textColor: [17, 24, 39], lineColor: [203, 213, 225], lineWidth: 0.2, overflow: 'ellipsize', valign: 'middle' },
+    headStyles: { fillColor: [217, 234, 211], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'center', overflow: 'linebreak' },
+    columnStyles: currencyPdfColumnStyles(),
     didParseCell: (data) => {
       if (data.section !== 'body') return
       const kind = model.kinds[data.row.index]
