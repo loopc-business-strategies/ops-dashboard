@@ -150,9 +150,11 @@ export function getNavItems(perms, t, chatUnread = 0, branding) {
       label: t('masterSettings'),
       group: 'main',
       comingSoon: departmentsComingSoon,
-      // Coming-soon tenants keep the locked item; otherwise only admin/management.
-      // Restricted module users (e.g. allowedModules: ['hr']) must not see Master Settings.
-      show: departmentsComingSoon || perms.isSuperAdmin || perms.isManagement,
+      // Coming-soon tenants keep the locked item; otherwise only admin / unrestricted management.
+      // Restricted module users (granular modulePermissions or allowedModules: ['hr']) must not see Master Settings.
+      show: departmentsComingSoon || perms.isSuperAdmin || (
+        perms.isManagement && !perms.hasGranularPermissions
+      ),
     },
     {
       id: 'departments',

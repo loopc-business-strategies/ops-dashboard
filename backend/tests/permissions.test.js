@@ -111,6 +111,10 @@ describe('Authorization guards', () => {
             subs: {
               transactions: { on: true },
               vendors: { on: true },
+              'activity-log': { on: true },
+              'stock-master': { on: true },
+              'gold-alloy': { on: true },
+              'period-closing': { on: true },
             },
           },
         },
@@ -120,6 +124,10 @@ describe('Authorization guards', () => {
     expect(res.body.success).toBe(true)
     expect(res.body.modulePermissions['procurement-plus'].on).toBe(true)
     expect(res.body.modulePermissions.erp.subs.transactions.on).toBe(true)
+    expect(res.body.modulePermissions.erp.subs['activity-log'].on).toBe(true)
+    expect(res.body.modulePermissions.erp.subs['stock-master'].on).toBe(true)
+    expect(res.body.modulePermissions.erp.subs['gold-alloy'].on).toBe(true)
+    expect(res.body.modulePermissions.erp.subs['period-closing'].on).toBe(true)
   })
 
   test('department user cannot create employee', async () => {

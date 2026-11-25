@@ -816,6 +816,7 @@ function OverviewTab({
         attendanceSummaryApi={attendanceSummaryApi}
         pendingLeaveCount={pendingLeaveCount}
         onApplyLeave={() => setLeaveModalOpen(true)}
+        canViewHr={perms.canViewModule('hr') || perms.isSuperAdmin}
         onViewHr={() => onNavigate?.('hr')}
       />
     </ModuleTabColumn>

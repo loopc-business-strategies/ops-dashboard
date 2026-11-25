@@ -131,6 +131,35 @@ describe('sidebar permission integration', () => {
     expect(screen.getByTestId('mg-floor-approver').textContent).toBe('true')
   })
 
+  test('MG management with ERP-only granular permissions is not an implied Floor approver', () => {
+    mockedUser = {
+      role: 'management',
+      department: 'management',
+      company: 'mg',
+      allowedModules: ['erp'],
+      modulePermissions: { erp: { on: true } },
+    }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('mg-floor-approver').textContent).toBe('false')
+    expect(screen.getByTestId('operations').textContent).toBe('false')
+  })
+
+  test('MG management with production granular permission keeps Floor approver rights', () => {
+    mockedUser = {
+      role: 'management',
+      department: 'management',
+      company: 'mg',
+      allowedModules: [],
+      modulePermissions: { production: { on: true }, overview: { on: true } },
+    }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('mg-floor-approver').textContent).toBe('true')
+  })
+
   test('HR dept head and HR dept user can both mark attendance', () => {
     mockedUser = { role: 'department_head', department: 'hr', allowedModules: ['hr'], modulePermissions: {} }
     const { unmount } = render(<PermissionsProbe />)

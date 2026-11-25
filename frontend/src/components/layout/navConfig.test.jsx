@@ -31,9 +31,22 @@ describe('getNavItems — Operations visibility', () => {
     expect(ids(items)).not.toContain('master-settings')
   })
 
-  test('management users see Master Settings', () => {
-    const items = getNavItems({ ...perms({ modules: ['overview'] }), isManagement: true }, t)
+  test('unrestricted management users see Master Settings', () => {
+    const items = getNavItems({
+      ...perms({ modules: ['overview'] }),
+      isManagement: true,
+      hasGranularPermissions: false,
+    }, t)
     expect(ids(items)).toContain('master-settings')
+  })
+
+  test('management users with granular module permissions do not see Master Settings', () => {
+    const items = getNavItems({
+      ...perms({ modules: ['overview', 'erp'] }),
+      isManagement: true,
+      hasGranularPermissions: true,
+    }, t)
+    expect(ids(items)).not.toContain('master-settings')
   })
 
   test('the tenant branding still decides whether Operations exists at all', () => {

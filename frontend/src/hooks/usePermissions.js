@@ -64,9 +64,20 @@ export function usePermissions() {
 
     hasGranularPermissions,
 
-    // MG Floor Managers approve tablet batches in Operations → FM, even without the Operations module
-    canApproveMgFloor: String(user?.company || '').toLowerCase() === 'mg'
-      && canPcc(resolveProductionRole(user), 'approvePass'),
+    // MG Floor Managers approve tablet batches in Operations → FM, even without the Operations module.
+    // Do not imply approve rights for management/super_admin when granular permissions restrict them
+    // away from operations/production (ERP-only management must not see Operations).
+    canApproveMgFloor: (() => {
+      if (String(user?.company || '').toLowerCase() !== 'mg') return false
+      const explicit = String(user?.productionRole || '').trim()
+      const hasExplicitFloorRole = explicit === 'production_manager' || explicit === 'floor_manager'
+      if (hasGranularPermissions && !hasExplicitFloorRole) {
+        const opsOn = user?.modulePermissions?.operations?.on === true
+        const prodOn = user?.modulePermissions?.production?.on === true
+        if (!opsOn && !prodOn) return false
+      }
+      return canPcc(resolveProductionRole(user), 'approvePass')
+    })(),
 
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),

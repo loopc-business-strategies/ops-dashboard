@@ -9,6 +9,7 @@ export default function AttendanceSummary({
   pendingLeaveCount,
   onApplyLeave,
   onViewHr,
+  canViewHr = false,
 }) {
   const hasData = Boolean(myAttendance || attendanceSummaryApi)
 
@@ -20,9 +21,11 @@ export default function AttendanceSummary({
           <button type="button" onClick={onApplyLeave} className="btn btn-primary btn-sm">
             Apply for Leave
           </button>
-          <button type="button" onClick={onViewHr} className="h-8 px-2.5 text-xs text-gray-700 hover:underline">
-            View HR →
-          </button>
+          {canViewHr && typeof onViewHr === 'function' ? (
+            <button type="button" onClick={onViewHr} className="h-8 px-2.5 text-xs text-gray-700 hover:underline">
+              View HR →
+            </button>
+          ) : null}
         </>
       }
     >
