@@ -15,6 +15,7 @@ import OverviewKpis from './overview/OverviewKpis'
 import MyWorkPanel from './overview/MyWorkPanel'
 import NotificationsPanel from './overview/NotificationsPanel'
 import QuickActions from './overview/QuickActions'
+import FavoritesQuickAccess from './overview/FavoritesQuickAccess'
 import RecentActivity from './overview/RecentActivity'
 import AttentionRequired from './overview/AttentionRequired'
 import UpcomingDeadlines from './overview/UpcomingDeadlines'
@@ -56,7 +57,14 @@ const DEFAULT_TASK_FORM = {
   reminderAt: '',
 }
 
-function OverviewTab({ onNavigate, buildTabHref, isActive = true, onBindSearch }) {
+function OverviewTab({
+  onNavigate,
+  buildTabHref,
+  isActive = true,
+  onBindSearch,
+  favorites = [],
+  navItems = [],
+}) {
   const { user, token } = useAuth()
   const perms = usePermissions()
 
@@ -682,7 +690,14 @@ function OverviewTab({ onNavigate, buildTabHref, isActive = true, onBindSearch }
           canUpdateTask={canUpdateTask}
           todayStart={todayStart}
         />
-        <QuickActions role={role} onAction={onQuickAction} isReadOnly={isReadOnlyExec} />
+        <div className="flex flex-col gap-4 min-w-0">
+          <FavoritesQuickAccess
+            favorites={favorites}
+            navItems={navItems}
+            onNavigateToTab={onNavigate}
+          />
+          <QuickActions role={role} onAction={onQuickAction} isReadOnly={isReadOnlyExec} />
+        </div>
       </div>
 
       {showTaskCreate && canCreateTasks ? (

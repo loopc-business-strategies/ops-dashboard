@@ -194,10 +194,18 @@ export default function AppSidebar({
   navLayout = null,
   workspaceOpen = true,
   setWorkspaceOpen,
+  isFavorite,
+  onToggleFavorite,
 }) {
   const editing = Boolean(customizable && navLayout?.editing)
 
   const renderNavItem = (sectionKey, item) => {
+    const favProps = {
+      favoriteActive: typeof isFavorite === 'function' ? isFavorite(item.id) : false,
+      onToggleFavorite: typeof onToggleFavorite === 'function'
+        ? () => onToggleFavorite(item.id)
+        : undefined,
+    }
     if (sectionKey === 'erp') {
       return (
         <NavItem
@@ -212,6 +220,7 @@ export default function AppSidebar({
             prefetchTabChunk('erp')
             prefetchTabChunk(item.id)
           }}
+          {...favProps}
         />
       )
     }
@@ -225,6 +234,7 @@ export default function AppSidebar({
         onSameTabNavigate={() => onModuleNavigate?.(item.id)}
         onAfterClick={sidebarLinkAfterClick}
         onPrefetch={() => prefetchTabChunk(item.id)}
+        {...favProps}
       />
     )
   }
@@ -312,6 +322,8 @@ export default function AppSidebar({
               onSameTabNavigate={() => onModuleNavigate?.(item.id)}
               onAfterClick={sidebarLinkAfterClick}
               onPrefetch={() => prefetchTabChunk(item.id)}
+              favoriteActive={typeof isFavorite === 'function' ? isFavorite(item.id) : false}
+              onToggleFavorite={typeof onToggleFavorite === 'function' ? () => onToggleFavorite(item.id) : undefined}
             />
           ))}
         </div>
@@ -329,18 +341,7 @@ export default function AppSidebar({
               <span>{t('departments')}</span>
               <span className="section-chevron" aria-hidden="true">{deptOpen ? '▴' : '▾'}</span>
             </button>
-            {deptOpen && deptItems.map((item) => (
-              <NavItem
-                key={item.id}
-                {...item}
-                href={buildNavHref(item)}
-                active={activeTab === item.id}
-                openInNewTab={Boolean(item.openInNewTab)}
-                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
-                onAfterClick={sidebarLinkAfterClick}
-                onPrefetch={() => prefetchTabChunk(item.id)}
-              />
-            ))}
+            {deptOpen && deptItems.map((item) => renderNavItem('departments', item))}
           </>
         )}
 
@@ -357,21 +358,7 @@ export default function AppSidebar({
               <span>{t('erp')}</span>
               <span className="section-chevron" aria-hidden="true">{erpOpen ? '▴' : '▾'}</span>
             </button>
-            {erpOpen && erpItems.map((item) => (
-              <NavItem
-                key={item.id}
-                {...item}
-                href={buildNavHref(item)}
-                active={activeTab === 'erp' && erpSubTab === item.erpSub}
-                openInNewTab={false}
-                onSameTabNavigate={() => onErpNavigate?.(item.erpSub)}
-                onAfterClick={sidebarLinkAfterClick}
-                onPrefetch={() => {
-                  prefetchTabChunk('erp')
-                  prefetchTabChunk(item.id)
-                }}
-              />
-            ))}
+            {erpOpen && erpItems.map((item) => renderNavItem('erp', item))}
           </>
         )}
 
@@ -388,17 +375,7 @@ export default function AppSidebar({
               <span>{t('adminSection')}</span>
               <span className="section-chevron" aria-hidden="true">{adminOpen ? '▴' : '▾'}</span>
             </button>
-            {adminOpen && adminItems.map((item) => (
-              <NavItem
-                key={item.id}
-                {...item}
-                href={buildNavHref(item)}
-                active={activeTab === item.id}
-                onSameTabNavigate={() => onModuleNavigate?.(item.id)}
-                onAfterClick={sidebarLinkAfterClick}
-                onPrefetch={() => prefetchTabChunk(item.id)}
-              />
-            ))}
+            {adminOpen && adminItems.map((item) => renderNavItem('admin', item))}
           </>
         )}
         </>

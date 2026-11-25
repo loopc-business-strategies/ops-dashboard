@@ -13,6 +13,36 @@ function ComingSoonLockIcon() {
 /**
  * Sidebar nav item — presentation only; navigation rules live in getNavItems.
  */
+function FavoriteStarButton({ active, label, onToggle }) {
+  const { t } = useLanguage()
+  if (typeof onToggle !== 'function') return null
+  return (
+    <button
+      type="button"
+      className={`sidebar-fav-btn${active ? ' is-active' : ''}`}
+      aria-label={active ? t('removeFromFavorites') : t('addToFavorites')}
+      aria-pressed={active}
+      title={active ? t('removeFromFavorites') : t('addToFavorites')}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onToggle()
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 3.5l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 20l1-6L3.3 9.9l6-.9L12 3.5z"
+          fill={active ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="sr-only">{label}</span>
+    </button>
+  )
+}
+
 export function NavItem({
   label,
   active,
@@ -23,6 +53,8 @@ export function NavItem({
   openInNewTab = false,
   onSameTabNavigate,
   onPrefetch,
+  favoriteActive = false,
+  onToggleFavorite,
 }) {
   const { t } = useLanguage()
   const className = `sidebar-item w-full${active ? ' active' : ''}${comingSoon ? ' sidebar-item--coming-soon' : ''}`
@@ -37,14 +69,43 @@ export function NavItem({
       <ComingSoonLockIcon />
     </span>
   ) : null
+  const favBtn = !comingSoon ? (
+    <FavoriteStarButton active={favoriteActive} label={label} onToggle={onToggleFavorite} />
+  ) : null
 
   if (openInNewTab) {
     return (
+      <div className="sidebar-item-row">
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onAfterClick?.()}
+          className={className}
+          style={style}
+          {...prefetchHandlers}
+        >
+          <span className="sidebar-item-label truncate">{label}</span>
+          {lock}
+          {badge != null && badge !== '' && badge !== 0 && (
+            <span className="sidebar-badge">{badge}</span>
+          )}
+        </a>
+        {favBtn}
+      </div>
+    )
+  }
+
+  return (
+    <div className="sidebar-item-row">
       <a
         href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => onAfterClick?.()}
+        onClick={(event) => {
+          if (!isPrimaryNavClick(event)) return
+          event.preventDefault()
+          onSameTabNavigate?.()
+          onAfterClick?.()
+        }}
         className={className}
         style={style}
         {...prefetchHandlers}
@@ -55,28 +116,8 @@ export function NavItem({
           <span className="sidebar-badge">{badge}</span>
         )}
       </a>
-    )
-  }
-
-  return (
-    <a
-      href={href}
-      onClick={(event) => {
-        if (!isPrimaryNavClick(event)) return
-        event.preventDefault()
-        onSameTabNavigate?.()
-        onAfterClick?.()
-      }}
-      className={className}
-      style={style}
-      {...prefetchHandlers}
-    >
-      <span className="sidebar-item-label truncate">{label}</span>
-      {lock}
-      {badge != null && badge !== '' && badge !== 0 && (
-        <span className="sidebar-badge">{badge}</span>
-      )}
-    </a>
+      {favBtn}
+    </div>
   )
 }
 

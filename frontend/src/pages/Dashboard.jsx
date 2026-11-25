@@ -19,9 +19,11 @@ import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import ChangePasswordModal from '../components/ChangePasswordModal'
 import AppShell from '../components/layout/AppShell'
 import AppSidebar from '../components/layout/AppSidebar'
+import FavoritesMenu from '../components/layout/FavoritesMenu'
 import { getNavItems } from '../components/layout/navConfig'
 import { applyItemOrder } from '../components/layout/navLayout'
 import { useNavLayout } from '../components/layout/useNavLayout'
+import { useUserNavShortcuts } from '../hooks/useUserNavShortcuts'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { holdLiveMetalRatesForDashboardReport, isLiveMetalRatesHeld, markDashboardConnectionIssued, markDashboardConnectionOpened, releaseLiveMetalRates, whenLiveMetalFetchSettled } from '../utils/liveMetalRates'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
@@ -302,7 +304,13 @@ function renderTab(
   erpSubTab,
   chatTabProps = {},
   erpTabProps = {},
-  { departmentsComingSoon = false, overviewIsActive = true, onBindOverviewSearch } = {},
+  {
+    departmentsComingSoon = false,
+    overviewIsActive = true,
+    onBindOverviewSearch,
+    overviewFavorites = [],
+    overviewNavItems = [],
+  } = {},
 ) {
   if (departmentsComingSoon && tabId === 'overview') {
     return <ModuleComingSoonTab titleKey="overview" />
@@ -330,7 +338,16 @@ function renderTab(
 
   switch (tabId) {
     case 'overview':
-      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} isActive={overviewIsActive} onBindSearch={onBindOverviewSearch} />
+      return (
+        <OverviewTab
+          onNavigate={navigateToTab}
+          buildTabHref={buildTabHref}
+          isActive={overviewIsActive}
+          onBindSearch={onBindOverviewSearch}
+          favorites={overviewFavorites}
+          navItems={overviewNavItems}
+        />
+      )
 
     case 'chat':
       return (
@@ -601,9 +618,20 @@ function Dashboard() {
     }
   }, [])
 
+  const {
+    favorites: navFavorites,
+    recent: navRecent,
+    isFavorite,
+    toggleFavorite,
+    reorderFavoriteIds,
+    recordRecentVisit,
+    clearRecentHistory,
+  } = useUserNavShortcuts({ enabled: Boolean(token) })
+
   const navigateToTab = useCallback((tabId, options = {}) => {
     if ((tabId === 'production-new' || tabId === 'production') && !departmentsComingSoon) {
       openProductionDashboard()
+      recordRecentVisit('production-new')
       return
     }
     const { erpSub, sub, replace = true } = options
@@ -619,12 +647,18 @@ function Dashboard() {
       sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
       replace,
     })
-  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionDashboard, departmentsComingSoon])
+
+    const recentId = nextActive === 'erp'
+      ? `erp-${nextErpSub || 'dashboard'}`
+      : nextActive
+    if (recentId) recordRecentVisit(recentId)
+  }, [erpSubTab, searchParams, writeDashboardUrl, openProductionDashboard, departmentsComingSoon, recordRecentVisit])
   const handleErpSubTabChange = useCallback((subTab) => {
     setActiveTab('erp')
     setErpSubTab(subTab)
     writeDashboardUrl({ tabId: 'erp', erpSub: subTab, sub: null })
-  }, [writeDashboardUrl])
+    recordRecentVisit(`erp-${subTab || 'dashboard'}`)
+  }, [writeDashboardUrl, recordRecentVisit])
 
   const buildTabHref = useCallback((tabId, options = {}) => {
     const { erpSub, sub } = options
@@ -655,8 +689,10 @@ function Dashboard() {
       departmentsComingSoon,
       overviewIsActive: activeTab === 'overview',
       onBindOverviewSearch,
+      overviewFavorites: navFavorites,
+      overviewNavItems: navItems,
     }),
-    [departmentsComingSoon, activeTab, onBindOverviewSearch],
+    [departmentsComingSoon, activeTab, onBindOverviewSearch, navFavorites, navItems],
   )
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
@@ -1087,6 +1123,8 @@ function Dashboard() {
         navLayout={navCustomizable ? navLayout : null}
         workspaceOpen={workspaceOpen}
         setWorkspaceOpen={setWorkspaceOpen}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleFavorite}
       />
       {isDesktop && !sidebarOpen ? (
         <div
@@ -1177,6 +1215,16 @@ function Dashboard() {
                   </svg>
                 </button>
               ) : null}
+
+              <FavoritesMenu
+                navItems={navItems}
+                favorites={navFavorites}
+                recent={navRecent}
+                onToggleFavorite={toggleFavorite}
+                onReorderFavorites={reorderFavoriteIds}
+                onClearRecent={clearRecentHistory}
+                onNavigateToTab={navigateToTab}
+              />
 
               {/* Read-only badge */}
               {perms.isReadOnly && (

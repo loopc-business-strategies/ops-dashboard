@@ -10,6 +10,8 @@
 //   GET  /api/auth/me               ← get my own profile
 //   PUT  /api/auth/change-password  ← change own password (any logged-in user)
 //   GET/PUT /api/auth/me/nav-layout ← MG/VB sidebar order (own account)
+//   GET/POST/DELETE /api/auth/me/favorites (+ PUT .../order) ← per-user favorites
+//   GET/POST/DELETE /api/auth/me/recent ← per-user recently used nav pages
 //   POST /api/auth/me/push-token    ← register Expo push token (mobile)
 //   DELETE /api/auth/me/push-token  ← remove Expo push token
 //   POST /api/auth/me/web-push-subscription   ← register Web Push (browser)
@@ -1001,5 +1003,8 @@ router.put('/users/:id/toggle', protect, restrictTo('super_admin'), validatePara
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
+
+// Favorites + Recently Used (per-user nav shortcuts)
+router.use(require('./userNavShortcuts'))
 
 module.exports = router
