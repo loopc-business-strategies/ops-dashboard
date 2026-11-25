@@ -744,21 +744,43 @@ export default function ERPInventoryTab({
                     : 'No non-zero items match. Tick “Include 0” to show zero-qty products.'}
               </div>
             ) : (
-              <div ref={invScrollRef} className="erp-table-wrap" style={{ overflow: 'auto', maxHeight: 560, border: 'none', borderRadius: 0 }}>
-                <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: 'left', minWidth: '12rem' }}>Item</th>
-                      <th className="num">pcs</th>
-                      <th className="num">gross qty</th>
-                      <th className="num">purity</th>
-                      <th className="num">pure qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventoryCategoryGroups.map((group, groupIndex) => (
-                      <Fragment key={group.metal}>
-                        <tr style={{ background: '#FFF7ED', borderTop: groupIndex > 0 ? '2px solid #F1F5F9' : undefined }}>
+              <div
+                ref={invScrollRef}
+                className="erp-table-wrap"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '0.75rem',
+                  alignItems: 'start',
+                  overflow: 'auto',
+                  maxHeight: 560,
+                  border: 'none',
+                  borderRadius: 0,
+                }}
+              >
+                {inventoryCategoryGroups.map((group) => (
+                  <div
+                    key={group.metal}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '0.5rem',
+                      overflow: 'hidden',
+                      background: '#FFFFFF',
+                      minWidth: 0,
+                    }}
+                  >
+                    <table className="erp-table" style={{ borderCollapse: 'collapse', width: '100%', margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', minWidth: '8rem' }}>Item</th>
+                          <th className="num">pcs</th>
+                          <th className="num">gross qty</th>
+                          <th className="num">purity</th>
+                          <th className="num">pure qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ background: '#FFF7ED' }}>
                           <td
                             colSpan={invItemColCount}
                             style={{
@@ -776,24 +798,24 @@ export default function ERPInventoryTab({
                         {group.products.map((product) => {
                           const isZero = product.grossQty <= 0
                           return (
-                          <tr key={product.id} style={{ borderBottom: '1px solid #F8FAFC', background: isZero ? '#FFFBEB' : undefined }}>
-                            <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.15rem', fontWeight: 600, color: isZero ? '#92400E' : C.ink }}>
-                              {product.name}
-                              {isZero ? <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>0 stock</span> : null}
-                            </td>
-                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
-                              {product.pcs == null ? '—' : product.pcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </td>
-                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
-                              {product.grossQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                            </td>
-                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
-                              {product.purity === '' || product.purity == null ? '—' : String(product.purity)}
-                            </td>
-                            <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
-                              {product.pureQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                            </td>
-                          </tr>
+                            <tr key={product.id} style={{ borderBottom: '1px solid #F8FAFC', background: isZero ? '#FFFBEB' : undefined }}>
+                              <td style={{ padding: '0.4rem 0.7rem 0.4rem 1.15rem', fontWeight: 600, color: isZero ? '#92400E' : C.ink }}>
+                                {product.name}
+                                {isZero ? <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, color: '#B45309' }}>0 stock</span> : null}
+                              </td>
+                              <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
+                                {product.pcs == null ? '—' : product.pcs.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </td>
+                              <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
+                                {product.grossQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                              </td>
+                              <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>
+                                {product.purity === '' || product.purity == null ? '—' : String(product.purity)}
+                              </td>
+                              <td style={{ padding: '0.4rem 0.7rem', textAlign: 'right', color: isZero ? '#B45309' : C.ink, fontWeight: 600 }}>
+                                {product.pureQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                              </td>
+                            </tr>
                           )
                         })}
                         <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
@@ -811,10 +833,10 @@ export default function ERPInventoryTab({
                             {group.totalPure.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           </td>
                         </tr>
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
             )}
           </div>
