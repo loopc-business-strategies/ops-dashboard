@@ -216,10 +216,22 @@ export function AlloyMixPanel({
       return
     }
     const purityRaw = String(addPurity || '').trim()
-    const purityNum = purityRaw ? Number(purityRaw.replace(',', '.')) : null
-    if (purityRaw && (!Number.isFinite(purityNum) || (purityNum as number) < 0 || (purityNum as number) > 100)) {
-      setError('Purity must be between 0 and 100')
-      return
+    let purityNum: number | null = purityRaw ? Number(purityRaw.replace(',', '.')) : null
+    if (purityRaw) {
+      if (!Number.isFinite(purityNum as number) || (purityNum as number) <= 0) {
+        setError('Enter purity as a fraction (e.g. 1 or 0.999)')
+        return
+      }
+      // Accept Post Mix style (1) or legacy percent (100) — normalize to fraction.
+      if ((purityNum as number) > 1.2 && (purityNum as number) <= 100) {
+        purityNum = Math.round(((purityNum as number) / 100) * 1e6) / 1e6
+      } else if ((purityNum as number) > 100) {
+        purityNum = Math.round(((purityNum as number) / 1000) * 1e6) / 1e6
+      }
+      if ((purityNum as number) > 1) {
+        setError('Purity cannot be more than 1')
+        return
+      }
     }
     const mixCode = addingMetal.mixCode
     setBusyId(addingMetal.id)
@@ -614,12 +626,12 @@ export function AlloyMixPanel({
               placeholder="0"
               style={styles.weightInput}
             />
-            <Text style={styles.weightLabel}>Purity (%)</Text>
+            <Text style={styles.weightLabel}>Purity</Text>
             <TextInput
               value={addPurity}
               onChangeText={setAddPurity}
               keyboardType="decimal-pad"
-              placeholder={selectedMetal?.purity || 'optional'}
+              placeholder={selectedMetal?.purity || 'e.g. 1'}
               style={styles.weightInput}
             />
             {error && addingMetal ? <Text style={styles.error}>{error}</Text> : null}

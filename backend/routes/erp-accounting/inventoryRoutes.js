@@ -553,6 +553,7 @@ function registerInventoryRoutes(deps) {
     },
   )
 
+  // Purity matches Gold Alloy Post Mix: fraction (1) preferred; percent (100) still accepted.
   const alloyMixAddMetalSchema = Joi.object({
     productId: Joi.string().trim().min(1).max(40).required(),
     gross: Joi.number().positive().required(),
@@ -627,8 +628,11 @@ function registerInventoryRoutes(deps) {
       let reasonFilter
       if (reasonBase) {
         const escaped = reasonBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        // Posted list reason is the base; movements are `${base} — consume|receive …`.
-        reasonFilter = new RegExp(`^${escaped}(?:\\s*[—\\-]\\s*(?:consume|receive)\\b|$)`, 'i')
+        // Posted list reason is the base; movements are `${base} — consume|receive|vault add …`.
+        reasonFilter = new RegExp(
+          `^${escaped}(?:\\s*[—\\-]\\s*(?:consume|receive|vault\\s+add\\s+metal)\\b|$)`,
+          'i',
+        )
       } else if (Number.isFinite(karatNum) && karatNum > 0) {
         reasonFilter = new RegExp(`Gold alloy mix\\s*\\(${karatNum}\\s*K|alloy mix\\s*\\(${karatNum}\\s*K`, 'i')
       } else {

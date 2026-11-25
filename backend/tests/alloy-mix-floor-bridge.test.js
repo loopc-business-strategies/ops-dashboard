@@ -11,6 +11,7 @@ const {
   listMixJobs,
   serializeJob,
   autoUpdateAlloyMixAfterMetalOut,
+  addMetalToVaultMix,
 } = require('../services/erpAccounting/alloyMixFloorBridge')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
@@ -191,6 +192,160 @@ describe('alloy mix floor bridge', () => {
     const ops = await OperationsProductionEntry.find({ source: 'gold_alloy' })
     expect(ops.length).toBeGreaterThanOrEqual(1)
     expect(ops.some((r) => r.departmentKey === 'vault_room' && Number(r.metalIn) === 80)).toBe(true)
+  })
+
+  test('vault add metal bumps job, finished stock, and Ops vault Metal IN', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const cadmium = await InventoryItem.create({
+      name: 'cadmium',
+      sku: 'CD-FINE',
+      category: 'mainStock=cadmium;metalType=cadmium;recordType=product;productPurity=1',
+      quantity: 50,
+      unit: 'grams',
+      unitCost: 2,
+      ledgerAccountId: fineGold.ledgerAccountId,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: cadmium._id,
+      itemName: cadmium.name,
+      change: 50,
+      quantityBefore: 0,
+      quantityAfter: 50,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+
+    const posted = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 30, role: 'silver', label: 'silver' },
+      ],
+    })
+    expect(posted.success).toBe(true)
+    const mixId = posted.mixJob?.id || posted.mixJob?._id
+    expect(mixId).toBeTruthy()
+
+    const beforeFin = await InventoryItem.findById(finished._id)
+    const beforeFinQty = Number(beforeFin.quantity)
+
+    const job = await addMetalToVaultMix({
+      user,
+      mixId,
+      productId: String(cadmium._id),
+      gross: 20,
+      purity: 100,
+    })
+
+    expect(Number(job.targetGross)).toBe(100)
+    expect(job.inputComponents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'cadmium', gross: 20, role: 'extra' }),
+    ]))
+
+    const ops = await OperationsProductionEntry.find({
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      alloyMixCode: job.mixCode,
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    })
+    expect(ops).toHaveLength(1)
+    expect(Number(ops[0].metalIn)).toBe(100)
+
+    const lot = await ProductionStockLot.findById(job.stockLotId)
+    expect(Number(lot.grossWeight)).toBe(100)
+
+    const afterCd = await InventoryItem.findById(cadmium._id)
+    expect(Number(afterCd.quantity)).toBe(30)
+
+    const afterFin = await InventoryItem.findById(finished._id)
+    expect(Number(afterFin.quantity)).toBe(beforeFinQty + 20)
+
+    const moves = await StockMovement.find({
+      isDeleted: { $ne: true },
+      reason: /vault add/i,
+    })
+    expect(moves.some((m) => Number(m.change) === -20 && /consume/i.test(m.reason))).toBe(true)
+    expect(moves.some((m) => Number(m.change) === 20 && /receive/i.test(m.reason))).toBe(true)
+  })
+
+  test('serializeJobs heals stale Ops vault Metal IN after prior vault add', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const posted = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 30, role: 'silver', label: 'silver' },
+      ],
+    })
+    const mixCode = posted.mixJob.mixCode
+    await AlloyMixJob.updateOne(
+      { mixCode },
+      { $set: { targetGross: 100, fineGold: 50 } },
+    )
+    const open = await OperationsProductionEntry.findOne({
+      source: 'gold_alloy',
+      alloyMixCode: mixCode,
+      departmentKey: 'vault_room',
+    })
+    expect(Number(open.metalIn)).toBe(80)
+
+    const { serializeJobs } = require('../services/erpAccounting/alloyMixFloorBridge')
+    const jobs = await listMixJobs({ department: 'vault_room' })
+    await serializeJobs(jobs)
+
+    const healed = await OperationsProductionEntry.findById(open._id)
+    expect(Number(healed.metalIn)).toBe(100)
+    expect(Number(healed.fineGold)).toBe(50)
+  })
+
+  test('serializeJobs opens Vault Ops IN when mix is in vault but visit was closed', async () => {
+    const { user, fineGold, silver, finished, service } = await seedMixFixture()
+    const posted = await service.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 14,
+      targetGross: 80,
+      finishedProductId: String(finished._id),
+      lines: [
+        { itemId: String(fineGold._id), gross: 50, role: 'gold', label: 'gold' },
+        { itemId: String(silver._id), gross: 30, role: 'silver', label: 'silver' },
+      ],
+    })
+    const mixCode = posted.mixJob.mixCode
+    await AlloyMixJob.updateOne(
+      { mixCode },
+      { $set: { targetGross: 95, fineGold: 48 } },
+    )
+    // Close the only vault visit (as if allocate OUT already happened).
+    await OperationsProductionEntry.updateMany(
+      { source: 'gold_alloy', alloyMixCode: mixCode, departmentKey: 'vault_room' },
+      { $set: { metalOut: 80, batchOverAt: new Date(), metalLoss: 0 } },
+    )
+
+    const { serializeJobs } = require('../services/erpAccounting/alloyMixFloorBridge')
+    await serializeJobs(await listMixJobs({ department: 'vault_room' }))
+
+    const open = await OperationsProductionEntry.findOne({
+      source: 'gold_alloy',
+      alloyMixCode: mixCode,
+      departmentKey: 'vault_room',
+      metalIn: { $ne: null },
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    })
+    expect(open).toBeTruthy()
+    expect(Number(open.metalIn)).toBe(95)
+    expect(Number(open.fineGold)).toBe(48)
   })
 
   test('allocate to melting then back to vault; update blocked while on floor', async () => {

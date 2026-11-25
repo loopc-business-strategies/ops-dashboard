@@ -635,9 +635,19 @@ export function buildAlloyMixPayload({
 /** Mapping type for Gold Alloy Update metal-loss GL (debit expense / credit inventory). */
 export const ALLOY_METAL_LOSS_MAPPING_TYPE = 'alloy_metal_loss'
 
+/** Legacy vault Add metal reason (pre consume/receive vault-add wording). */
+function isLegacyVaultAddMetalReason(reason = '') {
+  return /—\s*vault\s+add\s+metal\b/i.test(String(reason || ''))
+}
+
+function isVaultAddReceiveReason(reason = '') {
+  return /—\s*receive\b/i.test(String(reason || ''))
+    && /\(\s*vault\s+add\s*\)/i.test(String(reason || ''))
+}
+
 function alloyMixReasonBase(reason = '') {
   const text = String(reason || '')
-  const matched = text.match(/^(.*) — (?:consume|receive)\b/i)
+  const matched = text.match(/^(.*) — (?:consume|receive|vault\s+add\s+metal)\b/i)
   return (matched ? matched[1] : text).trim()
 }
 
@@ -661,7 +671,9 @@ export function buildAlloyMixReasonBase({
 
 function isAlloyMixMovementReason(reason = '') {
   const text = String(reason || '')
-  if (!/ — (?:consume|receive)\b/i.test(text)) return false
+  if (!/ — (?:consume|receive)\b/i.test(text) && !isLegacyVaultAddMetalReason(text)) {
+    return false
+  }
   return /alloy|alloyed|alloy\s*mix|gold alloy mix|\d+\s*k/i.test(text)
 }
 
@@ -810,7 +822,9 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
         reason: base,
         at: move.createdAt || move.updatedAt || '',
         karat: null,
-        targetGross: 0,
+        receiveGross: 0,
+        vaultAddReceiveGross: 0,
+        legacyVaultAddGross: 0,
         finishedName: '',
         finishedProductId: '',
         finishedQtyAfter: null,
@@ -833,16 +847,29 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
     if (change > 0 || /—\s*receive/i.test(reason)) {
       entry.finishedName = move.itemName || entry.finishedName
       entry.finishedProductId = String(move.itemId || entry.finishedProductId || '')
-      entry.targetGross = Math.abs(change) || entry.targetGross
+      const abs = Math.abs(change) || 0
+      // Primary Post/Update receive sets the base; vault-add receive bumps on top.
+      if (isVaultAddReceiveReason(reason)) {
+        entry.vaultAddReceiveGross = roundAlloyGrams(Number(entry.vaultAddReceiveGross || 0) + abs)
+      } else {
+        entry.receiveGross = abs || entry.receiveGross
+      }
       entry.finishedQtyAfter = move.quantityAfter != null
         ? Number(move.quantityAfter)
         : entry.finishedQtyAfter
-    } else if (change < 0 || /—\s*consume/i.test(reason)) {
+    } else if (
+      change < 0
+      || /—\s*consume/i.test(reason)
+      || isLegacyVaultAddMetalReason(reason)
+    ) {
       const remainMatch = reason.match(/\(\s*remain\s+([\d.]+)\s*g\s*\)/i)
       const remainGross = remainMatch ? Number(remainMatch[1]) : null
-      const labelMatch = reason.match(/—\s*consume\s+(.+)$/i)
+      const labelMatch = reason.match(/—\s*(?:consume|vault\s+add\s+metal)\s+(.+)$/i)
       const rawLabel = labelMatch ? labelMatch[1].trim() : (move.itemName || '')
-      const labelHint = rawLabel.replace(/\(\s*remain\s+[\d.]+\s*g\s*\)/i, '').trim()
+      const labelHint = rawLabel
+        .replace(/\(\s*remain\s+[\d.]+\s*g\s*\)/i, '')
+        .replace(/\(\s*vault\s+add\s*\)/i, '')
+        .trim()
       const meta = inferAlloyLineMeta(labelHint || move.itemName || '')
       const itemId = String(move.itemId || '')
       const consumeGross = Math.abs(change)
@@ -874,6 +901,12 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
           role: meta.role,
         })
       }
+      // Legacy vault-add only stocked out metal (no finished receive) — bump target.
+      if (isLegacyVaultAddMetalReason(reason)) {
+        entry.legacyVaultAddGross = roundAlloyGrams(
+          Number(entry.legacyVaultAddGross || 0) + consumeGross,
+        )
+      }
     }
   }
 
@@ -886,16 +919,21 @@ export function buildPostedAlloyMixListFromMovements(movements = []) {
     .map((entry) => {
       const isHistory = entry.activeMoveCount === 0 && entry.deletedMoveCount > 0
       const status = entry.status || alloyMixStatusFromReason(entry.reason)
+      const targetGross = roundAlloyGrams(
+        Number(entry.receiveGross || 0)
+        + Number(entry.vaultAddReceiveGross || 0)
+        + Number(entry.legacyVaultAddGross || 0),
+      )
       const consumed = applyOxidationRemainToConsumedDisplay(
         entry.consumed.filter((row) => Number(row.gross || row.consumeGross || 0) > 0),
-        entry.targetGross,
+        targetGross,
       )
       return {
         id: entry.id,
         reason: entry.reason,
         at: entry.at,
         karat: entry.karat || karatFromReason(entry.reason),
-        targetGross: entry.targetGross,
+        targetGross,
         finishedName: entry.finishedName,
         finishedProductId: entry.finishedProductId,
         finishedQtyAfter: isHistory ? null : entry.finishedQtyAfter,
@@ -962,6 +1000,66 @@ export function groupPostedAlloyMixes(mixes = []) {
   })
 
   return result.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
+}
+
+/**
+ * Prefer Floor/Ops mix job weight + inputComponents when vault Add metal bumped
+ * the bar above the ERP posted ledger snapshot (or before ledger vault-add sync).
+ */
+export function mergePostedMixWithFloorJob(posted = {}, job = null) {
+  if (!posted || !job) return posted
+  const jobTarget = Number(job.targetGross)
+  const postedTarget = Number(posted.targetGross) || 0
+  const components = Array.isArray(job.inputComponents) ? job.inputComponents : []
+  if (!(jobTarget > 0) && !components.length) return posted
+
+  const consumed = (Array.isArray(posted.consumed) ? posted.consumed : []).map((row) => ({ ...row }))
+  for (const c of components) {
+    const itemId = String(c.itemId || '')
+    const gross = Number(c.gross) || 0
+    if (!(gross > 0)) continue
+    const name = String(c.name || '').trim()
+    const existing = consumed.find((row) => (
+      (itemId && String(row.itemId) === itemId)
+      || (name && String(row.name || '').toLowerCase() === name.toLowerCase())
+    ))
+    if (existing) {
+      if (gross > Number(existing.gross || 0) + 0.0005) {
+        existing.gross = roundAlloyGrams(gross)
+        existing.consumeGross = roundAlloyGrams(
+          Math.max(Number(existing.consumeGross || 0), gross),
+        )
+      }
+      continue
+    }
+    const meta = inferAlloyLineMeta(c.label || c.name || '')
+    consumed.push({
+      itemId,
+      name,
+      gross: roundAlloyGrams(gross),
+      consumeGross: roundAlloyGrams(gross),
+      remainGross: roundAlloyGrams(gross),
+      key: meta.key,
+      label: meta.label || c.label || name,
+      role: c.role || meta.role || 'extra',
+    })
+  }
+
+  const nextTarget = jobTarget > postedTarget + 0.0005
+    ? roundAlloyGrams(jobTarget)
+    : postedTarget
+  if (nextTarget === postedTarget && consumed.length === (posted.consumed || []).length) {
+    const same = consumed.every((row, i) => (
+      Number(row.gross) === Number(posted.consumed[i]?.gross)
+      && String(row.itemId) === String(posted.consumed[i]?.itemId)
+    ))
+    if (same) return posted
+  }
+  return {
+    ...posted,
+    targetGross: nextTarget,
+    consumed,
+  }
 }
 
 /** Prefill blank mix lines from a posted mix row (for Edit). */

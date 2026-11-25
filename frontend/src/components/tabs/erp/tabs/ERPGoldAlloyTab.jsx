@@ -13,6 +13,7 @@ import {
   buildAlloyMixReasonBase,
   buildFinishedUpdateFormFromPosted,
   buildPostedAlloyMixListFromMovements,
+  mergePostedMixWithFloorJob,
   groupPostedAlloyMixes,
   computeAlloyMetalLoss,
   computeAlloyMixShare,
@@ -136,7 +137,14 @@ export default function ERPGoldAlloyTab({
     }
     setMixJobsByReason(map)
     setMixJobCodes(codes)
+    return map
   }
+
+  const enrichPostedWithFloorJobs = (rows = [], jobsByReason = {}) => (
+    (Array.isArray(rows) ? rows : []).map((row) => (
+      mergePostedMixWithFloorJob(row, jobsByReason[String(row?.reason || '').trim()] || null)
+    ))
+  )
 
   const reloadMixJobs = async () => {
     if (!token || !postingEnabled) {
@@ -164,8 +172,14 @@ export default function ERPGoldAlloyTab({
         alloyOnly: 1,
         limit: 200,
       })
-      setPostedMixes(buildPostedAlloyMixListFromMovements(data?.movements || []))
-      await reloadMixJobs()
+      const jobsData = postingEnabled
+        ? await erpAccountingAPI.listAlloyMixJobs(token, { includeClosed: true }).catch(() => ({ jobs: [] }))
+        : { jobs: [] }
+      const jobsMap = applyMixJobs(jobsData?.jobs || [])
+      setPostedMixes(enrichPostedWithFloorJobs(
+        buildPostedAlloyMixListFromMovements(data?.movements || []),
+        jobsMap,
+      ))
     } catch {
       setPostedMixes([])
     } finally {
@@ -189,8 +203,11 @@ export default function ERPGoldAlloyTab({
     ])
       .then(([data, jobsData]) => {
         if (cancelled) return
-        setPostedMixes(buildPostedAlloyMixListFromMovements(data?.movements || []))
-        applyMixJobs(jobsData?.jobs || [])
+        const jobsMap = applyMixJobs(jobsData?.jobs || [])
+        setPostedMixes(enrichPostedWithFloorJobs(
+          buildPostedAlloyMixListFromMovements(data?.movements || []),
+          jobsMap,
+        ))
       })
       .catch(() => {
         if (!cancelled) {
@@ -731,15 +748,17 @@ export default function ERPGoldAlloyTab({
       setNewMixOpen(false)
     }
     setEditingPosted(null)
-    setUpdatePosted(posted)
-    const form = buildFinishedUpdateFormFromPosted(posted, stockOptions)
+    // Include vault Add metal extras / bumped gross from the Floor job.
+    const effectivePosted = mergePostedMixWithFloorJob(posted, job)
+    setUpdatePosted(effectivePosted)
+    const form = buildFinishedUpdateFormFromPosted(effectivePosted, stockOptions)
     setUpdateFinishedGross(form.gross)
     setUpdateFinishedPurityPct(
       alloyPercentToPurityFraction(form.purityPercent)
       || String(normalizeAlloyPurity(form.purityPercent) || ''),
     )
-    setUpdateOriginalFinishedGross(Number(posted?.targetGross || form.gross || 0))
-    setUpdateMetalLines(buildUpdateMetalLinesFromPosted(posted, form.gross, []))
+    setUpdateOriginalFinishedGross(Number(effectivePosted?.targetGross || form.gross || 0))
+    setUpdateMetalLines(buildUpdateMetalLinesFromPosted(effectivePosted, form.gross, []))
     setUpdateOpen(true)
   }
 

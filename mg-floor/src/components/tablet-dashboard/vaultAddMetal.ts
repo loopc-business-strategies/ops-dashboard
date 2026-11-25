@@ -56,18 +56,23 @@ export function vaultMetalProductOptions(
       .toLowerCase() || 'other'
     const purityRaw = pairs.productPurity || pairs.purity || item.purity || ''
     const purityNum = Number(purityRaw)
-    let purityPct = ''
+    // Same as Gold Alloy Post Mix: catalog purity as fraction (1 / 0.999), not %.
+    let purityFrac = ''
     if (Number.isFinite(purityNum) && purityNum > 0) {
-      purityPct = purityNum > 0 && purityNum <= 1.2
-        ? String(Math.round(purityNum * 100 * 1000) / 1000)
-        : String(purityNum)
+      if (purityNum > 1.2 && purityNum <= 100) {
+        purityFrac = String(Math.round((purityNum / 100) * 1e6) / 1e6)
+      } else if (purityNum > 100) {
+        purityFrac = String(Math.round((purityNum / 1000) * 1e6) / 1e6)
+      } else {
+        purityFrac = String(purityNum)
+      }
     }
     byKey.set(key, {
       id: String(item._id || item.id || key),
       name,
       metalGroupKey: groupKey,
       metalGroup: titleCaseMetalGroup(groupKey),
-      purity: purityPct,
+      purity: purityFrac,
     })
   }
   return [...byKey.values()].sort((a, b) => {

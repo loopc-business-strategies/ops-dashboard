@@ -706,13 +706,18 @@ function createAlloyMixService({
 
   function alloyMixReasonBase(reason = '') {
     const text = String(reason || '')
-    const matched = text.match(/^(.*) — (?:consume|receive)\b/i)
+    const matched = text.match(/^(.*) — (?:consume|receive|vault\s+add\s+metal)\b/i)
     return (matched ? matched[1] : text).trim()
   }
 
   function isAlloyMixMovementReason(reason = '') {
     const text = String(reason || '')
-    if (!/ — (?:consume|receive)\b/i.test(text)) return false
+    if (
+      !/ — (?:consume|receive)\b/i.test(text)
+      && !/—\s*vault\s+add\s+metal\b/i.test(text)
+    ) {
+      return false
+    }
     return /alloy|alloyed|alloy\s*mix|gold alloy mix|\d+\s*k/i.test(text)
   }
 
@@ -744,8 +749,10 @@ function createAlloyMixService({
       await assertJobUpdatableByReason(reasonBase, session)
 
       const escapedReason = reasonBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      // Include vault Add metal (legacy + consume/receive vault-add) so Update Mix
+      // restores catalog + finished bumps booked while the bar was in Vault.
       const reasonPrefixRe = new RegExp(
-        `^${escapedReason}(?:\\s*[—\\-]\\s*(?:consume|receive)\\b|$)`,
+        `^${escapedReason}(?:\\s*[—\\-]\\s*(?:consume|receive|vault\\s+add\\s+metal)\\b|$)`,
         'i',
       )
 

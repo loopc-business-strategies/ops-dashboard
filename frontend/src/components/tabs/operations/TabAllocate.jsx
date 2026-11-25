@@ -150,10 +150,20 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
     setLocalError('')
   }
 
+  /** Same as Gold Alloy Post Mix: purity as fraction (1), not percent (100). */
+  const toPurityFraction = (raw) => {
+    const n = Number(String(raw ?? '').replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0) return ''
+    if (n > 1.2 && n <= 100) return String(Math.round((n / 100) * 1e6) / 1e6)
+    if (n > 100) return String(Math.round((n / 1000) * 1e6) / 1e6)
+    return String(n)
+  }
+
   const onPickAddMetalProduct = (productId) => {
     setAddMetalProductId(productId)
     const opt = metalCatalog.find((p) => p.id === productId)
-    setAddMetalPurity(opt?.purity || '')
+    // metalOutProductOptions stores catalog as % for Metal Out; Add metal uses fraction.
+    setAddMetalPurity(toPurityFraction(opt?.purity) || '')
   }
 
   const submitAddMetal = async () => {
@@ -168,10 +178,18 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
       return
     }
     const purityRaw = String(addMetalPurity || '').trim()
-    const purityNum = purityRaw ? Number(purityRaw.replace(',', '.')) : null
-    if (purityRaw && (!Number.isFinite(purityNum) || purityNum < 0 || purityNum > 100)) {
-      setLocalError('Purity must be between 0 and 100')
-      return
+    let purityNum = purityRaw ? Number(purityRaw.replace(',', '.')) : null
+    if (purityRaw) {
+      if (!Number.isFinite(purityNum) || purityNum <= 0) {
+        setLocalError('Enter purity as a fraction (e.g. 1 or 0.999)')
+        return
+      }
+      const asFrac = toPurityFraction(purityNum)
+      purityNum = asFrac ? Number(asFrac) : null
+      if (purityNum == null || purityNum > 1) {
+        setLocalError('Purity cannot be more than 1')
+        return
+      }
     }
     const productName = metalCatalog.find((p) => p.id === addMetalProductId)?.name || 'metal'
     const mixCode = addMetalJob.mixCode || 'MIX'
@@ -917,16 +935,17 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
-              Purity (%)
+              Purity
               <input
                 type="number"
                 min="0"
-                max="100"
-                step="0.01"
+                max="1"
+                step="0.0001"
                 value={addMetalPurity}
                 disabled={Boolean(busyId)}
                 onChange={(e) => setAddMetalPurity(e.target.value)}
-                placeholder="optional"
+                placeholder="e.g. 1"
+                title="Same as Gold Alloy Post Mix — fraction (1 = fine), not percent"
                 style={{
                   height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
                   background: C.inp, fontWeight: 600,

@@ -21,6 +21,7 @@ import {
   visibleAlloyLines,
   buildPostedAlloyMixEntryFromResult,
   buildPostedAlloyMixListFromMovements,
+  mergePostedMixWithFloorJob,
   groupPostedAlloyMixes,
   buildAlloyLinesFromPostedMix,
   alloyPurityToPercent,
@@ -744,5 +745,103 @@ describe('goldAlloyCalculator', () => {
     expect(Number(gold.gross) + Number(silver.gross)).toBeCloseTo(81.715, 3)
     expect(Number(gold.gross)).not.toBe(50)
     expect(Number(silver.gross)).not.toBe(35.715)
+  })
+
+  test('vault add metal consume+receive bumps posted target and Inputs', () => {
+    const rows = buildPostedAlloyMixListFromMovements([
+      {
+        itemId: 'fin',
+        itemName: '22k alloyed gold',
+        change: 20,
+        quantityAfter: 571.51,
+        reason: 'Gold alloy mix (22K 551.51 g) — receive 22k alloyed gold (vault add)',
+        createdAt: '2026-11-21T12:00:02.000Z',
+      },
+      {
+        itemId: 'cd',
+        itemName: 'cadmium',
+        change: -20,
+        reason: 'Gold alloy mix (22K 551.51 g) — consume cadmium (vault add)',
+        createdAt: '2026-11-21T12:00:01.000Z',
+      },
+      {
+        itemId: 'fin',
+        itemName: '22k alloyed gold',
+        change: 551.51,
+        quantityAfter: 551.51,
+        reason: 'Gold alloy mix (22K 551.51 g) — receive 22k alloyed gold',
+        createdAt: '2026-11-21T10:00:02.000Z',
+      },
+      {
+        itemId: 'au',
+        itemName: 'Gold 24K Bar',
+        change: -505.5,
+        reason: 'Gold alloy mix (22K 551.51 g) — consume gold',
+        createdAt: '2026-11-21T10:00:01.000Z',
+      },
+      {
+        itemId: 'ag',
+        itemName: 'Fine Silver',
+        change: -46.01,
+        reason: 'Gold alloy mix (22K 551.51 g) — consume silver',
+        createdAt: '2026-11-21T10:00:01.000Z',
+      },
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].targetGross).toBe(571.51)
+    expect(rows[0].consumed.map((c) => c.name).sort()).toEqual([
+      'Fine Silver', 'Gold 24K Bar', 'cadmium',
+    ])
+    expect(rows[0].consumed.find((c) => c.name === 'cadmium').gross).toBe(20)
+  })
+
+  test('legacy vault add metal reason still bumps targetGross', () => {
+    const rows = buildPostedAlloyMixListFromMovements([
+      {
+        itemId: 'cd',
+        itemName: 'cadmium',
+        change: -20,
+        reason: 'Gold alloy mix (22K 551.51 g) — vault add metal cadmium',
+        createdAt: '2026-11-21T12:00:00.000Z',
+      },
+      {
+        itemId: 'fin',
+        itemName: '22k alloyed gold',
+        change: 551.51,
+        reason: 'Gold alloy mix (22K 551.51 g) — receive 22k alloyed gold',
+        createdAt: '2026-11-21T10:00:00.000Z',
+      },
+      {
+        itemId: 'au',
+        itemName: 'Gold 24K Bar',
+        change: -500,
+        reason: 'Gold alloy mix (22K 551.51 g) — consume gold',
+        createdAt: '2026-11-21T10:00:00.000Z',
+      },
+    ])
+    expect(rows[0].targetGross).toBe(571.51)
+    expect(rows[0].consumed.some((c) => c.name === 'cadmium')).toBe(true)
+  })
+
+  test('mergePostedMixWithFloorJob prefers vault-bumped job gross and extras', () => {
+    const posted = {
+      reason: 'Gold alloy mix (22K 551.51 g)',
+      targetGross: 551.51,
+      finishedProductId: 'fin',
+      consumed: [
+        { itemId: 'au', name: 'Gold 24K Bar', gross: 505.5, role: 'gold' },
+        { itemId: 'ag', name: 'Fine Silver', gross: 46.01, role: 'alloy' },
+      ],
+    }
+    const merged = mergePostedMixWithFloorJob(posted, {
+      targetGross: 571.51,
+      inputComponents: [
+        { itemId: 'au', name: 'Gold 24K Bar', gross: 505.5, role: 'gold' },
+        { itemId: 'ag', name: 'Fine Silver', gross: 46.01, role: 'alloy' },
+        { itemId: 'cd', name: 'cadmium', gross: 20, role: 'extra' },
+      ],
+    })
+    expect(merged.targetGross).toBe(571.51)
+    expect(merged.consumed.some((c) => c.name === 'cadmium' && c.gross === 20)).toBe(true)
   })
 })

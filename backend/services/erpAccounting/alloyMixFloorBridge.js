@@ -1723,10 +1723,73 @@ async function backfillInputComponents(jobs, session = null) {
   return list
 }
 
+/**
+ * Heal Vault Ops Metal IN when vault Add metal already bumped the job
+ * but Ops / Production Dashboard still show the pre-add weight — or when the
+ * mix is in vault with no open visit at all (prior visit already OUTed).
+ */
+async function syncOpenVaultOpsWeightFromJob(job, session = null) {
+  if (!job || job.isDeleted) return false
+  if (!(job.status === 'in_vault' && job.currentDepartment === VAULT)) return false
+  const target = toQty(job.targetGross)
+  if (!(target > QTY_EPS) || !job.mixCode) return false
+  const purityJob = job.purity != null && Number.isFinite(Number(job.purity))
+    ? Number(job.purity)
+    : null
+  const fineGold = job.fineGold != null && Number.isFinite(Number(job.fineGold))
+    ? toQty(job.fineGold)
+    : null
+  const openVault = await findOpenAlloyOpsVisit({
+    session,
+    mixCode: job.mixCode,
+    departmentKey: VAULT,
+  })
+  if (!openVault) {
+    await upsertOpsRow({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: VAULT,
+      date: dubaiDateKey(),
+      batchNumber: job.mixCode,
+      side: 'in',
+      weight: target,
+      purity: purityJob,
+      fineGold,
+      actor: { name: job.updatedByName || job.createdByName || '' },
+      stamp: `vault-heal-${Date.now()}`,
+      fromDepartment: 'update_mix',
+    })
+    return true
+  }
+  const currentIn = openVault.metalIn != null ? toQty(openVault.metalIn) : null
+  if (currentIn != null && Math.abs(currentIn - target) <= 0.0005) return false
+
+  openVault.metalIn = target
+  if (fineGold != null) {
+    openVault.fineGold = fineGold
+  } else if (openVault.purity != null) {
+    openVault.fineGold = toQty(target * (Number(openVault.purity) / 100))
+  }
+  if (purityJob != null) openVault.purity = purityJob
+  if (openVault.metalOut == null) {
+    openVault.metalLoss = null
+  } else {
+    openVault.metalLoss = Math.max(0, toQty(openVault.metalIn - openVault.metalOut))
+  }
+  await openVault.save(writeOpts(session))
+  return true
+}
+
 async function serializeJobs(jobs, session = null) {
   const list = Array.isArray(jobs) ? jobs : []
   if (!list.length) return []
   await backfillInputComponents(list, session)
+  // Repair Ops vault IN for mixes that already had vault Add metal applied.
+  await Promise.all(
+    list
+      .filter((job) => job && job.status === 'in_vault' && job.currentDepartment === VAULT)
+      .map((job) => syncOpenVaultOpsWeightFromJob(job, session).catch(() => false)),
+  )
   const childrenByParent = await loadOpenChildrenByParent(session)
   return list.map((job) => serializeJob(job, { childrenByParent }))
 }
@@ -1929,7 +1992,9 @@ async function autoUpdateAlloyMixAfterMetalOut({
 
 /**
  * Vault Room only: pick a catalog product, add gross (+ optional purity) onto an
- * in-vault mix — bumps targetGross / lot weight, appends inputComponents, stock-out.
+ * in-vault mix — bumps targetGross / lot / finished stock / Ops vault Metal IN,
+ * appends inputComponents, and books consume+receive so Gold Alloy Update Mix
+ * and Production Dashboard stay in sync.
  */
 async function addMetalToVaultMix({
   user,
@@ -1992,6 +2057,12 @@ async function addMetalToVaultMix({
     purityPct = purityRaw > 0 && purityRaw <= 1.2 ? purityRaw * 100 : purityRaw
   }
 
+  const reasonBase = String(job.reasonBase || job.mixCode || 'mix').trim()
+  const actorId = user?._id || null
+  const actorName = user?.name || ''
+
+  // Consume style so Gold Alloy ledger / Update Mix reverse pick this up
+  // (legacy "vault add metal" reasons are still parsed on the frontend).
   const nextOnHand = toQty(onHand - addGross)
   await StockMovement.create([{
     itemId: item._id,
@@ -1999,9 +2070,9 @@ async function addMetalToVaultMix({
     change: -addGross,
     quantityBefore: toQty(onHand),
     quantityAfter: nextOnHand,
-    reason: `${String(job.reasonBase || job.mixCode || 'mix').trim()} — vault add metal ${productName}`,
-    actorId: user?._id || null,
-    actorName: user?.name || '',
+    reason: `${reasonBase} — consume ${productName} (vault add)`,
+    actorId,
+    actorName,
   }], writeOpts(session))
 
   item.quantity = nextOnHand
@@ -2054,10 +2125,35 @@ async function addMetalToVaultMix({
     note: String(note || '').trim()
       || `Vault add metal ${productName} +${addGross} g`
         + (purityPct != null ? ` @ ${purityPct}%` : ''),
-    actorId: user?._id || null,
-    actorName: user?.name || '',
+    actorId,
+    actorName,
   })
   await job.save(writeOpts(session))
+
+  // Bump finished alloy on-hand so View/Update Mix target matches the heavier bar.
+  if (job.finishedProductId) {
+    const finished = await withSession(InventoryItem.findById(job.finishedProductId), session)
+    if (finished && !finished.isDeleted) {
+      const finishedName = String(finished.name || job.finishedProductName || 'alloy').trim()
+      const beforeFin = toQty(
+        await catalogOnHandFromMovements(StockMovement, finished._id),
+      )
+      const afterFin = toQty(beforeFin + addGross)
+      await StockMovement.create([{
+        itemId: finished._id,
+        itemName: finishedName,
+        change: addGross,
+        quantityBefore: beforeFin,
+        quantityAfter: afterFin,
+        reason: `${reasonBase} — receive ${finishedName} (vault add)`,
+        actorId,
+        actorName,
+      }], writeOpts(session))
+      finished.quantity = afterFin
+      finished.updatedBy = user?._id || finished.updatedBy
+      await finished.save(writeOpts(session))
+    }
+  }
 
   if (job.stockLotId) {
     const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
@@ -2066,6 +2162,51 @@ async function addMetalToVaultMix({
       lot.netWeight = job.targetGross
       await lot.save(writeOpts(session))
     }
+  }
+
+  // Operations Production + Production Dashboard read this open Vault visit.
+  // If the prior vault visit was already closed (OUT set), open a fresh IN row.
+  const openVault = await findOpenAlloyOpsVisit({
+    session,
+    mixCode: job.mixCode,
+    departmentKey: VAULT,
+  })
+  const purityJob = job.purity != null && Number.isFinite(Number(job.purity))
+    ? Number(job.purity)
+    : null
+  if (openVault) {
+    openVault.metalIn = job.targetGross
+    if (job.fineGold != null && Number.isFinite(Number(job.fineGold))) {
+      openVault.fineGold = toQty(job.fineGold)
+    } else if (openVault.metalIn != null && openVault.purity != null) {
+      openVault.fineGold = toQty(openVault.metalIn * (Number(openVault.purity) / 100))
+    }
+    // Open visit has no OUT yet — keep loss blank so add-metal does not invent loss.
+    if (openVault.metalOut == null) {
+      openVault.metalLoss = null
+    } else if (openVault.metalIn != null) {
+      openVault.metalLoss = Math.max(0, toQty(openVault.metalIn - openVault.metalOut))
+    }
+    if (purityJob != null) openVault.purity = purityJob
+    openVault.departmentManagerName = actorName || openVault.departmentManagerName || ''
+    await openVault.save(writeOpts(session))
+  } else {
+    await upsertOpsRow({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: VAULT,
+      date: dubaiDateKey(),
+      batchNumber: job.mixCode,
+      side: 'in',
+      weight: job.targetGross,
+      purity: purityJob,
+      fineGold: job.fineGold != null && Number.isFinite(Number(job.fineGold))
+        ? toQty(job.fineGold)
+        : null,
+      actor: user,
+      stamp: `vault-add-${Date.now()}`,
+      fromDepartment: 'update_mix',
+    })
   }
 
   return serializeJob(job, {
