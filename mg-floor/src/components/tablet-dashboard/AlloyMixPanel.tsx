@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalDismissFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
   modalCard: {
