@@ -193,6 +193,17 @@ const nowHereBadge = {
   fontWeight: 800,
 }
 
+const addMetalNoteStyle = {
+  ...transferChipBase,
+  background: '#ECFDF5',
+  border: '1px solid #6EE7B7',
+  color: '#047857',
+  fontWeight: 700,
+  maxWidth: 220,
+  whiteSpace: 'normal',
+  lineHeight: 1.25,
+}
+
 const currentCustodyRow = {
   background: 'linear-gradient(90deg, #FDE68A 0%, #FEF3C7 32%, #FFFBEB 100%)',
   boxShadow: 'inset 4px 0 0 #D97706',
@@ -489,6 +500,16 @@ function cellDisplay(row, key, lossLimitPct = null) {
               {`to ${toText}`}
             </span>
           ) : null}
+          {(() => {
+            const note = String(row.breakdown || '').trim()
+            if (!note || note === '—') return null
+            if (!/^Add metal:/i.test(note)) return null
+            return (
+              <span style={addMetalNoteStyle} title={note}>
+                {note}
+              </span>
+            )
+          })()}
         </span>
       )
     }

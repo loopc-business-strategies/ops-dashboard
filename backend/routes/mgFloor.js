@@ -890,16 +890,16 @@ router.post(
   async (req, res) => {
     try {
       const { addMetalToVaultMix } = require('../services/erpAccounting/alloyMixFloorBridge')
-      const { runInTransaction } = require('../utils/mongoTransaction')
-      const job = await runInTransaction(async (session) => addMetalToVaultMix({
+      // No outer txn: Add metal reverse+posts Updated Mix (own transactions).
+      const job = await addMetalToVaultMix({
         user: req.user,
         mixId: req.params.id,
         productId: req.body.productId,
         gross: req.body.gross,
         purity: req.body.purity,
         note: req.body.note,
-        session,
-      }))
+        tenant: req.user?.company || 'mg',
+      })
       emitWorkbookUpdate(req, 'alloy-mix-add-metal', {
         mixCode: job?.mixCode,
         department: job?.currentDepartment || 'vault_room',

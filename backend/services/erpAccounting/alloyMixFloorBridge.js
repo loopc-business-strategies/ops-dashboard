@@ -1991,10 +1991,108 @@ async function autoUpdateAlloyMixAfterMetalOut({
 }
 
 /**
+ * Scale recipe up or down so input remains match the vault bar weight before Add metal.
+ * (normalizeInputComponentsToTarget only shrinks when sum > target.)
+ */
+function ensureComponentsMatchTarget(components = [], targetGross) {
+  const target = toQty(targetGross)
+  const list = (Array.isArray(components) ? components : [])
+    .map((row) => {
+      const gross = toQty(row?.gross)
+      const consumeRaw = row?.consumeGross
+      const consumeGross = consumeRaw === '' || consumeRaw == null
+        ? null
+        : toQty(consumeRaw)
+      return {
+        itemId: row?.itemId || null,
+        name: String(row?.name || '').trim(),
+        role: String(row?.role || '').trim(),
+        label: String(row?.label || '').trim(),
+        gross,
+        consumeGross: consumeGross != null && consumeGross > QTY_EPS ? consumeGross : null,
+      }
+    })
+    .filter((row) => row.name && row.gross > QTY_EPS)
+  if (!(target > 0) || !list.length) return list
+  const sum = toQty(list.reduce((acc, row) => acc + row.gross, 0))
+  if (Math.abs(sum - target) <= 0.0005) return list
+  if (sum > target + 0.0005) return normalizeInputComponentsToTarget(list, target)
+  let allocated = 0
+  return list.map((row, index) => {
+    const isLast = index === list.length - 1
+    const gross = isLast
+      ? toQty(target - allocated)
+      : toQty(row.gross * (target / sum))
+    if (!isLast) allocated = toQty(allocated + gross)
+    return { ...row, gross }
+  }).filter((row) => row.gross > QTY_EPS)
+}
+
+/** Merge prior remains + addon into Update Mix lines (no AML this step). */
+function mergeAddMetalUpdateLines(components = [], addon = {}) {
+  const map = new Map()
+  for (const row of Array.isArray(components) ? components : []) {
+    const id = String(row?.itemId || '').trim()
+    if (!id) continue
+    const remain = toQty(row.gross)
+    if (!(remain > QTY_EPS)) continue
+    const prev = map.get(id)
+    if (prev) {
+      prev.gross = toQty(prev.gross + remain)
+      prev.remainGross = prev.gross
+    } else {
+      map.set(id, {
+        itemId: id,
+        gross: remain,
+        remainGross: remain,
+        role: String(row.role || 'extra').trim().toLowerCase() || 'extra',
+        label: String(row.label || row.name || '').trim(),
+      })
+    }
+  }
+  const addId = String(addon.itemId || '').trim()
+  const addG = toQty(addon.gross)
+  if (addId && addG > QTY_EPS) {
+    const existing = map.get(addId)
+    if (existing) {
+      existing.gross = toQty(existing.gross + addG)
+      existing.remainGross = existing.gross
+    } else {
+      map.set(addId, {
+        itemId: addId,
+        gross: addG,
+        remainGross: addG,
+        role: String(addon.role || 'extra').trim().toLowerCase() || 'extra',
+        label: String(addon.label || addon.name || '').trim(),
+      })
+    }
+  }
+  return [...map.values()]
+}
+
+/** Nudge last line so sum(gross) === target (Add metal must not shrink the bar). */
+function balanceUpdateLinesToTarget(lines = [], targetGross) {
+  const list = Array.isArray(lines) ? lines : []
+  const target = toQty(targetGross)
+  if (!list.length || !(target > QTY_EPS)) return list
+  const sum = toQty(list.reduce((acc, row) => acc + Number(row.gross || 0), 0))
+  if (Math.abs(sum - target) <= 0.0005) return list
+  const last = list[list.length - 1]
+  const others = toQty(sum - Number(last.gross || 0))
+  const nextLast = toQty(target - others)
+  if (nextLast > QTY_EPS) {
+    last.gross = nextLast
+    last.remainGross = nextLast
+  }
+  return list
+}
+
+/**
  * Vault Room only: pick a catalog product, add gross (+ optional purity) onto an
- * in-vault mix — bumps targetGross / lot / finished stock / Ops vault Metal IN,
- * appends inputComponents, and books consume+receive so Gold Alloy Update Mix
- * and Production Dashboard stay in sync.
+ * in-vault mix — reverse + re-post as Updated Mix (addon in Inputs), bump Ops
+ * vault Metal IN + breakdown, keep target = priorTarget + add (never shrink).
+ *
+ * Do not wrap in an outer Mongo session: reverse/post each own a transaction.
  */
 async function addMetalToVaultMix({
   user,
@@ -2004,16 +2102,23 @@ async function addMetalToVaultMix({
   purity = null,
   note = '',
   session = null,
+  tenant = 'mg',
 } = {}) {
   const { catalogOnHandFromMovements } = require('../../utils/catalogOnHandQuantity')
   const InventoryItem = require('../../models/InventoryItem')
   const StockMovement = require('../../models/StockMovement')
+  const Ledger = require('../../models/Ledger')
+  const AccountMapping = require('../../models/AccountMapping')
+  const Transaction = require('../../models/Transaction')
+  const ChartOfAccount = require('../../models/ChartOfAccount')
+  const { createAlloyMixService } = require('./alloyMixService')
 
   const addGross = toQty(gross)
   if (!(addGross > QTY_EPS)) throw httpError(400, 'Gross must be greater than zero')
   const itemId = String(productId || '').trim()
   if (!itemId) throw httpError(400, 'Select a stock product')
 
+  // Prefer no outer session — reverse/post Alloy Mix run their own transactions.
   const job = await withSession(AlloyMixJob.findById(mixId), session)
   if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
   if (!(job.status === 'in_vault' && job.currentDepartment === VAULT)) {
@@ -2021,6 +2126,9 @@ async function addMetalToVaultMix({
   }
   if (await hasOpenFloorDescendant(job._id, await loadOpenChildrenByParent(session))) {
     throw httpError(400, 'Cannot add metal while a split is still on the floor')
+  }
+  if (!job.finishedProductId || !job.reasonBase) {
+    throw httpError(400, 'Mix job is missing finished product or reason — cannot Update Mix')
   }
 
   const item = await withSession(InventoryItem.findById(itemId), session)
@@ -2057,31 +2165,18 @@ async function addMetalToVaultMix({
     purityPct = purityRaw > 0 && purityRaw <= 1.2 ? purityRaw * 100 : purityRaw
   }
 
-  const reasonBase = String(job.reasonBase || job.mixCode || 'mix').trim()
-  const actorId = user?._id || null
   const actorName = user?.name || ''
-
-  // Consume style so Gold Alloy ledger / Update Mix reverse pick this up
-  // (legacy "vault add metal" reasons are still parsed on the frontend).
-  const nextOnHand = toQty(onHand - addGross)
-  await StockMovement.create([{
-    itemId: item._id,
-    itemName: productName,
-    change: -addGross,
-    quantityBefore: toQty(onHand),
-    quantityAfter: nextOnHand,
-    reason: `${reasonBase} — consume ${productName} (vault add)`,
-    actorId,
-    actorName,
-  }], writeOpts(session))
-
-  item.quantity = nextOnHand
-  item.updatedBy = user?._id || item.updatedBy
-  await item.save(writeOpts(session))
-
+  const mixCode = String(job.mixCode || '').trim().toUpperCase()
   const priorTarget = toQty(job.targetGross)
+  if (!(priorTarget > QTY_EPS)) throw httpError(400, 'Mix has no target gross')
+  // Weight-safe: always prior + add — never postTarget = lineSum (that shrunk BMG).
+  const nextTarget = toQty(priorTarget + addGross)
+  const breakdownNote = `Add metal: ${productName} +${addGross} g`
+  const addNote = String(note || '').trim()
+    || `Vault add metal ${productName} +${addGross} g`
+      + (purityPct != null ? ` @ ${purityPct}%` : '')
+
   const priorRecipe = sumInputComponentGross(job.inputComponents)
-  // Seed gold-only FG before extras bump so later allocate does not treat copper/cadmium as gold.
   let fineGold = job.fineGold != null && Number.isFinite(Number(job.fineGold))
     ? toQty(job.fineGold)
     : null
@@ -2094,123 +2189,122 @@ async function addMetalToVaultMix({
       if (fgBase > QTY_EPS) fineGold = toQty((fgBase * purityJob) / 100)
     }
   }
-
-  const components = Array.isArray(job.inputComponents) ? [...job.inputComponents] : []
-  components.push({
-    itemId: item._id,
-    name: productName,
-    role: 'extra',
-    label: productName,
-    gross: addGross,
-    consumeGross: addGross,
-  })
-  job.inputComponents = components
-  job.markModified('inputComponents')
-  job.targetGross = toQty(priorTarget + addGross)
-
   const metalKey = String(pairs.mainStock || pairs.metalType || productName).toLowerCase()
   const isGold = /gold|xau|\bau\b/.test(metalKey) || /gold|xau|\bau\b/.test(productName.toLowerCase())
   if (isGold && purityPct != null && purityPct > 0) {
     fineGold = toQty((fineGold != null ? fineGold : 0) + (addGross * (purityPct / 100)))
   }
-  if (fineGold != null) job.fineGold = fineGold
 
-  job.updatedById = user?._id || job.updatedById
-  job.updatedByName = user?.name || job.updatedByName || ''
-  job.history.push({
-    at: new Date(),
-    action: 'update',
-    fromDepartment: VAULT,
-    toDepartment: VAULT,
-    note: String(note || '').trim()
-      || `Vault add metal ${productName} +${addGross} g`
-        + (purityPct != null ? ` @ ${purityPct}%` : ''),
-    actorId,
-    actorName,
+  const matched = ensureComponentsMatchTarget(job.inputComponents || [], priorTarget)
+  let lines = mergeAddMetalUpdateLines(matched, {
+    itemId: item._id,
+    name: productName,
+    label: productName,
+    gross: addGross,
+    role: 'extra',
   })
-  await job.save(writeOpts(session))
+  lines = balanceUpdateLinesToTarget(lines, nextTarget)
+  if (!lines.length) throw httpError(400, 'No mix input lines to re-post after Add metal')
 
-  // Bump finished alloy on-hand so View/Update Mix target matches the heavier bar.
-  if (job.finishedProductId) {
-    const finished = await withSession(InventoryItem.findById(job.finishedProductId), session)
-    if (finished && !finished.isDeleted) {
-      const finishedName = String(finished.name || job.finishedProductName || 'alloy').trim()
-      const beforeFin = toQty(
-        await catalogOnHandFromMovements(StockMovement, finished._id),
-      )
-      const afterFin = toQty(beforeFin + addGross)
-      await StockMovement.create([{
-        itemId: finished._id,
-        itemName: finishedName,
-        change: addGross,
-        quantityBefore: beforeFin,
-        quantityAfter: afterFin,
-        reason: `${reasonBase} — receive ${finishedName} (vault add)`,
-        actorId,
-        actorName,
-      }], writeOpts(session))
-      finished.quantity = afterFin
-      finished.updatedBy = user?._id || finished.updatedBy
-      await finished.save(writeOpts(session))
-    }
+  const lineSum = toQty(lines.reduce((acc, row) => acc + Number(row.gross || 0), 0))
+  if (Math.abs(lineSum - nextTarget) > 0.05) {
+    throw httpError(
+      400,
+      `Add metal balance failed: inputs ${lineSum} g vs target ${nextTarget} g`,
+    )
   }
 
-  if (job.stockLotId) {
-    const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
-    if (lot) {
-      lot.grossWeight = job.targetGross
-      lot.netWeight = job.targetGross
-      await lot.save(writeOpts(session))
-    }
+  const svc = createAlloyMixService({
+    InventoryItem,
+    StockMovement,
+    Ledger,
+    AccountMapping,
+    Transaction,
+    ChartOfAccount,
+  })
+  const karat = Number(job.karat) || 18
+  const tenantKey = String(tenant || user?.company || 'mg').trim().toLowerCase() || 'mg'
+  const priorReason = String(job.reasonBase || '').trim()
+
+  await svc.reverseAlloyMix({
+    user,
+    tenant: tenantKey,
+    reason: priorReason,
+    preserveMetalLoss: true,
+  })
+
+  const description = `Gold alloy mix (${karat}K ${nextTarget} g · updated)`
+  const result = await svc.postAlloyMix({
+    user,
+    tenant: tenantKey,
+    karat,
+    targetGross: nextTarget,
+    finishedProductId: String(job.finishedProductId),
+    lines,
+    description,
+    reuseMixCode: mixCode,
+    lossDepartment: 'vault',
+  })
+  if (!result?.success) {
+    throw httpError(500, 'Add metal Update Mix post failed')
   }
 
-  // Operations Production + Production Dashboard read this open Vault visit.
-  // If the prior vault visit was already closed (OUT set), open a fresh IN row.
+  const live = await AlloyMixJob.findOne({
+    mixCode,
+    isDeleted: { $ne: true },
+    status: 'in_vault',
+  })
+  if (live) {
+    if (fineGold != null && Number.isFinite(Number(fineGold))) {
+      live.fineGold = toQty(fineGold)
+    }
+    live.updatedById = user?._id || live.updatedById
+    live.updatedByName = actorName || live.updatedByName || ''
+    live.history = Array.isArray(live.history) ? live.history : []
+    live.history.push({
+      at: new Date(),
+      action: 'update',
+      fromDepartment: VAULT,
+      toDepartment: VAULT,
+      note: addNote,
+      actorId: user?._id || null,
+      actorName,
+    })
+    await live.save()
+  }
+
   const openVault = await findOpenAlloyOpsVisit({
-    session,
-    mixCode: job.mixCode,
+    session: null,
+    mixCode,
     departmentKey: VAULT,
   })
-  const purityJob = job.purity != null && Number.isFinite(Number(job.purity))
-    ? Number(job.purity)
-    : null
   if (openVault) {
-    openVault.metalIn = job.targetGross
-    if (job.fineGold != null && Number.isFinite(Number(job.fineGold))) {
-      openVault.fineGold = toQty(job.fineGold)
-    } else if (openVault.metalIn != null && openVault.purity != null) {
-      openVault.fineGold = toQty(openVault.metalIn * (Number(openVault.purity) / 100))
+    openVault.metalIn = nextTarget
+    if (fineGold != null && Number.isFinite(Number(fineGold))) {
+      openVault.fineGold = toQty(fineGold)
     }
-    // Open visit has no OUT yet — keep loss blank so add-metal does not invent loss.
-    if (openVault.metalOut == null) {
-      openVault.metalLoss = null
-    } else if (openVault.metalIn != null) {
+    if (openVault.metalOut == null) openVault.metalLoss = null
+    else if (openVault.metalIn != null) {
       openVault.metalLoss = Math.max(0, toQty(openVault.metalIn - openVault.metalOut))
     }
-    if (purityJob != null) openVault.purity = purityJob
     openVault.departmentManagerName = actorName || openVault.departmentManagerName || ''
-    await openVault.save(writeOpts(session))
-  } else {
-    await upsertOpsRow({
-      session,
-      mixCode: job.mixCode,
-      departmentKey: VAULT,
-      date: dubaiDateKey(),
-      batchNumber: job.mixCode,
-      side: 'in',
-      weight: job.targetGross,
-      purity: purityJob,
-      fineGold: job.fineGold != null && Number.isFinite(Number(job.fineGold))
-        ? toQty(job.fineGold)
-        : null,
-      actor: user,
-      stamp: `vault-add-${Date.now()}`,
-      fromDepartment: 'update_mix',
-    })
+    const prevNote = String(openVault.breakdown || '').trim()
+    openVault.breakdown = prevNote && prevNote !== breakdownNote
+      ? `${prevNote}; ${breakdownNote}`
+      : breakdownNote
+    const fromRaw = String(openVault.transferFromDepartment || '').trim().toLowerCase()
+    if (!normalizeDept(fromRaw)) openVault.transferFromDepartment = 'update_mix'
+    await openVault.save()
   }
 
-  return serializeJob(job, {
-    childrenByParent: await loadOpenChildrenByParent(session),
+  const jobDoc = live || (result.mixJob?.id
+    ? await AlloyMixJob.findById(result.mixJob.id)
+    : null)
+  if (!jobDoc) {
+    throw httpError(500, 'Add metal succeeded but mix job was not found')
+  }
+  return serializeJob(jobDoc, {
+    childrenByParent: await loadOpenChildrenByParent(null),
   })
 }
 

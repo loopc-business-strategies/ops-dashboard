@@ -267,12 +267,24 @@ describe('alloy mix floor bridge', () => {
     const afterFin = await InventoryItem.findById(finished._id)
     expect(Number(afterFin.quantity)).toBe(beforeFinQty + 20)
 
+    // Formal Updated Mix re-post (not vault-add movements).
     const moves = await StockMovement.find({
       isDeleted: { $ne: true },
-      reason: /vault add/i,
+      reason: /updated/i,
     })
-    expect(moves.some((m) => Number(m.change) === -20 && /consume/i.test(m.reason))).toBe(true)
-    expect(moves.some((m) => Number(m.change) === 20 && /receive/i.test(m.reason))).toBe(true)
+    expect(moves.some((m) => Number(m.change) === -20 && /consume/i.test(m.reason) && /cadmium/i.test(m.reason))).toBe(true)
+    expect(moves.some((m) => Number(m.change) === 100 && /receive/i.test(m.reason))).toBe(true)
+    expect(String(job.reasonBase || '')).toMatch(/updated/i)
+
+    const opsNote = await OperationsProductionEntry.findOne({
+      source: 'gold_alloy',
+      departmentKey: 'vault_room',
+      alloyMixCode: job.mixCode,
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    })
+    expect(Number(opsNote?.metalIn)).toBe(100)
+    expect(String(opsNote?.breakdown || '')).toMatch(/Add metal:.*cadmium.*\+20/i)
+    expect(String(opsNote?.transferFromDepartment || '')).toBe('update_mix')
   })
 
   test('serializeJobs heals stale Ops vault Metal IN after prior vault add', async () => {
