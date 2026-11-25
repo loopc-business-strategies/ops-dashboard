@@ -700,6 +700,140 @@ describe('alloy mix inventory', () => {
     expect(weights.XAU + weights.XCU).toBeCloseTo(0.229, 3)
   })
 
+  test('tags cadmium metal-loss as CADMIUM (not XAU) for Metal Loss metal filter', async () => {
+    const user = await User.create({
+      name: 'alloy-cd-loss-user',
+      email: 'alloy-cd-loss@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+    const invAcct = await ChartOfAccount.create({
+      accountName: 'Metal Inventory',
+      accountCode: '1300',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
+    const lossAcct = await ChartOfAccount.create({
+      accountName: 'Metal Loss',
+      accountCode: 'AML',
+      accountType: 'Expense',
+      createdBy: user._id,
+    })
+    await AccountMapping.create({
+      mappingType: ALLOY_METAL_LOSS_MAPPING_TYPE,
+      debitAccountId: lossAcct._id,
+      creditAccountId: invAcct._id,
+      isActive: true,
+      description: 'alloy metal loss',
+    })
+
+    const fineGold = await InventoryItem.create({
+      name: 'Gold Bar',
+      sku: 'AU-BAR-CD',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=1',
+      quantity: 600,
+      unit: 'grams',
+      unitCost: 50,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: fineGold._id,
+      itemName: fineGold.name,
+      change: 600,
+      quantityBefore: 0,
+      quantityAfter: 600,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const cadmium = await InventoryItem.create({
+      name: 'cadmium',
+      sku: 'CD-FINE',
+      category: 'mainStock=cadmium;metalType=cadmium;recordType=product;productPurity=1',
+      quantity: 50,
+      unit: 'grams',
+      unitCost: 1,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+    await StockMovement.create({
+      itemId: cadmium._id,
+      itemName: cadmium.name,
+      change: 50,
+      quantityBefore: 0,
+      quantityAfter: 50,
+      reason: 'seed',
+      actorId: user._id,
+      actorName: user.name,
+    })
+    const finished = await InventoryItem.create({
+      name: '22k alloyed gold',
+      sku: 'AU-22K-CD',
+      category: 'mainStock=gold;metalType=gold;recordType=product;productPurity=0.9167',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: invAcct._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+    })
+
+    const svc = createAlloyMixService({
+      InventoryItem,
+      StockMovement,
+      Ledger,
+      AccountMapping,
+      Transaction,
+      ChartOfAccount,
+      assertAccountingPeriodOpen: async () => {},
+    })
+
+    // Remain sum = finished 551.4; AML uses remain deltas (gold 0.21, cadmium 0.001).
+    const result = await svc.postAlloyMix({
+      user,
+      tenant: 'mg',
+      karat: 22,
+      targetGross: 551.4,
+      finishedProductId: finished._id,
+      lines: [
+        { itemId: fineGold._id, gross: 551.59, remainGross: 551.38, role: 'gold', label: 'gold' },
+        { itemId: cadmium._id, gross: 0.021, remainGross: 0.02, role: 'extra', label: 'cadmium' },
+      ],
+      description: 'Gold alloy mix (22K 551.4 g · updated)',
+      lossDepartment: 'BANGLE',
+      reuseMixCode: 'BMG-0001',
+    })
+
+    const byMetal = Object.fromEntries(
+      (result.metalLossByMetal || []).map((row) => [row.stockCode, Number(row.lossGross)]),
+    )
+    expect(byMetal.XAU).toBeCloseTo(0.21, 2)
+    expect(byMetal.CADMIUM).toBeCloseTo(0.001, 3)
+
+    const positionTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      type: 'metal_payment',
+      'voucherMeta.partyAccountId': lossAcct._id,
+    }).lean()
+    expect(positionTxs).toHaveLength(2)
+    const byCode = Object.fromEntries(positionTxs.map((tx) => {
+      const line = tx.voucherMeta?.lineItems?.[0] || {}
+      return [String(line.stockCode || ''), {
+        weight: Number(line.pureWeight),
+        vocNo: String(tx.voucherMeta?.vocNo || ''),
+        narration: String(line.narration || ''),
+      }]
+    }))
+    expect(byCode.XAU.weight).toBeCloseTo(0.21, 2)
+    expect(byCode.CADMIUM.weight).toBeCloseTo(0.001, 3)
+    expect(byCode.CADMIUM.vocNo).toMatch(/-CD(?:-|$)/)
+    expect(byCode.CADMIUM.vocNo).not.toMatch(/-AU(?:-|$)/)
+    expect(byCode.CADMIUM.narration).toMatch(/cadmium/i)
+  })
+
   test('AML lossGross posts this-Update gold only (0.082) while vault still consumes full original', async () => {
     const user = await User.create({
       name: 'alloy-step-loss-user',

@@ -464,9 +464,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
         if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
         if (stockText === 'XCU' || stockText.includes('COPP') || stockText === 'CU') return 'COPPER'
+        if (stockText === 'CADMIUM' || stockText === 'XCD' || stockText === 'CD' || stockText.includes('CADM')) return 'CADMIUM'
         if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
         if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
         const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
+        if (productText.includes('cadmium') || productText.includes('xcd')) return 'CADMIUM'
         if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
         if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
         if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
@@ -479,11 +481,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const resolveLineMetalCode = (line = {}) => {
       const stockText = String(line?.stockCode || '').trim().toUpperCase()
       const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
-      // Product/narration first for copper: AML historically tagged copper loss as stockCode XAU.
+      // Product/narration first for copper/cadmium: AML historically tagged those losses as stockCode XAU.
       if (productText.includes('copper') || productText.includes('xcu')) return 'COPPER'
+      if (productText.includes('cadmium') || productText.includes('xcd')) return 'CADMIUM'
       if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
       if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
       if (stockText === 'XCU' || stockText.includes('COPP') || stockText === 'CU') return 'COPPER'
+      if (stockText === 'CADMIUM' || stockText === 'XCD' || stockText === 'CD' || stockText.includes('CADM')) return 'CADMIUM'
       if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
       if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
       if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
@@ -527,6 +531,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
             || sc.includes('XCU')
             || sc.includes('COPP')
             || sc === 'CU'
+          const isCadmium = metalCode === 'CADMIUM'
+            || sc === 'CADMIUM'
+            || sc === 'XCD'
+            || sc === 'CD'
+            || sc.includes('CADM')
           // Like unfixed vouchers: a receipt (Cr) is metal the party is owed, a payment (Dr) settles it.
           if (isSilver) {
             silverBalance += signedWeight
@@ -534,7 +543,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           } else if (isCopper) {
             copperBalance += signedWeight
             copperValuationBalance -= signedWeight
-          } else if (metalCode === 'OTHER' || metalCode === 'XPT' || metalCode === 'XPD') {
+          } else if (isCadmium || metalCode === 'OTHER' || metalCode === 'XPT' || metalCode === 'XPD') {
             otherBalance += signedWeight
             otherValuationBalance -= signedWeight
           } else {

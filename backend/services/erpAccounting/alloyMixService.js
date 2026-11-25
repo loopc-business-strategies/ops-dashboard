@@ -66,6 +66,8 @@ function resolveLossMetalStockCode({ role = '', label = '', name = '', category 
   if (/\b(pall|xpd)\b/.test(blob) || blob.includes('palladium')) return 'XPD'
   // Copper must stay XCU so Metal Loss Gold/Copper filters and Position split correctly.
   if (/\b(copp|xcu|cu)\b/.test(blob) || blob.includes('copper')) return 'XCU'
+  // Cadmium must stay CADMIUM (not default XAU) so Metal Loss Cadmium filter/Position split correctly.
+  if (/\b(cadm|xcd|cd)\b/.test(blob) || blob.includes('cadmium')) return 'CADMIUM'
   return 'XAU'
 }
 
@@ -90,6 +92,7 @@ function amlStockShort(stockCode = '') {
   if (c === 'XAU' || c.includes('GOLD')) return 'AU'
   if (c === 'XAG' || c.includes('SILV')) return 'AG'
   if (c === 'XCU' || c.includes('COPP') || c === 'CU') return 'CU'
+  if (c === 'CADMIUM' || c === 'XCD' || c === 'CD' || c.includes('CADM')) return 'CD'
   if (c === 'XPT' || c.includes('PLAT')) return 'PT'
   if (c === 'XPD' || c.includes('PALL')) return 'PD'
   return (c.replace(/^X/, '') || 'MT').slice(0, 4)

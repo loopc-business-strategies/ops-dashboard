@@ -153,7 +153,7 @@ describe('statement helpers', () => {
     })).toBe('USD')
   })
 
-  test('shows created metals only and never Other', () => {
+  test('shows preferred metals plus created stock and never Other', () => {
     const options = buildStatementMetalOptions([
       { mainStock: 'Gold' },
       { mainStock: 'Copper' },
@@ -161,34 +161,40 @@ describe('statement helpers', () => {
       { mainStock: 'Other' },
     ])
 
-    expect(options).toEqual(['Gold', 'Copper'])
+    expect(options).toEqual(['Gold', 'Silver', 'Copper', 'Cadmium'])
     expect(buildStatementMetalOptions([{ mainStock: 'Copper' }, { mainStock: 'Silver' }])).toEqual([
       'Gold',
-      'Copper',
       'Silver',
+      'Copper',
+      'Cadmium',
     ])
-    expect(buildStatementMetalOptions([])).toEqual(['Gold', 'Silver', 'Copper'])
+    expect(buildStatementMetalOptions([])).toEqual(['Gold', 'Silver', 'Copper', 'Cadmium'])
   })
 
-  test('position metals include Gold Silver Copper then created stock, never Other', () => {
+  test('position metals include Gold Silver Copper Cadmium then created stock, never Other', () => {
     expect(buildAccountSummaryPositionMetals([
       { mainStock: 'Copper' },
       { mainStock: 'Platinum' },
       { mainStock: 'Other' },
-    ])).toEqual(['Gold', 'Silver', 'Copper', 'Platinum'])
+    ])).toEqual(['Gold', 'Silver', 'Copper', 'Cadmium', 'Platinum'])
   })
 
-  test('matches selected gold, silver, copper, and other metal entries', () => {
+  test('matches selected gold, silver, copper, cadmium, and other metal entries', () => {
     expect(resolveMetalCodeFromStockName('gold')).toBe('XAU')
     expect(resolveMetalCodeFromStockName('Copper')).toBe('COPPER')
+    expect(resolveMetalCodeFromStockName('Cadmium')).toBe('CADMIUM')
     expect(resolveMetalCodeFromStockName('Other')).toBe('OTHER')
     expect(resolveStatementMetalCode({ description: 'silver bar sale' })).toBe('XAG')
     expect(resolveStatementMetalCode({ description: 'copper scrap' })).toBe('COPPER')
-    // Legacy AML copper loss was stored as metalCode XAU — narration must still filter as Copper.
+    // Legacy AML copper/cadmium loss was stored as metalCode XAU — narration must still filter correctly.
     expect(resolveStatementMetalCode({
       metalCode: 'XAU',
       description: 'Alloy metal loss 0.019 g pure copper',
     })).toBe('COPPER')
+    expect(resolveStatementMetalCode({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.001 g cadmium · BANGLE · BMG-0001',
+    })).toBe('CADMIUM')
     expect(matchesStatementMetal({
       metalCode: 'XAU',
       description: 'Alloy metal loss 0.019 g pure copper',
@@ -197,11 +203,21 @@ describe('statement helpers', () => {
       metalCode: 'XAU',
       description: 'Alloy metal loss 0.019 g pure copper',
     }, 'Copper')).toBe(true)
+    expect(matchesStatementMetal({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.001 g cadmium · BANGLE · BMG-0001',
+    }, 'Gold')).toBe(false)
+    expect(matchesStatementMetal({
+      metalCode: 'XAU',
+      description: 'Alloy metal loss 0.001 g cadmium · BANGLE · BMG-0001',
+    }, 'Cadmium')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'XAU' }, 'Gold')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'XAG' }, 'Gold')).toBe(false)
     expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Copper')).toBe(true)
     expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Other')).toBe(false)
     expect(matchesStatementMetal({ metalCode: 'COPPER' }, 'Silver')).toBe(false)
+    expect(matchesStatementMetal({ metalCode: 'CADMIUM' }, 'Cadmium')).toBe(true)
+    expect(matchesStatementMetal({ metalCode: 'CADMIUM' }, 'Other')).toBe(false)
     expect(matchesStatementMetal({ metalSignedWeight: 2.5 }, 'Other')).toBe(true)
   })
 
@@ -210,14 +226,16 @@ describe('statement helpers', () => {
       { id: 'gold', metalCode: 'XAU' },
       { id: 'silver', metalCode: 'XAG' },
       { id: 'copper', metalCode: 'COPPER' },
+      { id: 'cadmium', metalCode: 'CADMIUM' },
       { id: 'platinum', metalCode: 'XPT' },
       { id: 'palladium', metalCode: 'XPD' },
-      { id: 'other', metalCode: 'CADMIUM' },
+      { id: 'other', metalCode: 'MISC' },
     ]
 
     expect(rows.filter((row) => matchesStatementMetal(row, 'Gold')).map((row) => row.id)).toEqual(['gold'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Silver')).map((row) => row.id)).toEqual(['silver'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Copper')).map((row) => row.id)).toEqual(['copper'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Cadmium')).map((row) => row.id)).toEqual(['cadmium'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Platinum')).map((row) => row.id)).toEqual(['platinum'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Palladium')).map((row) => row.id)).toEqual(['palladium'])
     expect(rows.filter((row) => matchesStatementMetal(row, 'Other')).map((row) => row.id)).toEqual(['other'])
