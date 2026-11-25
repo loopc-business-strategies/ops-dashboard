@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -15,17 +16,22 @@ function ComingSoonLockIcon() {
  */
 function FavoriteStarButton({ active, label, onToggle }) {
   const { t } = useLanguage()
+  const [toggling, setToggling] = useState(false)
+  const toggleTimerRef = useRef(null)
   if (typeof onToggle !== 'function') return null
   return (
     <button
       type="button"
-      className={`sidebar-fav-btn${active ? ' is-active' : ''}`}
+      className={`sidebar-fav-btn${active ? ' is-active' : ''}${toggling ? ' is-toggling' : ''}`}
       aria-label={active ? t('removeFromFavorites') : t('addToFavorites')}
       aria-pressed={active}
       title={active ? t('removeFromFavorites') : t('addToFavorites')}
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
+        setToggling(true)
+        if (toggleTimerRef.current) clearTimeout(toggleTimerRef.current)
+        toggleTimerRef.current = setTimeout(() => setToggling(false), 280)
         onToggle()
       }}
     >
