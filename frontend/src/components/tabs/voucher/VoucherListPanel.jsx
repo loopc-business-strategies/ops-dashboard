@@ -3,6 +3,7 @@ import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, i
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 import { canFixVoucher, resolveVoucherFixingBadge, resolveVoucherIndicativeTotalNote, summarizeVoucherFixing } from './voucherFixingHelpers'
+import { exportVoucherListPdf, printVoucherList } from './voucherListPrintExport'
 import VoucherActivityLogModal from './VoucherActivityLogModal'
 
 /** Compact chevron pair — active direction solid, idle muted dual arrow. */
@@ -89,12 +90,15 @@ export default function VoucherListPanel({
   erpAdvancedListFiltersEnabled,
   baseCurrencyCode = 'USD',
   resolvePartyDisplayName = null,
+  listPdfExportEnabled = false,
+  onExportError = null,
 }) {
   const colCount = 7
     + (isSimpleMetalVoucher ? 0 : 2)
     + (isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? 1 : 0)
   const [showActivityLog, setShowActivityLog] = useState(false)
   const [listSort, setListSort] = useState({ key: 'docNo', dir: 'asc' })
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const toggleListSort = (key) => {
     setListSort((prev) => (
@@ -112,6 +116,42 @@ export default function VoucherListPanel({
     const byDoc = sortVouchersByDocNo(rows, voucherType)
     return listSort.dir === 'desc' ? byDoc.reverse() : byDoc
   }, [filteredVouchers, listSort, voucherType])
+
+  const exportArgs = () => ({
+    vouchers: sortedVouchers,
+    voucherType,
+    voucherLabel,
+    isSimpleMetalVoucher,
+    baseCurrencyCode,
+    resolvePartyDisplayName,
+  })
+
+  const handleExportPdf = async () => {
+    if (exportingPdf) return
+    setExportingPdf(true)
+    try {
+      await exportVoucherListPdf(exportArgs())
+    } catch (err) {
+      const message = err?.message || 'Failed to export voucher list PDF'
+      if (typeof onExportError === 'function') onExportError(message)
+      else window.alert(message)
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const handlePrintList = () => {
+    try {
+      printVoucherList({
+        ...exportArgs(),
+        setError: typeof onExportError === 'function' ? onExportError : undefined,
+      })
+    } catch (err) {
+      const message = err?.message || 'Failed to open voucher list print'
+      if (typeof onExportError === 'function') onExportError(message)
+      else window.alert(message)
+    }
+  }
 
   const {
     scrollRef,
@@ -173,6 +213,33 @@ export default function VoucherListPanel({
         >
           Activity Log
         </button>
+        {listPdfExportEnabled ? (
+          <>
+            <button
+              type="button"
+              style={{
+                ...btn('gray'),
+                border: '1px solid #EF4444',
+                background: '#FEF2F2',
+                color: '#991B1B',
+              }}
+              disabled={exportingPdf || loadingList || sortedVouchers.length === 0}
+              onClick={handleExportPdf}
+              title={`Export ${voucherLabel} list PDF`}
+            >
+              {exportingPdf ? 'Exporting…' : 'Export PDF'}
+            </button>
+            <button
+              type="button"
+              style={btn('gray')}
+              disabled={loadingList || sortedVouchers.length === 0}
+              onClick={handlePrintList}
+              title={`Print ${voucherLabel} list`}
+            >
+              Print
+            </button>
+          </>
+        ) : null}
         {canCreate && (
           <button type="button" style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>
         )}

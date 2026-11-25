@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
-import { isMasterDocumentSettingsEnabled, isVoucherKeyboardNavEnabled } from '../../config/tenantBranding'
+import {
+  isMasterDocumentSettingsEnabled,
+  isVoucherKeyboardNavEnabled,
+  isVoucherListPdfExportEnabled,
+} from '../../config/tenantBranding'
 import { liveRatesToMetalRatesState } from '../../utils/liveMetalRates'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import { fmt, S, btn, emptyLine, emptyHeader, normalizeLineType, normalizeRateType, getInventoryStockMappingOptions, isMetalStockVoucherType, isMetalTransferVoucherType, isMetalProductTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
@@ -89,6 +93,7 @@ export default function VoucherTab({
   const pendingPrintActionRef = useRef(null)
   const voucherPreviewEnabled = isMasterDocumentSettingsEnabled(tenantKey)
   const keyboardNavEnabled = isVoucherKeyboardNavEnabled(tenantKey)
+  const voucherListPdfExportEnabled = isVoucherListPdfExportEnabled(tenantKey)
 
   // ─── own accounts/customers/vendors state (always fresh, not stale props) ───
   const [localAccounts, setLocalAccounts] = useState(accounts)
@@ -1430,6 +1435,11 @@ export default function VoucherTab({
           displayVoucherDocNo={resolveDisplayVoucherDocNo}
           baseCurrencyCode={baseCurrencyCode}
           erpAdvancedListFiltersEnabled={erpAdvancedListFiltersEnabled}
+          listPdfExportEnabled={voucherListPdfExportEnabled}
+          onExportError={(message) => {
+            clearError()
+            setError(message)
+          }}
           resolvePartyDisplayName={(partyCode, savedPartyName) => resolvePreferredPartyDisplayName({
             partyCode,
             savedPartyName,

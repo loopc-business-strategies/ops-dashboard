@@ -365,6 +365,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       reportPdfDownload: true,
+      voucherListPdfExport: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
@@ -401,6 +402,7 @@ const tenantBranding = {
     featureFlags: {
       procurementPlus: true,
       reportPdfDownload: true,
+      voucherListPdfExport: true,
       erpAdvancedListFilters: true,
       masterDocumentSettings: true,
       chatTranslate: true,
@@ -488,6 +490,11 @@ export function getTenantBranding(tenant) {
 
 export function isReportPdfDownloadEnabled(tenant) {
   return getTenantBranding(tenant)?.featureFlags?.reportPdfDownload === true
+}
+
+/** List-level Export PDF / Print on all voucher tabs (MG first). */
+export function isVoucherListPdfExportEnabled(tenant) {
+  return getTenantBranding(tenant)?.featureFlags?.voucherListPdfExport === true
 }
 
 export function isMasterDocumentSettingsEnabled(tenant) {
