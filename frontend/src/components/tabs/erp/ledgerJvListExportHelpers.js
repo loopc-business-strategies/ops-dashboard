@@ -16,7 +16,7 @@ function formatJvAmountText(voucher = {}, baseCurrencyCode = 'USD') {
   if (isJournalJv) {
     const baseText = `${formatAmount(baseEq, { currencyCode: baseSym })} ${baseSym}`
     if (voucher?.documentFaceAmount != null && voucher?.documentCurrencyCode) {
-      return `${baseText} (≈ ${formatMoney(voucher.documentFaceAmount, voucher.documentCurrencyCode)})`
+      return `${baseText}\n(~ ${formatMoney(voucher.documentFaceAmount, voucher.documentCurrencyCode)})`
     }
     return baseText
   }
@@ -29,7 +29,7 @@ function formatJvAmountText(voucher = {}, baseCurrencyCode = 'USD') {
   }
   const primary = `${formatAmount(displayAmt, { currencyCode: displaySym })}${displaySym ? ` ${displaySym}` : ''}`
   const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
-  return isFc ? `${primary} (≈ ${formatMoney(baseEq, baseSym)})` : primary
+  return isFc ? `${primary}\n(~ ${formatMoney(baseEq, baseSym)})` : primary
 }
 
 function formatJvTypeText(voucher = {}) {
@@ -38,7 +38,7 @@ function formatJvTypeText(voucher = {}) {
   if (voucher?.lineCount > 1) parts.push(`${voucher.lineCount} lines`)
   if (isBankJv && voucher?.autoTxNo) parts.push(voucher.autoTxNo)
   if (isBankJv && voucher?.chequeNo) parts.push(`Chq: ${voucher.chequeNo}`)
-  return parts.join(' · ')
+  return parts.join(' | ')
 }
 
 /**
@@ -52,7 +52,7 @@ export function buildLedgerJvListExportData({
   const rows = Array.isArray(vouchers) ? vouchers : []
   const isBank = String(ledgerVoucherTab || '').toLowerCase() === 'bank_jv'
   const label = isBank ? 'Bank JV' : 'Normal JV'
-  const title = `${label} — List`
+  const title = `${label} - List`
   const stamp = new Date().toISOString().slice(0, 10)
   const fileBase = `${isBank ? 'bank-jv' : 'normal-jv'}-list-${stamp}`
   const sheetName = isBank ? 'Bank JV' : 'Normal JV'

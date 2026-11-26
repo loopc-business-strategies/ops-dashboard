@@ -18,7 +18,7 @@ export async function exportLedgerJvListPdf({
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.text(
-    `Generated: ${new Date().toLocaleString()}  ·  ${data.rowCount} row${data.rowCount === 1 ? '' : 's'}`,
+    `Generated: ${new Date().toLocaleString()} | ${data.rowCount} row${data.rowCount === 1 ? '' : 's'}`,
     36,
     54,
   )
@@ -26,11 +26,17 @@ export async function exportLedgerJvListPdf({
     head: [data.head],
     body: data.body,
     startY: 72,
-    styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-    headStyles: { fillColor: [234, 88, 12] },
+    styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+    headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255] },
     alternateRowStyles: { fillColor: [255, 247, 237] },
     columnStyles: {
-      5: { halign: 'right' },
+      0: { cellWidth: 62 },
+      1: { cellWidth: 84 },
+      2: { cellWidth: 230 },
+      3: { cellWidth: 76 },
+      4: { cellWidth: 76 },
+      5: { cellWidth: 162, halign: 'right' },
+      6: { cellWidth: 102 },
     },
     margin: { left: 24, right: 24 },
   })
@@ -59,7 +65,7 @@ export function printLedgerJvList({
   const bodyHtml = data.body.map((row) => (
     `<tr>${row.map((cell, index) => {
       const isNum = index === 5
-      return `<td class="${isNum ? 'num' : 'text'}">${escapeHtml(cell)}</td>`
+      return `<td class="${isNum ? 'num' : 'text'}" style="${isNum ? 'white-space:pre-line;overflow:visible;' : ''}">${escapeHtml(cell)}</td>`
     }).join('')}</tr>`
   )).join('')
   const html = `

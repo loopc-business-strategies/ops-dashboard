@@ -18,7 +18,7 @@ describe('ledgerJvListExportHelpers', () => {
       }],
     })
 
-    expect(result.title).toBe('Normal JV — List')
+    expect(result.title).toBe('Normal JV - List')
     expect(result.sheetName).toBe('Normal JV')
     expect(result.fileBase).toMatch(/^normal-jv-list-\d{4}-\d{2}-\d{2}$/)
     expect(result.head).toEqual([
@@ -59,7 +59,7 @@ describe('ledgerJvListExportHelpers', () => {
       }],
     })
 
-    expect(result.title).toBe('Bank JV — List')
+    expect(result.title).toBe('Bank JV - List')
     expect(result.sheetName).toBe('Bank JV')
     expect(result.fileBase).toMatch(/^bank-jv-list-\d{4}-\d{2}-\d{2}$/)
     expect(result.body[0][5]).toContain('UZS')
