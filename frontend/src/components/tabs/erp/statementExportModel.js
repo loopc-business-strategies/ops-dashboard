@@ -37,6 +37,7 @@ export function buildStatementVoucherPayload(entry, docNo = '-') {
     : String(entry?._id || '').replace(/^row:/, '').trim()
   return {
     ledgerId: rawLedgerId,
+    referenceId: String(entry?.referenceId || '').trim(),
     sourceTransactionId: String(entry?.sourceTransactionId || '').trim(),
     sourceTransactionType: String(entry?.sourceTransactionType || entry?.metalDealType || '').trim().toLowerCase(),
     referenceType: String(entry?.referenceType || '').trim().toLowerCase(),

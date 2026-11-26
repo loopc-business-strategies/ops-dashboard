@@ -349,13 +349,18 @@ export function useErpTabPresentationSlice(scope) {
       'metal_payment',
       'metal_transfer',
     ])
-    const { ledgerId, sourceTransactionId, sourceTransactionType, referenceType } = voucher
+    const { ledgerId, referenceId, docNo, sourceTransactionId, sourceTransactionType, referenceType } = voucher
     const refType = String(referenceType || '').toLowerCase()
     const txType = String(sourceTransactionType || '').toLowerCase()
     setShowEnquiryModal(false)
-    if ((refType === 'journal' || refType === 'bank_jv') && ledgerId) {
+    if ((refType === 'journal' || refType === 'bank_jv') && (ledgerId || referenceId || docNo)) {
       setActiveTabGuarded('ledger')
-      void handleOpenJv({ _id: ledgerId, referenceType: refType })
+      void handleOpenJv({
+        _id: ledgerId,
+        referenceType: refType,
+        ...(referenceId ? { referenceId } : {}),
+        ...(docNo && docNo !== '-' ? { description: docNo } : {}),
+      })
       return
     }
     const voucherType = VOUCHER_TYPES.has(txType) ? txType : (VOUCHER_TYPES.has(refType) ? refType : '')
