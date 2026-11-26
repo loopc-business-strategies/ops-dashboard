@@ -1,9 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import axios from '../../../api/client'
 import { BASE, cfg } from './voucherTabShared'
 
 /**
- * Open a voucher from a notification deep link (web bell → ERP vouchers).
+ * Open a voucher from a notification or statement deep link (→ ERP vouchers).
  */
 export function useVoucherPendingOpen({
   pendingOpenTransactionId,
@@ -18,57 +18,82 @@ export function useVoucherPendingOpen({
   setVouchers,
   openVoucherRef,
 }) {
+  const latestRef = useRef({
+    onPendingOpenTransactionConsumed,
+    enabledVoucherTypes,
+    sortVouchers,
+    setError,
+    setVoucherType,
+    setVouchers,
+    openVoucherRef,
+  })
+  latestRef.current = {
+    onPendingOpenTransactionConsumed,
+    enabledVoucherTypes,
+    sortVouchers,
+    setError,
+    setVoucherType,
+    setVouchers,
+    openVoucherRef,
+  }
+
   useEffect(() => {
-    if (!pendingOpenTransactionId || !pendingOpenTransactionType || typeof onPendingOpenTransactionConsumed !== 'function') {
+    const cur = latestRef.current
+    if (!pendingOpenTransactionId || !pendingOpenTransactionType || typeof cur.onPendingOpenTransactionConsumed !== 'function') {
       return undefined
     }
     if (!canView || !token) {
-      onPendingOpenTransactionConsumed()
+      cur.onPendingOpenTransactionConsumed()
       return undefined
     }
     const tnorm = String(pendingOpenTransactionType || '').toLowerCase()
-    if (!tnorm || !enabledVoucherTypes.includes(tnorm)) {
-      setError('This voucher type is not available for your tenant or role.')
-      onPendingOpenTransactionConsumed()
+    if (!tnorm || !cur.enabledVoucherTypes.includes(tnorm)) {
+      cur.setError('This voucher type is not available for your tenant or role.')
+      cur.onPendingOpenTransactionConsumed()
       return undefined
     }
     let cancelled = false
     ;(async () => {
       try {
-        const res = await axios.get(`${BASE}/transactions`, {
-          ...cfg(),
-          params: { type: tnorm, limit: 500 },
-        })
-        const txs = sortVouchers(
-          (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
-          tnorm,
-        )
-        if (cancelled) return
-        setVoucherType(tnorm)
-        setVouchers(txs)
-        let v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
-        if (!v) {
-          try {
-            const singleRes = await axios.get(`${BASE}/transactions/${encodeURIComponent(pendingOpenTransactionId)}`, cfg())
-            const fetched = singleRes?.data?.transaction || singleRes?.data?.data || singleRes?.data
-            if (fetched && String(fetched._id) === String(pendingOpenTransactionId)) {
-              v = fetched
-              setVouchers((prev) => (prev.some((row) => String(row._id) === String(fetched._id)) ? prev : [...prev, fetched]))
-            }
-          } catch {
-            // Fall through to not-found message below.
+        latestRef.current.setVoucherType(tnorm)
+        let v = null
+        try {
+          const singleRes = await axios.get(`${BASE}/transactions/${encodeURIComponent(pendingOpenTransactionId)}`, cfg())
+          const fetched = singleRes?.data?.transaction || singleRes?.data?.data || singleRes?.data
+          if (fetched && String(fetched._id) === String(pendingOpenTransactionId)) {
+            v = fetched
           }
+        } catch {
+          // Fall back to list lookup below.
+        }
+        if (cancelled) return
+        if (!v) {
+          const res = await axios.get(`${BASE}/transactions`, {
+            ...cfg(),
+            params: { type: tnorm, limit: 500 },
+          })
+          const txs = latestRef.current.sortVouchers(
+            (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
+            tnorm,
+          )
+          if (cancelled) return
+          latestRef.current.setVouchers(txs)
+          v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
+        } else {
+          latestRef.current.setVouchers((prev) => (
+            prev.some((row) => String(row._id) === String(v._id)) ? prev : [v, ...prev]
+          ))
         }
         if (cancelled) return
         if (v) {
-          openVoucherRef.current?.(v)
+          latestRef.current.openVoucherRef.current?.(v)
         } else {
-          setError('That voucher was not found in the list. Try opening Vouchers and refreshing.')
+          latestRef.current.setError('That voucher was not found in the list. Try opening Vouchers and refreshing.')
         }
       } catch (e) {
-        if (!cancelled) setError(e.response?.data?.message || 'Failed to open voucher from notification')
+        if (!cancelled) latestRef.current.setError(e.response?.data?.message || 'Failed to open voucher')
       } finally {
-        if (!cancelled) onPendingOpenTransactionConsumed()
+        if (!cancelled) latestRef.current.onPendingOpenTransactionConsumed()
       }
     })()
     return () => {
@@ -77,14 +102,7 @@ export function useVoucherPendingOpen({
   }, [
     pendingOpenTransactionId,
     pendingOpenTransactionType,
-    onPendingOpenTransactionConsumed,
     canView,
     token,
-    enabledVoucherTypes,
-    sortVouchers,
-    setError,
-    setVoucherType,
-    setVouchers,
-    openVoucherRef,
   ])
 }
