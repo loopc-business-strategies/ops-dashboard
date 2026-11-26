@@ -808,34 +808,6 @@ export default function AccountEnquiryModal({
             </div>
             {/* Footer */}
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: `1rem ${FLOATING_MODAL_FOOTER_END_PAD} 1rem 1.5rem`, display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              {canExportAccountSummary && accountEnquiryData && (
-                <>
-                  <a
-                    href={buildAccountEnquiryHref?.(accountEnquiryData?.account?.accountCode, 'statement') || '#'}
-                    onClick={(event) => {
-                      if (!isPrimaryNavClick(event)) return
-                      event.preventDefault()
-                      handleViewStatement()
-                    }}
-                    style={{
-                      ...linkButtonStyle,
-                      padding: '0.6rem 1.2rem',
-                      background: AS.ctaBg,
-                      color: AS.ctaFg,
-                      border: 'none',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.95rem',
-                      cursor: 'pointer',
-                      fontWeight: '700',
-                    }}
-                  >
-                    👁 View Statement
-                  </a>
-                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
-                  <button onClick={handleExportStatementExcel} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export Excel</button>
-                  <button onClick={handlePrintStatement} style={{ padding: '0.6rem 1.2rem', background: '#fff', color: AS.ctaBg, border: `1px solid ${AS.ctaBg}`, borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Print</button>
-                </>
-              )}
               <button
                 type="button"
                 onClick={() => onClose()}
