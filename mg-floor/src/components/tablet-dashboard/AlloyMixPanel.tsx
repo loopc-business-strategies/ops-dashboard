@@ -18,6 +18,7 @@ import {
   listAlloyMixJobs,
   listInventoryProducts,
   receiveAlloyMixJob,
+  transferVaultMixToFinished,
   type AlloyMixJob,
 } from '@/src/api/alloyMixJobs'
 import { FLOOR_DEPARTMENTS, floorDepartmentLabel } from '@/src/config/floorDepartments'
@@ -74,6 +75,14 @@ export function AlloyMixPanel({
   const [metalPickerOpen, setMetalPickerOpen] = useState(false)
   const [addGross, setAddGross] = useState('')
   const [addPurity, setAddPurity] = useState('')
+  const [transferringFinished, setTransferringFinished] = useState<AlloyMixJob | null>(null)
+  const [finishedMode, setFinishedMode] = useState<'existing' | 'new'>('existing')
+  const [finishedProductId, setFinishedProductId] = useState('')
+  const [finishedNewName, setFinishedNewName] = useState('')
+  const [finishedNewSku, setFinishedNewSku] = useState('')
+  const [finishedGross, setFinishedGross] = useState('')
+  const [finishedPcs, setFinishedPcs] = useState('')
+  const [finishedNote, setFinishedNote] = useState('')
   const requestRef = useRef(0)
   const isVault = department === 'vault_room'
 
@@ -258,6 +267,77 @@ export function AlloyMixPanel({
       const message = err && typeof err === 'object' && 'message' in err
         ? String((err as { message?: string }).message || 'Add metal failed')
         : 'Add metal failed'
+      setError(message)
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  const openFinishedTransfer = (job: AlloyMixJob) => {
+    setError('')
+    setSuccessMsg('')
+    setTransferringFinished(job)
+    setFinishedMode('existing')
+    setFinishedProductId('')
+    setFinishedNewName('')
+    setFinishedNewSku('')
+    setFinishedGross(job.targetGross != null ? String(job.targetGross) : '')
+    setFinishedPcs('')
+    setFinishedNote('')
+  }
+
+  const closeFinishedTransfer = (force = false) => {
+    if (busyId && !force) return
+    setTransferringFinished(null)
+    setError('')
+  }
+
+  const confirmFinishedTransfer = async () => {
+    if (!token || !transferringFinished) return
+    const gross = Number(String(finishedGross).replace(',', '.'))
+    if (!Number.isFinite(gross) || gross <= 0) {
+      setError('Enter transfer weight (g) greater than 0')
+      return
+    }
+    const maxGross = Number(transferringFinished.targetGross || 0)
+    if (maxGross > 0 && gross > maxGross + 0.0005) {
+      setError(`Weight cannot exceed vault available (${maxGross} g)`)
+      return
+    }
+    const pcs = finishedPcs.trim() === '' ? 0 : Math.max(0, Math.round(Number(finishedPcs) || 0))
+    if (finishedMode === 'new' && !finishedNewName.trim()) {
+      setError('Enter a name for the new finished jewelry product')
+      return
+    }
+    if (finishedMode === 'existing' && !finishedProductId) {
+      setError('Select an existing product or switch to + New Product')
+      return
+    }
+    const mixCode = transferringFinished.mixCode
+    setBusyId(transferringFinished.id)
+    setError('')
+    try {
+      const res = await transferVaultMixToFinished({
+        token,
+        mixId: transferringFinished.id,
+        ...(finishedMode === 'new'
+          ? { newProduct: { name: finishedNewName.trim(), sku: finishedNewSku.trim(), category: 'Finished Jewelry' } }
+          : { productId: finishedProductId }),
+        gross,
+        pcs,
+        note: finishedNote.trim(),
+      })
+      setBusyId('')
+      closeFinishedTransfer(true)
+      await load({ soft: true })
+      setSuccessMsg(
+        `Transferred ${gross} g of ${mixCode} → ${res.product?.name || 'Finished Jewelry'}`
+        + (pcs ? ` (${pcs} pcs)` : ''),
+      )
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message?: string }).message || 'Transfer failed')
+        : 'Transfer failed'
       setError(message)
     } finally {
       setBusyId('')
@@ -463,19 +543,34 @@ export function AlloyMixPanel({
               </Text>
               <View style={styles.actionRow}>
                 {isVault && job.status === 'in_vault' && !job.hasOpenFloorDescendants ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add metal to ${job.mixCode}`}
-                    disabled={Boolean(busyId) || idle}
-                    onPress={() => (idle ? onIdlePress?.() : openAddMetal(job))}
-                    style={({ pressed }) => [
-                      styles.addMetalBtn,
-                      pressed && styles.allocBtnPressed,
-                      (busyId === job.id || idle) && styles.allocBtnDisabled,
-                    ]}
-                  >
-                    <Text style={styles.addMetalBtnText}>Add metal</Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add metal to ${job.mixCode}`}
+                      disabled={Boolean(busyId) || idle}
+                      onPress={() => (idle ? onIdlePress?.() : openAddMetal(job))}
+                      style={({ pressed }) => [
+                        styles.addMetalBtn,
+                        pressed && styles.allocBtnPressed,
+                        (busyId === job.id || idle) && styles.allocBtnDisabled,
+                      ]}
+                    >
+                      <Text style={styles.addMetalBtnText}>Add metal</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Transfer ${job.mixCode} to Finished Jewelry`}
+                      disabled={Boolean(busyId) || idle}
+                      onPress={() => (idle ? onIdlePress?.() : openFinishedTransfer(job))}
+                      style={({ pressed }) => [
+                        styles.addMetalBtn,
+                        pressed && styles.allocBtnPressed,
+                        (busyId === job.id || idle) && styles.allocBtnDisabled,
+                      ]}
+                    >
+                      <Text style={styles.addMetalBtnText}>Finished</Text>
+                    </Pressable>
+                  </>
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
@@ -651,6 +746,127 @@ export function AlloyMixPanel({
             </Pressable>
             <Pressable onPress={() => closeAddMetal()} style={styles.cancelBtn}>
               <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(transferringFinished)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => closeFinishedTransfer()}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalDismissFill} onPress={() => closeFinishedTransfer()} />
+          <View style={styles.modalCard} pointerEvents="auto">
+            <Text style={styles.modalTitle}>To Finished Jewelry</Text>
+            <Text style={styles.modalSub}>
+              {transferringFinished?.mixCode} · Vault available: {transferringFinished?.targetGross} g
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setFinishedMode('existing'); setError('') }}
+                style={[styles.addMetalBtn, finishedMode === 'existing' && styles.allocBtn]}
+              >
+                <Text style={finishedMode === 'existing' ? styles.allocBtnText : styles.addMetalBtnText}>
+                  Existing Product
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setFinishedMode('new'); setError('') }}
+                style={[styles.addMetalBtn, finishedMode === 'new' && styles.allocBtn]}
+              >
+                <Text style={finishedMode === 'new' ? styles.allocBtnText : styles.addMetalBtnText}>
+                  + New Product
+                </Text>
+              </Pressable>
+            </View>
+            {finishedMode === 'existing' ? (
+              <ScrollView style={{ maxHeight: 150, marginBottom: 8 }}>
+                {metalCatalog
+                  .filter((p) => p.name !== transferringFinished?.finishedProductName)
+                  .map((p) => {
+                    const active = finishedProductId === String(p.id)
+                    return (
+                      <Pressable
+                        key={p.id}
+                        accessibilityRole="button"
+                        onPress={() => setFinishedProductId(String(p.id))}
+                        style={[
+                          styles.addMetalBtn,
+                          { marginBottom: 6, alignItems: 'flex-start', paddingHorizontal: 10 },
+                          active && styles.allocBtn,
+                        ]}
+                      >
+                        <Text style={active ? styles.allocBtnText : styles.addMetalBtnText}>
+                          {p.name}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+              </ScrollView>
+            ) : (
+              <>
+                <Text style={styles.weightLabel}>Product Name</Text>
+                <TextInput
+                  value={finishedNewName}
+                  onChangeText={setFinishedNewName}
+                  placeholder="e.g. 22K Gold Bangles"
+                  style={styles.weightInput}
+                />
+                <Text style={styles.weightLabel}>SKU (optional)</Text>
+                <TextInput
+                  value={finishedNewSku}
+                  onChangeText={setFinishedNewSku}
+                  placeholder="e.g. FJ-22K-BGL"
+                  style={styles.weightInput}
+                />
+              </>
+            )}
+            <Text style={styles.weightLabel}>Transfer Weight (g)</Text>
+            <TextInput
+              value={finishedGross}
+              onChangeText={setFinishedGross}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              style={styles.weightInput}
+            />
+            <Text style={styles.weightLabel}>Pieces (optional)</Text>
+            <TextInput
+              value={finishedPcs}
+              onChangeText={setFinishedPcs}
+              keyboardType="number-pad"
+              placeholder="0"
+              style={styles.weightInput}
+            />
+            <Text style={styles.weightLabel}>Note (optional)</Text>
+            <TextInput
+              value={finishedNote}
+              onChangeText={setFinishedNote}
+              placeholder="e.g. QC passed"
+              style={styles.weightInput}
+            />
+            {error && transferringFinished ? <Text style={styles.error}>{error}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(busyId)}
+              onPress={confirmFinishedTransfer}
+              style={[styles.allocBtn, { marginTop: 10 }, Boolean(busyId) && styles.allocBtnDisabled]}
+            >
+              <Text style={styles.allocBtnText}>
+                {busyId === transferringFinished?.id ? 'Transferring…' : 'Transfer to Inventory'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(busyId)}
+              onPress={() => closeFinishedTransfer()}
+              style={{ marginTop: 8, alignItems: 'center', paddingVertical: 6 }}
+            >
+              <Text style={{ color: '#64748B', fontWeight: '700' }}>Cancel</Text>
             </Pressable>
           </View>
         </View>

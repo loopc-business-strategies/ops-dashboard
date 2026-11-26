@@ -152,3 +152,37 @@ export async function addMetalToVaultMixJob(opts: {
     },
   )
 }
+
+/** Vault Room only — transfer full or partial in-vault mix into Finished Jewelry & Inventory. */
+export async function transferVaultMixToFinished(opts: {
+  token: string
+  mixId: string
+  productId?: string
+  newProduct?: { name: string; sku?: string; category?: string } | null
+  gross: number
+  pcs?: number
+  note?: string
+}) {
+  return apiRequest<{
+    success: boolean
+    job: AlloyMixJob
+    product: { id: string; name: string; sku?: string; category?: string; quantity: number; pcs: number }
+    transferGross: number
+    transferPcs: number
+    remainingGross: number
+    isFullTransfer: boolean
+  }>(
+    `/api/mg-floor/alloy-mix-jobs/${encodeURIComponent(opts.mixId)}/transfer-finished`,
+    {
+      method: 'POST',
+      token: opts.token,
+      body: {
+        ...(opts.productId ? { productId: opts.productId } : {}),
+        ...(opts.newProduct ? { newProduct: opts.newProduct } : {}),
+        gross: opts.gross,
+        ...(opts.pcs != null ? { pcs: opts.pcs } : {}),
+        note: opts.note || '',
+      },
+    },
+  )
+}
