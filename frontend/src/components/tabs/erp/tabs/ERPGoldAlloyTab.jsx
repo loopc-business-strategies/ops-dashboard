@@ -146,22 +146,6 @@ export default function ERPGoldAlloyTab({
     ))
   )
 
-  const reloadMixJobs = async () => {
-    if (!token || !postingEnabled) {
-      setMixJobsByReason({})
-      setMixJobCodes([])
-      return
-    }
-    try {
-      // includeClosed so Posted-mix history rows still resolve Batch (AMX) after reverse/update.
-      const data = await erpAccountingAPI.listAlloyMixJobs(token, { includeClosed: true })
-      applyMixJobs(data?.jobs || [])
-    } catch {
-      setMixJobsByReason({})
-      setMixJobCodes([])
-    }
-  }
-
   const reloadPostedMixes = async () => {
     if (!token) return
     setPostedMixesLoading(true)
