@@ -3,7 +3,13 @@ import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchCatalogCached, CATALOG_KINDS } from '../../../utils/erpCatalogCache'
 import { loadSharedAccountChart } from '../../../utils/erpSharedAccountChart'
 import { loadSharedCurrencies } from '../../../utils/erpSharedCurrencies'
-import { isDefaultLedgerQuery, buildLedgerQuery, loadSharedLedgerPage, peekSharedLedgerPage } from '../../../utils/erpSharedLedger'
+import {
+  isDefaultLedgerQuery,
+  buildLedgerQuery,
+  fetchAllLedgerPages,
+  loadSharedLedgerPage,
+  peekSharedLedgerPage,
+} from '../../../utils/erpSharedLedger'
 import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpLedger({
@@ -41,7 +47,9 @@ export function useErpLedger({
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
         useShared
           ? loadSharedLedgerPage(token, ledgerQuery, { force: hasCursorOverride })
-          : erpAccountingAPI.getLedger(token, ledgerQuery),
+          : (cursor
+            ? erpAccountingAPI.getLedger(token, ledgerQuery)
+            : fetchAllLedgerPages(token, ledgerQuery)),
         needReference
           ? loadSharedAccountChart(token).then((rows) => ({ accounts: rows }))
           : Promise.resolve(null),
