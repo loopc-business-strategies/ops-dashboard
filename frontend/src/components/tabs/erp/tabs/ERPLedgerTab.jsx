@@ -108,10 +108,22 @@ export default function ERPLedgerTab({
     prefetchDates(filteredGroupedJvVouchers.map((voucher) => voucher.date).filter(Boolean))
   }, [filteredGroupedJvVouchers, prefetchDates])
 
+  const toggleLedgerSort = (by) => {
+    setSorting((prev) => {
+      const cur = prev?.ledger || { by: 'date', asc: false }
+      const nextAsc = cur.by === by ? !cur.asc : (by === 'amount' ? false : true)
+      return { ...prev, ledger: { by, asc: nextAsc } }
+    })
+  }
+
   const sortedLedgerEntries = useMemo(() => {
     return [...filteredGroupedJvVouchers].sort((a, b) => {
       if (sorting.ledger.by === 'date') {
         return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
+      }
+      if (sorting.ledger.by === 'voucherNo') {
+        const cmp = String(a.voucherNo || '').localeCompare(String(b.voucherNo || ''), undefined, { numeric: true, sensitivity: 'base' })
+        return sorting.ledger.asc ? cmp : -cmp
       }
       if (sorting.ledger.by === 'amount') {
         return sorting.ledger.asc ? a.totalBaseAmount - b.totalBaseAmount : b.totalBaseAmount - a.totalBaseAmount
@@ -454,12 +466,18 @@ export default function ERPLedgerTab({
             <table className="erp-table">
               <thead>
                 <tr>
-                  <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ cursor: 'pointer', background: sorting.ledger.by === 'date' ? 'var(--brand-border)' : undefined }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
-                  <th style={{ minWidth: '110px' }}>Voucher No.</th>
+                  <th onClick={() => toggleLedgerSort('date')} style={{ cursor: 'pointer', background: sorting.ledger.by === 'date' ? 'var(--brand-border)' : undefined }}>
+                    Date <span style={{ opacity: sorting.ledger.by === 'date' ? 1 : 0.45 }}>{sorting.ledger.by === 'date' ? (sorting.ledger.asc ? '▲' : '▼') : '▼'}</span>
+                  </th>
+                  <th onClick={() => toggleLedgerSort('voucherNo')} style={{ minWidth: '110px', cursor: 'pointer', background: sorting.ledger.by === 'voucherNo' ? 'var(--brand-border)' : undefined }}>
+                    Voucher No. <span style={{ opacity: sorting.ledger.by === 'voucherNo' ? 1 : 0.45 }}>{sorting.ledger.by === 'voucherNo' ? (sorting.ledger.asc ? '▲' : '▼') : '▼'}</span>
+                  </th>
                   <th style={{ maxWidth: '220px' }}>Narration / detail</th>
                   <th>Debit Account</th>
                   <th>Credit Account</th>
-                  <th className="num" onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ cursor: 'pointer', background: sorting.ledger.by === 'amount' ? 'var(--brand-border)' : undefined }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th className="num" onClick={() => toggleLedgerSort('amount')} style={{ cursor: 'pointer', background: sorting.ledger.by === 'amount' ? 'var(--brand-border)' : undefined }}>
+                    Amount <span style={{ opacity: sorting.ledger.by === 'amount' ? 1 : 0.45 }}>{sorting.ledger.by === 'amount' ? (sorting.ledger.asc ? '▲' : '▼') : '▼'}</span>
+                  </th>
                   <th>Type</th>
                   <th style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
