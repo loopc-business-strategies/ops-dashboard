@@ -44,6 +44,7 @@ export function useErpTabCoreSlice(props) {
     onJumpToVoucherConsumed,
     jumpToEnquiryAccountCode,
     onJumpToEnquiryConsumed,
+    onOpenVoucher,
   } = props
 
   const { user, token } = useAuth()
@@ -613,6 +614,7 @@ export function useErpTabCoreSlice(props) {
     jumpToEnquiryAccountCode,
     jumpToTransactionId,
     jumpToVoucher,
+    onOpenVoucher,
     jvEditEntryIds,
     jvHeader,
     jvLines,

@@ -226,6 +226,134 @@ export function isStrictCashStatementType(type) {
   return STRICT_CASH_STATEMENT_TYPES.has(String(type || '').toLowerCase().trim())
 }
 
+const DEFAULT_STATEMENT_REFERENCE_TYPES = [
+  'bank_jv',
+  'direct_deal',
+  'expense',
+  'inventory',
+  'invoice',
+  'journal',
+  'metal_payment',
+  'metal_receipt',
+  'payment',
+  'payroll',
+  'purchase',
+  'receipt',
+  'sale',
+  'vendor_payment',
+]
+
+const DEFAULT_STATEMENT_DEPARTMENTS = [
+  'finance',
+  'hr',
+  'management',
+  'operations',
+  'production',
+  'sales',
+]
+
+export function parseStatementDateBound(value, isEnd = false) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T${isEnd ? '23:59:59.999' : '00:00:00.000'}Z`)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  if (isEnd) parsed.setUTCHours(23, 59, 59, 999)
+  return parsed
+}
+
+export function prepareStatementEntriesForExport({
+  rawEntries = [],
+  accountEnquiryData = null,
+  statementFilters = {},
+  statementMetalCommodityEnabled = true,
+  statementDisplayCurrency = 'USD',
+  baseCurrencyCode = 'USD',
+  convertStatementDisplayAmount = (v) => Number(v || 0),
+} = {}) {
+  const safeRaw = Array.isArray(rawEntries) ? rawEntries : []
+  const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
+  const ledgerNetBalance = Number(accountEnquiryData?.balances?.netBalance ?? 0)
+
+  const combined = combineVoucherStatementRows(
+    safeRaw.map((entry) => withStatementDisplayAmounts(entry, {
+      displayCurrency: statementDisplayCurrency,
+      baseCurrency: baseCurrencyCode,
+      convert: convertStatementDisplayAmount,
+      relatedEntries: safeRaw,
+    })),
+  ).sort(sortStatementNewestFirst)
+
+  // Preserve server runningBalance on the newest row when a dated window is fetched;
+  // otherwise seed from full-history ledgerNetBalance.
+  const serverNewestBalance = Number(combined[0]?.runningBalance)
+  const seedClosingBalance = (statementFilters?.endDate && Number.isFinite(serverNewestBalance))
+    ? serverNewestBalance
+    : ledgerNetBalance
+  stampStatementRunningBalances(combined, seedClosingBalance)
+
+  const entriesForView = isCashOnHandEnquiry
+    ? withoutStatementExchangeAdjustments(combined)
+    : combined
+
+  const startBound = parseStatementDateBound(statementFilters?.startDate, false)
+  const endBound = parseStatementDateBound(statementFilters?.endDate, true)
+
+  const filtered = entriesForView.filter((entry) => {
+    if (isCashOnHandEnquiry) {
+      const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
+      const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
+      const effectiveType = sourceType || referenceType
+      if (!isStrictCashStatementType(effectiveType)) return false
+    }
+    const entryDate = entry.date ? new Date(entry.date) : null
+    if (startBound && (!entryDate || entryDate < startBound)) return false
+    if (endBound && (!entryDate || entryDate > endBound)) return false
+    if (statementFilters?.referenceType && String(entry.referenceType || '') !== statementFilters.referenceType) return false
+    if (statementFilters?.department && String(entry.department || '') !== statementFilters.department) return false
+    if (statementFilters?.fixStatus) {
+      const fixStatus = resolveFixStatus(entry)
+      if (statementFilters.fixStatus === 'fixed' && fixStatus !== 'fixed') return false
+      if (statementFilters.fixStatus === 'unfixed' && fixStatus !== 'unfixed') return false
+      if (statementFilters.fixStatus === 'unknown' && fixStatus !== 'unknown') return false
+    }
+    if (statementFilters?.foreignCurrency) {
+      const entryCurrency = normalizeStatementCurrencyCode(entry.currency)
+      const selectedCurrency = normalizeStatementCurrencyCode(statementFilters.foreignCurrency)
+      if (entryCurrency !== selectedCurrency) return false
+    }
+    if (statementMetalCommodityEnabled && statementFilters?.metalCommodity) {
+      const metalCode = resolveStatementMetalCode(entry)
+      const isMetalRow = isMetalStatementEntry(entry)
+        || Boolean(String(entry?.metalCode || '').trim())
+        || (metalCode !== '-' && Number(entry?.metalSignedWeight || 0) !== 0)
+      if (isMetalRow && !matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
+    }
+    return true
+  })
+
+  const visibleClosingBalance = isCashOnHandEnquiry
+    ? (Number.isFinite(seedClosingBalance) ? seedClosingBalance : sumStatementSignedAmounts(filtered))
+    : resolveVisibleStatementClosingBalance({
+      filteredEntries: filtered,
+      allEntriesCount: combined.length,
+      ledgerNetBalance: seedClosingBalance,
+    })
+  stampStatementRunningBalances(filtered, visibleClosingBalance)
+  stampStatementDisplayRunningBalances(
+    filtered,
+    convertStatementDisplayAmount(visibleClosingBalance) + sumStatementDisplayFxAdjustments(filtered),
+  )
+
+  return {
+    rawEntries: safeRaw,
+    filteredEntries: filtered,
+  }
+}
+
 /**
  * Statement merge, MTM/revaluation, and display helpers for account enquiry.
  */
@@ -539,12 +667,20 @@ export function useAccountEnquiryStatement({
     : []
 
   const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(statementEntries, statementSelectedMetalCode)
-  const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
-  const statementDepartments = Array.from(new Set(statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
+  const statementReferenceTypes = Array.from(new Set([
+    ...DEFAULT_STATEMENT_REFERENCE_TYPES,
+    ...statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean),
+  ])).sort()
+  const statementDepartments = Array.from(new Set([
+    ...DEFAULT_STATEMENT_DEPARTMENTS,
+    ...statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean),
+  ])).sort()
 
   const statementEntriesForView = isCashOnHandEnquiry
     ? withoutStatementExchangeAdjustments(statementEntries)
     : statementEntries
+  const filterStartBound = parseStatementDateBound(statementFilters.startDate, false)
+  const filterEndBound = parseStatementDateBound(statementFilters.endDate, true)
   const filteredStatementEntries = statementEntriesForView.filter((entry) => {
     if (isCashOnHandEnquiry) {
       const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
@@ -553,15 +689,8 @@ export function useAccountEnquiryStatement({
       if (!isStrictCashStatementType(effectiveType)) return false
     }
     const entryDate = entry.date ? new Date(entry.date) : null
-    if (statementFilters.startDate) {
-      const start = new Date(statementFilters.startDate)
-      if (!entryDate || entryDate < start) return false
-    }
-    if (statementFilters.endDate) {
-      const end = new Date(statementFilters.endDate)
-      end.setHours(23, 59, 59, 999)
-      if (!entryDate || entryDate > end) return false
-    }
+    if (filterStartBound && (!entryDate || entryDate < filterStartBound)) return false
+    if (filterEndBound && (!entryDate || entryDate > filterEndBound)) return false
     if (statementFilters.referenceType && String(entry.referenceType || '') !== statementFilters.referenceType) return false
     if (statementFilters.department && String(entry.department || '') !== statementFilters.department) return false
     if (statementFilters.fixStatus) {

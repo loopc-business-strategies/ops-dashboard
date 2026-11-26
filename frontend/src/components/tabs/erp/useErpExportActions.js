@@ -8,6 +8,8 @@ import { exportStatementPdf } from './statementPdfExport'
 export function useErpExportActions({
   accountEnquiryData,
   accountEnquiryCode,
+  statementFilters,
+  fetchFullAccountStatement,
   syncEnquiryUrl,
   generateStatementHtml,
   getStatementExportCtx,
@@ -35,45 +37,75 @@ export function useErpExportActions({
   openPrintWindow,
   baseCurrencyCode = 'USD',
 }) {
+  const loadFullStatementForCurrentFilters = useCallback(async () => {
+    const code = String(accountEnquiryData?.account?.accountCode || accountEnquiryCode || '').trim()
+    if (!code) return null
+    if (typeof fetchFullAccountStatement === 'function') {
+      return fetchFullAccountStatement({
+        accountCode: code,
+        startDate: String(statementFilters?.startDate || '').trim(),
+        endDate: String(statementFilters?.endDate || '').trim(),
+      })
+    }
+    return accountEnquiryData
+  }, [accountEnquiryCode, accountEnquiryData, fetchFullAccountStatement, statementFilters?.endDate, statementFilters?.startDate])
+
   const handleViewStatement = useCallback(async () => {
     const code = accountEnquiryData?.account?.accountCode || accountEnquiryCode
-    if (code) syncEnquiryUrl({ account: code, view: 'statement' })
-    setStatementPreviewHtml('')
-    setStatementPreviewTitle('Statement of Account')
-    setStatementPreviewLoading(true)
-    setShowStatementPreview(true)
+    if (!code) {
+      setError('Load an account summary first to view statement.')
+      return
+    }
+    // Open the new window synchronously inside the click handler so browsers do not block it.
+    const viewWin = window.open('', '_blank')
+    if (!viewWin) {
+      setError('Popup blocked. Please allow popups to open Statement of Account in a new window.')
+      return
+    }
+    viewWin.document.open()
+    viewWin.document.write(`<!doctype html><html><head><title>Loading Statement — ${code}</title><style>body{font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A}.box{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:24px 32px;text-align:center;box-shadow:0 8px 24px rgba(15,23,42,0.08)}h2{margin:0 0 8px;font-size:18px}p{margin:0;color:#64748B;font-size:13px}</style></head><body><div class="box"><h2>Loading Statement of Account (${code})...</h2><p>Fetching all entries for the selected filters.</p></div></body></html>`)
+    viewWin.document.close()
+
     try {
-      const htmlData = await generateStatementHtml({ screenPreview: true })
-      if (!htmlData) {
-        setShowStatementPreview(false)
+      const fullEnquiryData = await loadFullStatementForCurrentFilters()
+      const htmlData = await generateStatementHtml({
+        screenPreview: true,
+        interactiveWindow: true,
+        fullEnquiryData,
+      })
+      if (!htmlData?.html) {
+        viewWin.close()
+        setError('Failed to prepare statement.')
         return
       }
-      setStatementPreviewHtml(htmlData.html)
-      setStatementPreviewTitle(`Statement of Account — ${htmlData.accountCode || 'Account'}`)
-      showNotification('Statement preview opened')
+      if (!viewWin.closed) {
+        viewWin.document.open()
+        viewWin.document.write(htmlData.html)
+        viewWin.document.close()
+        viewWin.focus()
+      }
+      showNotification('✅ Statement opened in new window')
     } catch (err) {
-      console.error('Statement preview error:', err)
-      setShowStatementPreview(false)
-      setError('Failed to open statement preview.')
-    } finally {
-      setStatementPreviewLoading(false)
+      console.error('Statement view window error:', err)
+      if (!viewWin.closed) viewWin.close()
+      setError('Failed to load statement for selected filters.')
     }
   }, [
     accountEnquiryData,
     accountEnquiryCode,
-    syncEnquiryUrl,
+    loadFullStatementForCurrentFilters,
     generateStatementHtml,
-    setStatementPreviewHtml,
-    setStatementPreviewTitle,
-    setStatementPreviewLoading,
-    setShowStatementPreview,
     setError,
     showNotification,
   ])
 
   const handlePrintStatement = useCallback(async () => {
     try {
-      const htmlData = await generateStatementHtml({ screenPreview: false })
+      const fullEnquiryData = await loadFullStatementForCurrentFilters()
+      const htmlData = await generateStatementHtml({
+        screenPreview: false,
+        fullEnquiryData,
+      })
       if (!htmlData) return
       await printStatementHtml(htmlData.html)
       setExportOptionsOpen(false)
@@ -86,12 +118,13 @@ export function useErpExportActions({
         setError('Failed to prepare statement for printing.')
       }
     }
-  }, [generateStatementHtml, setExportOptionsOpen, showNotification, setError])
+  }, [loadFullStatementForCurrentFilters, generateStatementHtml, setExportOptionsOpen, showNotification, setError])
 
   const handleDownloadStatementPdf = useCallback(async () => {
     try {
+      const fullEnquiryData = await loadFullStatementForCurrentFilters()
       const ctx = typeof getStatementExportCtx === 'function'
-        ? getStatementExportCtx({ screenPreview: false })
+        ? getStatementExportCtx({ screenPreview: false, fullEnquiryData })
         : null
       if (!ctx?.accountEnquiryData) {
         setError('Failed to prepare statement for PDF export.')
@@ -109,7 +142,7 @@ export function useErpExportActions({
       console.error('PDF generation error:', err)
       setError('Failed to generate PDF. Please try again.')
     }
-  }, [getStatementExportCtx, setExportOptionsOpen, showNotification, setError])
+  }, [loadFullStatementForCurrentFilters, getStatementExportCtx, setExportOptionsOpen, showNotification, setError])
 
   const handleExportEnquiryPdf = useCallback(() => {
     if (!accountEnquiryData) {

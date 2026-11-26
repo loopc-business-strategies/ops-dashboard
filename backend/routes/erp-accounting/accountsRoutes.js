@@ -62,6 +62,10 @@ function hydrateLedgerAccountRefs(entries = [], accountById = new Map()) {
 function parseEnquiryStartDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T00:00:00.000Z`)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
   const parsed = new Date(raw)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
@@ -69,9 +73,13 @@ function parseEnquiryStartDate(value) {
 function parseEnquiryEndDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T23:59:59.999Z`)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
   const parsed = new Date(raw)
   if (Number.isNaN(parsed.getTime())) return null
-  parsed.setHours(23, 59, 59, 999)
+  parsed.setUTCHours(23, 59, 59, 999)
   return parsed
 }
 

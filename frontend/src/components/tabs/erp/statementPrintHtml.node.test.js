@@ -238,4 +238,31 @@ describe('statementPrintHtml', () => {
     expect(result?.html).toContain('class="narration">Перевод средств на расчётный счёт поставщика по договору поставки металла</td>')
     expect(result?.html).not.toContain('BnkJV/2026/000224-Mar-26')
   })
+
+  test('renders interactive toolbar, exact selected filter dates, and clickable voucher links in interactiveWindow mode', async () => {
+    const result = await generateStatementHtml({
+      ...baseCtx,
+      interactiveWindow: true,
+      statementFilters: { startDate: '2026-01-01', endDate: '2026-11-26' },
+      filteredStatementEntries: [
+        {
+          _id: 'e-pay-1',
+          date: '2026-06-15T10:00:00Z',
+          description: 'Payment voucher Pay/2026/0218 — Bank Charges',
+          debitAmount: 0,
+          creditAmount: 2000,
+          metalSignedWeight: 0,
+          referenceType: 'payment',
+          sourceTransactionId: 'tx-pay-218',
+          sourceTransactionType: 'payment',
+        },
+      ],
+      resolveStatementReceiptNo: () => 'Pay/2026/0218',
+    })
+    expect(result?.html).toContain('Doc Date From 01-Jan-26 To 26-Nov-26')
+    expect(result?.html).toContain('soa-toolbar')
+    expect(result?.html).toContain('class="doc-link"')
+    expect(result?.html).toContain('tx-pay-218')
+    expect(result?.html).toContain('erp-statement-open-voucher')
+  })
 })

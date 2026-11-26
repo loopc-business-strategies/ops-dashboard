@@ -8,6 +8,7 @@ import { buildErpReportDateRange } from '../useErpReportsController'
 
 
 import { generateStatementHtml as buildStatementHtml } from '../statementPrintHtml'
+import { prepareStatementEntriesForExport } from '../accountEnquiry/useAccountEnquiryStatement'
 import { DEFAULT_BRANDING } from '../ERPBrandingUtils'
 import { resolveStatementPrintSettings } from '../documentBranding'
 import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from '../erpPrintHelpers'
@@ -42,6 +43,7 @@ export function useErpTabPresentationSlice(scope) {
     nextJvLineId,
     onJumpToEnquiryConsumed,
     onJumpToTransactionConsumed,
+    onOpenVoucher,
     pendingStatementPreview,
     reportBranding,
     searchParams,
@@ -60,6 +62,7 @@ export function useErpTabPresentationSlice(scope) {
     setNextJvLineId,
     setPendingStatementPreview,
     setSaving,
+    setShowEnquiryModal,
     setShowLedgerForm,
     setShowStatementPreview,
     setStatementPreviewHtml,
@@ -69,6 +72,7 @@ export function useErpTabPresentationSlice(scope) {
     showEnquiryModalRef,
     showNotification,
     statementFilters,
+    statementMetalCommodityEnabled,
     syncEnquiryUrl,
     token,
     TRANSACTION_TYPE_LABELS,
@@ -86,6 +90,7 @@ export function useErpTabPresentationSlice(scope) {
     statementDisplayCurrency,
     statementSelectedMetalCode,
     fetchAccountEnquiryByCode,
+    fetchFullAccountStatement,
     handleJumpToTransaction,
     ledgerReportRows,
     loadEnquiryHistory,
@@ -234,23 +239,42 @@ export function useErpTabPresentationSlice(scope) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-  const getStatementExportCtx = (options = {}) => ({
-    accountEnquiryData,
-    filteredStatementEntries,
-    resolveStatementReceiptNo,
-    statementSelectedMetalCode,
-    resolvePreferredStatementMetalCode,
-    statementDisplayCurrency,
-    rawStatementEntries,
-    formatStatementDate,
-    convertStatementDisplayAmount,
-    tenantBranding,
-    user,
-    branding,
-    defaultBranding: DEFAULT_BRANDING,
-    statementFilters,
-    screenPreview: options.screenPreview === true,
-  })
+  const getStatementExportCtx = (options = {}) => {
+    const enquiryForExport = options.fullEnquiryData || accountEnquiryData
+    let exportRawEntries = rawStatementEntries
+    let exportFilteredEntries = filteredStatementEntries
+    if (options.fullEnquiryData) {
+      const prepared = prepareStatementEntriesForExport({
+        rawEntries: options.fullEnquiryData?.statement?.entries || [],
+        accountEnquiryData: options.fullEnquiryData,
+        statementFilters,
+        statementMetalCommodityEnabled,
+        statementDisplayCurrency,
+        baseCurrencyCode,
+        convertStatementDisplayAmount,
+      })
+      exportRawEntries = prepared.rawEntries
+      exportFilteredEntries = prepared.filteredEntries
+    }
+    return {
+      accountEnquiryData: enquiryForExport,
+      filteredStatementEntries: exportFilteredEntries,
+      resolveStatementReceiptNo,
+      statementSelectedMetalCode,
+      resolvePreferredStatementMetalCode,
+      statementDisplayCurrency,
+      rawStatementEntries: exportRawEntries,
+      formatStatementDate,
+      convertStatementDisplayAmount,
+      tenantBranding,
+      user,
+      branding,
+      defaultBranding: DEFAULT_BRANDING,
+      statementFilters,
+      screenPreview: options.screenPreview === true,
+      interactiveWindow: options.interactiveWindow === true,
+    }
+  }
   const generateStatementHtml = (options = {}) => buildStatementHtml(getStatementExportCtx(options))
   const {
     handleViewStatement,
@@ -267,6 +291,8 @@ export function useErpTabPresentationSlice(scope) {
   } = useErpExportActions({
     accountEnquiryData,
     accountEnquiryCode,
+    statementFilters,
+    fetchFullAccountStatement,
     syncEnquiryUrl,
     generateStatementHtml,
     getStatementExportCtx,
@@ -311,6 +337,42 @@ export function useErpTabPresentationSlice(scope) {
     // handleJumpToTransaction is stable enough for this one-shot deep link; omit to avoid re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpToTransactionId, onJumpToTransactionConsumed])
+  useEffect(() => {
+    const VOUCHER_TYPES = new Set([
+      'payment',
+      'receipt',
+      'purchase',
+      'sale',
+      'metal_receipt',
+      'metal_payment',
+      'metal_transfer',
+    ])
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return
+      const payload = event.data
+      if (!payload || payload.type !== 'erp-statement-open-voucher' || !payload.voucher) return
+      const { ledgerId, sourceTransactionId, sourceTransactionType, referenceType } = payload.voucher
+      const refType = String(referenceType || '').toLowerCase()
+      const txType = String(sourceTransactionType || '').toLowerCase()
+      setShowEnquiryModal(false)
+      if ((refType === 'journal' || refType === 'bank_jv') && ledgerId) {
+        setActiveTabGuarded('ledger')
+        void handleOpenJv({ _id: ledgerId, referenceType: refType })
+        return
+      }
+      const voucherType = VOUCHER_TYPES.has(txType) ? txType : (VOUCHER_TYPES.has(refType) ? refType : '')
+      if (sourceTransactionId && voucherType && typeof onOpenVoucher === 'function') {
+        onOpenVoucher({ id: sourceTransactionId, type: voucherType })
+        return
+      }
+      if (sourceTransactionId && typeof handleJumpToTransaction === 'function') {
+        void handleJumpToTransaction(sourceTransactionId)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [handleJumpToTransaction, handleOpenJv, onOpenVoucher, setActiveTabGuarded, setShowEnquiryModal])
+
   useEnquiryDeepLinkEffects({
     activeTab,
     searchParams,

@@ -402,6 +402,7 @@ function renderTab(
           onJumpToVoucherConsumed={erpTabProps.onJumpToVoucherConsumed}
           jumpToEnquiryAccountCode={erpTabProps.jumpToEnquiryAccountCode}
           onJumpToEnquiryConsumed={erpTabProps.onJumpToEnquiryConsumed}
+          onOpenVoucher={erpTabProps.onOpenVoucher}
         />
       )
 
@@ -699,6 +700,16 @@ function Dashboard() {
   const consumeErpJumpTransaction = useCallback(() => setPendingErpJumpTransactionId(null), [])
   const consumeErpVoucherJump = useCallback(() => setPendingErpVoucherJump(null), [])
   const consumeErpEnquiryJump = useCallback(() => setPendingErpEnquiryAccountCode(null), [])
+  const handleOpenErpVoucher = useCallback((voucher) => {
+    if (!voucher?.id) return
+    navigateToTab('erp', { erpSub: 'vouchers', sub: null })
+    setPendingErpJumpTransactionId(null)
+    setPendingErpEnquiryAccountCode(null)
+    setPendingErpVoucherJump({
+      id: voucher.id,
+      type: voucher.type || 'payment',
+    })
+  }, [navigateToTab])
   const chatTabRealtimeProps = useMemo(
     () => ({
       openChatId: pendingChatOpenId,
@@ -716,6 +727,7 @@ function Dashboard() {
       jumpToEnquiryAccountCode: pendingErpEnquiryAccountCode,
       onJumpToEnquiryConsumed: consumeErpEnquiryJump,
       onErpSubTabChange: handleErpSubTabChange,
+      onOpenVoucher: handleOpenErpVoucher,
     }),
     [
       pendingErpJumpTransactionId,
@@ -725,6 +737,7 @@ function Dashboard() {
       pendingErpEnquiryAccountCode,
       consumeErpEnquiryJump,
       handleErpSubTabChange,
+      handleOpenErpVoucher,
     ],
   )
 

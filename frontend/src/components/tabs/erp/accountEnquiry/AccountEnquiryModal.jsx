@@ -1,10 +1,7 @@
-import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE, ACCOUNT_SUMMARY_CHROME as AS } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { resolveExposureDirection } from '../statementHelpers'
-import { buildStatementNarration } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
-import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
 import { parseAuthorizedPersons, serializeAuthorizedPersons } from '../authorizedPersons'
 import {
   FLOATING_MODAL_FOOTER_END_PAD,
@@ -35,16 +32,16 @@ export default function AccountEnquiryModal({
   filteredGroupedSummaryAccounts,
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
-  refetchEnquiryForDateRange,
-  loadMoreStatementEntries,
+  refetchEnquiryForDateRange: _refetchEnquiryForDateRange,
+  loadMoreStatementEntries: _loadMoreStatementEntries,
   enquiryStatus,
   accountEnquiryData,
   modalPositionRows,
   formatStatementValue,
-  getSignedColor,
+  getSignedColor: _getSignedColor,
   formatDirectionalBalance,
   unfixedMetalEntries: _unfixedMetalEntries,
-  formatStatementDate,
+  formatStatementDate: _formatStatementDate,
   modalTotalFundsDisplay,
   modalRevaluationDisplay,
   modalNetEquityDisplay,
@@ -57,9 +54,9 @@ export default function AccountEnquiryModal({
   hasMetalExposure = false,
   baseCurrencyCode,
   statementDisplayCurrencyOptions,
-  filteredStatementEntries,
-  recentPaymentReceiptEntry,
-  resolveStatementReceiptNo,
+  filteredStatementEntries: _filteredStatementEntries,
+  recentPaymentReceiptEntry: _recentPaymentReceiptEntry,
+  resolveStatementReceiptNo: _resolveStatementReceiptNo,
   statementFilters,
   setStatementFilters,
   statementReferenceTypes,
@@ -69,14 +66,14 @@ export default function AccountEnquiryModal({
   statementFilterCurrencyOptions,
   statementMetalOptions,
   statementDisplayCurrency,
-  showStatementAuditIds,
+  showStatementAuditIds: _showStatementAuditIds,
   setShowStatementAuditIds: _setShowStatementAuditIds,
-  statementTableRef,
-  convertStatementDisplayAmount,
-  resolveMetalCode,
-  statementSelectedMetalCode,
-  pureWeightRunningByEntryKey,
-  formatStatementNullableValue,
+  statementTableRef: _statementTableRef,
+  convertStatementDisplayAmount: _convertStatementDisplayAmount,
+  resolveMetalCode: _resolveMetalCode,
+  statementSelectedMetalCode: _statementSelectedMetalCode,
+  pureWeightRunningByEntryKey: _pureWeightRunningByEntryKey,
+  formatStatementNullableValue: _formatStatementNullableValue,
   canExportAccountSummary,
   handleViewStatement,
   buildAccountEnquiryHref,
@@ -84,75 +81,12 @@ export default function AccountEnquiryModal({
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
   resolveMarginEquityDirection,
-  isMetalStatementEntry,
+  isMetalStatementEntry: _isMetalStatementEntry,
 }) {
-  const dateRangeRefetchTimerRef = useRef(null)
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const totalBalancePreferredDirection = isCashOnHandEnquiry
     ? resolveExposureDirection(modalTotalFundsDisplay)
     : accountEnquiryData?.balances?.netDirection
-  const dateRangeInFlightKeyRef = useRef('')
-  const statementMeta = accountEnquiryData?.statement?.meta || null
-  const statementTruncated = Boolean(statementMeta?.truncated || statementMeta?.hasMore)
-  const statementLimit = Number(statementMeta?.limit || 0)
-  const statementHasMore = Boolean(statementMeta?.hasMore || statementMeta?.truncated)
-  const statementColCount = showStatementAuditIds ? 13 : 12
-  const {
-    scrollRef: statementVirtScrollRef,
-    enabled: statementVirtEnabled,
-    virtualItems: statementVirtualItems,
-    paddingTop: statementPadTop,
-    paddingBottom: statementPadBottom,
-  } = useVirtualTableRows(filteredStatementEntries?.length || 0, { estimateSize: 42 })
-
-  const setStatementScrollRef = (node) => {
-    statementVirtScrollRef.current = node
-    if (statementTableRef) statementTableRef.current = node
-  }
-
-  const visibleStatementIndexes = statementVirtEnabled
-    ? statementVirtualItems.map((v) => v.index)
-    : (filteredStatementEntries || []).map((_, index) => index)
-
-  useEffect(() => {
-    if (!open || !accountEnquiryData?.account?.accountCode || typeof refetchEnquiryForDateRange !== 'function') {
-      return undefined
-    }
-    const startDate = String(statementFilters?.startDate || '').trim()
-    const endDate = String(statementFilters?.endDate || '').trim()
-    const serverStart = String(statementMeta?.startDate || '').trim()
-    const serverEnd = String(statementMeta?.endDate || '').trim()
-    const rangeKey = `${startDate}|${endDate}`
-    if (startDate === serverStart && endDate === serverEnd) {
-      dateRangeInFlightKeyRef.current = ''
-      return undefined
-    }
-    if (dateRangeInFlightKeyRef.current === rangeKey) return undefined
-
-    if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
-    dateRangeRefetchTimerRef.current = setTimeout(() => {
-      dateRangeInFlightKeyRef.current = rangeKey
-      Promise.resolve(refetchEnquiryForDateRange(startDate, endDate))
-        .catch(() => {})
-        .finally(() => {
-          if (dateRangeInFlightKeyRef.current === rangeKey) {
-            dateRangeInFlightKeyRef.current = ''
-          }
-        })
-    }, 400)
-
-    return () => {
-      if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
-    }
-  }, [
-    open,
-    accountEnquiryData?.account?.accountCode,
-    refetchEnquiryForDateRange,
-    statementFilters?.startDate,
-    statementFilters?.endDate,
-    statementMeta?.startDate,
-    statementMeta?.endDate,
-  ])
 
   if (!open) return null
   const panelW = Number(enquiryModalSize?.width) || 1100
@@ -510,48 +444,58 @@ export default function AccountEnquiryModal({
                       </p>
                     </div>
                   </div>
-                  {/* Full Statement Table — sits closer after removing Fixing/Unfixing card */}
+                  {/* Statement of Account Filters & Actions (statement opens in a new window or exports full filtered range) */}
                   <div style={{ marginTop: '0.75rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
                     <div style={{ padding: '0.85rem 1rem', background: AS.softPanelBg, borderBottom: `1px solid ${AS.softPanelBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <div>
-                        <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
-                        {statementTruncated && (
-                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#B45309', fontWeight: '600' }}>
-                            Showing newest {filteredStatementEntries.length} loaded lines
-                            {statementLimit ? ` (page size ${statementLimit})` : ''}. Load more for older history, or set Date From.
-                          </p>
-                        )}
-                        {statementHasMore && typeof loadMoreStatementEntries === 'function' && (
-                          <button
-                            type="button"
-                            onClick={() => { loadMoreStatementEntries() }}
+                        <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Statement of Account</p>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>
+                          Select Date From / Date To and any filters below, then click View Statement (opens in a new window) or Export PDF.
+                        </p>
+                      </div>
+                      {canExportAccountSummary && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <a
+                            href={buildAccountEnquiryHref?.(accountEnquiryData?.account?.accountCode, 'statement') || '#'}
+                            onClick={(event) => {
+                              if (!isPrimaryNavClick(event)) return
+                              event.preventDefault()
+                              handleViewStatement()
+                            }}
                             style={{
-                              marginTop: '0.45rem',
-                              padding: '0.35rem 0.7rem',
-                              borderRadius: '0.4rem',
-                              border: '1px solid #CBD5E0',
-                              background: '#FFFFFF',
-                              color: '#1F2937',
-                              fontWeight: 700,
-                              fontSize: '0.8rem',
+                              ...linkButtonStyle,
+                              padding: '0.45rem 0.9rem',
+                              background: AS.ctaBg,
+                              color: AS.ctaFg,
+                              border: 'none',
+                              borderRadius: '0.45rem',
+                              fontSize: '0.84rem',
                               cursor: 'pointer',
+                              fontWeight: '700',
                             }}
                           >
-                            Load more statement rows
+                            👁 View Statement
+                          </a>
+                          <button
+                            type="button"
+                            onClick={handleExportEnquiryPdf}
+                            style={{
+                              padding: '0.45rem 0.9rem',
+                              background: AS.ctaBg,
+                              color: AS.ctaFg,
+                              border: 'none',
+                              borderRadius: '0.45rem',
+                              fontSize: '0.84rem',
+                              cursor: 'pointer',
+                              fontWeight: '700',
+                            }}
+                          >
+                            Export PDF
                           </button>
-                        )}
-                      </div>
-                      {recentPaymentReceiptEntry && (
-                        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '0.45rem', padding: '0.45rem 0.6rem' }}>
-                          <p style={{ margin: 0, fontSize: '0.73rem', color: '#065F46', fontWeight: '700' }}>Recent Payment/Receipt</p>
-                          <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#065F46', fontWeight: '700' }}>
-                            {formatStatementDate(recentPaymentReceiptEntry.date)} · {String(recentPaymentReceiptEntry.referenceType || '').toUpperCase()} · #{resolveStatementReceiptNo(recentPaymentReceiptEntry)}
-                          </p>
                         </div>
                       )}
                     </div>
-                    <div style={{ padding: '0.45rem 0.75rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
+                    <div style={{ padding: '0.65rem 0.75rem', background: '#FAFBFC' }}>
                       {(() => {
                         const compactInput = {
                           ...ERP_MODAL_INPUT_STYLE,
@@ -724,105 +668,6 @@ export default function AccountEnquiryModal({
                           </div>
                         )
                       })()}
-                    </div>
-                    <div ref={setStatementScrollRef} tabIndex={-1} style={{ overflow: 'auto', maxHeight: statementVirtEnabled ? 480 : undefined }} data-statement-table="true">
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                        <thead>
-                          <tr style={{ background: AS.tableHeadBg, borderBottom: `1px solid ${AS.softPanelBorder}` }}>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
-                            {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700', minWidth: '12rem' }}>Narration</th>
-                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
-                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
-                          </tr>
-                          <tr style={{ background: AS.tableSubHeadBg, borderBottom: `2px solid ${AS.softPanelBorder}` }}>
-                            <th colSpan={showStatementAuditIds ? 6 : 5} style={{ padding: 0, border: 0 }} />
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredStatementEntries.length === 0 ? (
-                            <tr>
-                              <td colSpan={statementColCount} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
-                                No statement entries found for selected filters.
-                              </td>
-                            </tr>
-                          ) : (
-                            <>
-                              {statementVirtEnabled && statementPadTop > 0 && (
-                                <tr><td colSpan={statementColCount} style={{ height: statementPadTop, padding: 0, border: 'none' }} /></tr>
-                              )}
-                              {visibleStatementIndexes.map((index) => {
-                              const entry = filteredStatementEntries[index]
-                              if (!entry) return null
-                              const receiptNo = resolveStatementReceiptNo(entry)
-                              // Account enquiry statement amounts are already in base currency from API.
-                              const debitUsd = Number(entry.debitAmount || 0)
-                              const creditUsd = Number(entry.creditAmount || 0)
-                              const balanceUsd = Number(entry.runningBalance || 0)
-                              const debitDisplay = entry.displayDebitAmount ?? convertStatementDisplayAmount(debitUsd)
-                              const creditDisplay = entry.displayCreditAmount ?? convertStatementDisplayAmount(creditUsd)
-                              const balanceDisplay = entry.displayRunningBalance ?? convertStatementDisplayAmount(balanceUsd)
-                              const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-                              const entryMetalCode = resolveMetalCode(entry)
-                              const isMetalRow = isMetalStatementEntry(entry) && entryMetalCode === statementSelectedMetalCode
-                              const signedPureWeight = Number(entry.metalSignedWeight || 0)
-                              const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
-                              const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
-                              const balancePureWeight = isMetalRow ? (pureWeightRunningByEntryKey.get(entry._id) ?? null) : null
-                              const narration = buildStatementNarration(entry) || '-'
-                              return (
-                                <tr
-                                  key={entry._id || `${entry.date}-${index}`}
-                                  style={{
-                                    background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
-                                    borderBottom: '1px solid #E5E7EB',
-                                    contentVisibility: 'auto',
-                                    containIntrinsicSize: 'auto 42px',
-                                  }}
-                                >
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
-                                  <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
-                                  {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}
-                                  <td style={{ padding: '0.6rem', color: '#374151', textTransform: 'capitalize' }}>{entry.metalDealType || '-'}</td>
-                                  <td style={{ padding: '0.6rem' }}>
-                                    {(sourceType === 'sale' || sourceType === 'purchase') && (entry.metalFixStatus === 'fixed' || entry.metalFixStatus === 'unfixed') ? (
-                                      <span style={{ background: entry.metalFixStatus === 'fixed' ? '#DCFCE7' : '#FEF3C7', color: entry.metalFixStatus === 'fixed' ? '#166534' : '#92400E', borderRadius: '999px', padding: '0.12rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
-                                        {entry.metalFixStatus}
-                                      </span>
-                                    ) : '-'}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', color: '#374151', maxWidth: '18rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={narration}>
-                                    {narration}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{entry.suppressDisplayAmount ? '-' : formatStatementValue(debitDisplay, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{entry.suppressDisplayAmount ? '-' : formatStatementValue(creditDisplay, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceDisplay), fontWeight: '700' }}>
-                                    {formatDirectionalBalance(balanceDisplay, { currencyCode: statementDisplayCurrency })}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2, { exactGrams: true })}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2, { exactGrams: true })}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balancePureWeight), fontWeight: '700' }}>
-                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight, { asWeight: true, minDigits: 0, maxDigits: 6 })}
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                              {statementVirtEnabled && statementPadBottom > 0 && (
-                                <tr><td colSpan={statementColCount} style={{ height: statementPadBottom, padding: 0, border: 'none' }} /></tr>
-                              )}
-                            </>
-                          )}
-                        </tbody>
-                      </table>
                     </div>
                   </div>
                 </>

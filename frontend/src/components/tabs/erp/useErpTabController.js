@@ -15,6 +15,7 @@ export function useErpTabController({
   onJumpToVoucherConsumed,
   jumpToEnquiryAccountCode = null,
   onJumpToEnquiryConsumed,
+  onOpenVoucher,
 }) {
   const core = useErpTabCoreSlice({
     focusTab,
@@ -26,6 +27,7 @@ export function useErpTabController({
     onJumpToVoucherConsumed,
     jumpToEnquiryAccountCode,
     onJumpToEnquiryConsumed,
+    onOpenVoucher,
   })
   const catalog = useErpTabCatalogSlice(core)
   const domain = useErpTabDomainActionsSlice({ ...core, ...catalog })

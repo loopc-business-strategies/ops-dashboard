@@ -14,7 +14,7 @@ const escapeHtml = (value) => String(value ?? '')
  * @param {object} ctx — runtime values from ERPTab (account enquiry UI state).
  */
 export async function generateStatementHtml(ctx) {
-  const { screenPreview = false } = ctx
+  const { screenPreview = false, interactiveWindow = false } = ctx
   const model = buildStatementExportModel(ctx)
   if (!model) return null
 
@@ -99,6 +99,7 @@ export async function generateStatementHtml(ctx) {
             </div>`
     : ''
 
+  const entryCount = tableRows.filter((r) => r.kind === 'entry').length
   const bodyRows = tableRows.map((row) => {
     if (row.kind === 'opening' || row.kind === 'closing') {
       return `
@@ -113,9 +114,16 @@ export async function generateStatementHtml(ctx) {
                   <td class="num">${escapeHtml(row.cells[8])}</td>
                 </tr>`
     }
+    const canOpenVoucher = interactiveWindow
+      && row.voucher
+      && (row.voucher.sourceTransactionId || row.voucher.ledgerId)
+      && row.cells[0] && row.cells[0] !== '-'
+    const docCellMarkup = canOpenVoucher
+      ? `<button type="button" class="doc-link" title="Click to open voucher ${escapeHtml(row.cells[0])}" data-voucher="${escapeHtml(JSON.stringify(row.voucher))}">${escapeHtml(row.cells[0])}</button>`
+      : escapeHtml(row.cells[0])
     return `
-        <tr>
-          <td class="col-doc">${escapeHtml(row.cells[0])}</td>
+        <tr${canOpenVoucher ? ' class="entry-row"' : ''}>
+          <td class="col-doc">${docCellMarkup}</td>
           <td class="col-date">${escapeHtml(row.cells[1])}</td>
           <td class="narration">${escapeHtml(row.cells[2])}</td>
           <td class="num">${escapeHtml(row.cells[3])}</td>
@@ -126,6 +134,44 @@ export async function generateStatementHtml(ctx) {
           <td class="num">${escapeHtml(row.cells[8])}</td>
         </tr>`
   }).join('')
+
+  const interactiveToolbarMarkup = interactiveWindow
+    ? `
+          <div class="soa-toolbar no-print">
+            <div class="soa-toolbar-info">
+              <strong>Statement of Account — ${escapeHtml(accountCode)} ${escapeHtml(accountName)}</strong>
+              <span>From ${escapeHtml(dateFromLabel)} To ${escapeHtml(dateToLabel)} · ${entryCount} entries · Click any Doc No to open voucher</span>
+            </div>
+            <div class="soa-toolbar-actions">
+              <button type="button" class="soa-btn soa-btn-primary" onclick="window.print()">Print</button>
+              <button type="button" class="soa-btn soa-btn-secondary" onclick="window.close()">Close</button>
+            </div>
+          </div>`
+    : ''
+
+  const interactiveScriptMarkup = interactiveWindow
+    ? `
+          <script>
+            (function () {
+              document.addEventListener('click', function (ev) {
+                var btn = ev.target && ev.target.closest ? ev.target.closest('.doc-link') : null;
+                if (!btn) return;
+                ev.preventDefault();
+                try {
+                  var raw = btn.getAttribute('data-voucher');
+                  var voucher = raw ? JSON.parse(raw) : null;
+                  if (!voucher) return;
+                  if (window.opener && !window.opener.closed) {
+                    window.opener.postMessage({ type: 'erp-statement-open-voucher', voucher: voucher }, window.location.origin);
+                    try { window.opener.focus(); } catch (e) {}
+                  }
+                } catch (err) {
+                  console.error('Failed to open voucher from statement:', err);
+                }
+              });
+            })();
+          </script>`
+    : ''
 
   const html = `
       <html>
@@ -175,14 +221,26 @@ export async function generateStatementHtml(ctx) {
             .carry-label { text-align: left; font-weight: 700; }
             .footer { margin-top: 12px; display: flex; justify-content: space-between; gap: 12px; font-size: 11px; font-style: italic; font-weight: 500; color: #111111; }
             .print-note { margin-top: 8px; font-size: 10px; color: #6B7280; text-align: right; font-weight: 500; }
+            .soa-toolbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin: -12px -14px 14px; background: #0F172A; color: #FFFFFF; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25); }
+            .soa-toolbar-info { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+            .soa-toolbar-info span { color: #CBD5E1; font-size: 11px; }
+            .soa-toolbar-actions { display: flex; gap: 8px; }
+            .soa-btn { border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+            .soa-btn-primary { background: #C2410C; color: #FFFFFF; }
+            .soa-btn-secondary { background: #475569; color: #FFFFFF; }
+            .doc-link { background: none; border: none; padding: 0; margin: 0; font: inherit; color: #1D4ED8; font-weight: 700; text-decoration: underline; cursor: pointer; text-align: left; }
+            .doc-link:hover { color: #1E40AF; }
+            .entry-row:hover { background: #F8FAFC; }
             @media print { 
               body { padding: 0; color-adjust: exact; -webkit-print-color-adjust: exact; } 
-              .print-note { display: none; } 
+              .print-note, .no-print { display: none !important; }
+              .doc-link { color: #111827; text-decoration: none; font-weight: 500; }
               * { color-adjust: exact; -webkit-print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
+          ${interactiveToolbarMarkup}
           <div class="sheet">
             ${headerMarkup}
             <div class="party-box">
@@ -231,6 +289,7 @@ export async function generateStatementHtml(ctx) {
             ${footerNote ? `<div class="statement-footer-note">${escapeHtml(footerNote)}</div>` : ''}
             ${showPrintNote ? '<div class="print-note">Generated from Account Summary</div>' : ''}
           </div>
+          ${interactiveScriptMarkup}
         </body>
       </html>
     `

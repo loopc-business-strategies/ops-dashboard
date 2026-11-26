@@ -29,8 +29,20 @@ const DEFAULT_STATEMENT_PDF_LOGO_SCALE = 0.65
 const DEFAULT_STATEMENT_PDF_LOGO_MAX_WIDTH = 110
 const DEFAULT_STATEMENT_PDF_LOGO_MAX_HEIGHT = 72
 
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 export function formatStatementDocDate(value) {
   if (!value) return ''
+  const raw = String(value).trim()
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (ymdMatch) {
+    const year = ymdMatch[1].slice(-2)
+    const monthIndex = Number(ymdMatch[2]) - 1
+    const day = ymdMatch[3]
+    if (monthIndex >= 0 && monthIndex < 12) {
+      return `${day}-${SHORT_MONTHS[monthIndex]}-${year}`
+    }
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   const day = String(date.getDate()).padStart(2, '0')
@@ -207,10 +219,21 @@ export function buildStatementExportModel(ctx) {
     const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
     runningDisplayBalance += displayAmountOf(entry, 'displaySignedAmount', resolveStatementSignedAmount(entry))
     if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
+    const docNo = resolveStatementReceiptNo(entry) || '-'
+    const rawLedgerId = Array.isArray(entry?.statementRowIds) && entry.statementRowIds.length
+      ? String(entry.statementRowIds[0] || '').trim()
+      : String(entry?._id || '').replace(/^row:/, '').trim()
     return {
       kind: 'entry',
+      voucher: {
+        ledgerId: rawLedgerId,
+        sourceTransactionId: String(entry?.sourceTransactionId || '').trim(),
+        sourceTransactionType: String(entry?.sourceTransactionType || entry?.metalDealType || '').trim().toLowerCase(),
+        referenceType: String(entry?.referenceType || '').trim().toLowerCase(),
+        docNo,
+      },
       cells: [
-        resolveStatementReceiptNo(entry) || '-',
+        docNo,
         formatStatementDocDate(entry.date) || formatStatementDate(entry.date) || '-',
         buildStatementNarration(entry),
         formatStatementBlankable(debitDisplay, 2),
