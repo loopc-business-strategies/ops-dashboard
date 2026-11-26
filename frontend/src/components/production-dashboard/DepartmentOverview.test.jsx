@@ -116,7 +116,8 @@ describe('DepartmentOverview Vault Room stock', () => {
     expect(vault.textContent).toContain('Gold')
     expect(vault.textContent).toContain('Gold Bar')
     expect(vault.textContent).toContain('200')
-    expect(vault.textContent).toContain('grams')
+    // Vault headers use compact unit abbreviations (grams -> g), see commit 96eee82a.
+    expect(vault.textContent).toContain('Gross(g)')
   })
 })
 

@@ -2,6 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import OverviewTab from '../OverviewTab'
+import { LanguageProvider } from '../../../context/LanguageContext'
 
 vi.mock('../../../context/AuthContext', () => ({
   useAuth: () => ({
@@ -55,11 +56,13 @@ describe('Workspace Overview layout', () => {
 
   it('renders compact workspace sections without module shortcuts', async () => {
     render(
-      <OverviewTab
-        onNavigate={vi.fn()}
-        buildTabHref={(tab) => `/?tab=${tab}`}
-        isActive
-      />,
+      <LanguageProvider>
+        <OverviewTab
+          onNavigate={vi.fn()}
+          buildTabHref={(tab) => `/?tab=${tab}`}
+          isActive
+        />
+      </LanguageProvider>,
     )
 
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
