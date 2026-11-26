@@ -2308,6 +2308,17 @@ async function addMetalToVaultMix({
   })
 }
 
+const WIP_LEDGER_ACCOUNT_CODE = '1205'
+const FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE = '1215'
+
+/** Returns the WIP stock account (code 1205) if it exists, else null. Read-only. */
+async function findWipLedgerAccount({ ChartOfAccount, session = null }) {
+  return withSession(
+    ChartOfAccount.findOne({ accountCode: WIP_LEDGER_ACCOUNT_CODE }).select('_id accountCode accountName').lean(),
+    session,
+  )
+}
+
 /**
  * Vault Room only: transfer full or partial weight of an in-vault alloy mix batch
  * into a Finished Jewelry InventoryItem (existing or created inline), posting
@@ -2328,6 +2339,7 @@ async function transferVaultMixToFinishedJewelry({
   const InventoryItem = require('../../models/InventoryItem')
   const StockMovement = require('../../models/StockMovement')
   const Transaction = require('../../models/Transaction')
+  const ChartOfAccount = require('../../models/ChartOfAccount')
 
   const job = await withSession(AlloyMixJob.findById(mixId), session)
   if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
@@ -2477,6 +2489,13 @@ async function transferVaultMixToFinishedJewelry({
   let metalTransferId = ''
   const ledgerPosted = false
   const accountingWarning = ''
+  // From/To account labels on the voucher only (amount 0, no Ledger rows).
+  const fromAccount = sourceItem?.ledgerAccountId
+    ? await withSession(ChartOfAccount.findById(sourceItem.ledgerAccountId).select('_id accountCode accountName').lean(), session)
+    : await findWipLedgerAccount({ ChartOfAccount, session })
+  const toAccount = targetItem?.ledgerAccountId
+    ? await withSession(ChartOfAccount.findById(targetItem.ledgerAccountId).select('_id accountCode accountName').lean(), session)
+    : await withSession(ChartOfAccount.findOne({ accountCode: FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE }).select('_id accountCode accountName').lean(), session)
   if (actorId) {
     const [mtTx] = await Transaction.create(
       [
@@ -2487,6 +2506,8 @@ async function transferVaultMixToFinishedJewelry({
           description: reasonBase,
           currency: 'USD',
           exchangeRate: 1,
+          debitAccountId: toAccount?._id || null,
+          creditAccountId: fromAccount?._id || null,
           inventoryItemId: targetItem._id,
           status: 'posted',
           createdBy: actorId,

@@ -167,7 +167,13 @@ async function seedWipMixFixture() {
 
 describe('Vault → Finished Jewelry metal transfer (no Ledger JV)', () => {
   test('books posted metal_transfer voucher + StockMovements + FINISHED lot, and posts 0 Ledger rows', async () => {
-    const { user, fineGold, silver, wipItem, service } = await seedWipMixFixture()
+    const { user, fineGold, silver, wipItem, service, wipAcct } = await seedWipMixFixture()
+    const fjAcct = await ChartOfAccount.create({
+      accountName: 'Inventory - Finished Jewelry',
+      accountCode: '1215',
+      accountType: 'Asset',
+      createdBy: user._id,
+    })
 
     const posted = await service.postAlloyMix({
       user,
@@ -208,6 +214,9 @@ describe('Vault → Finished Jewelry metal transfer (no Ledger JV)', () => {
     expect(mt.type).toBe('metal_transfer')
     expect(mt.status).toBe('posted')
     expect(Number(mt.amount)).toBe(0)
+    // From/To account labels on the voucher (amount 0; no Ledger rows).
+    expect(String(mt.creditAccountId)).toBe(String(wipAcct._id))
+    expect(String(mt.debitAccountId)).toBe(String(fjAcct._id))
     expect(mt.voucherMeta?.vocNo).toBe(result.metalTransferVocNo)
     expect(mt.voucherMeta?.refNo).toMatch(/^BMG-/)
     expect(mt.voucherMeta?.lineItems).toHaveLength(1)
