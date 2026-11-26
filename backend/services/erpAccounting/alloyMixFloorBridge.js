@@ -2308,6 +2308,50 @@ async function addMetalToVaultMix({
   })
 }
 
+const WIP_LEDGER_ACCOUNT_CODE = '1205'
+const STOCK_IN_HAND_ACCOUNT_CODE = '1200'
+const FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE = '1215'
+const FINISHED_JEWELRY_LEDGER_ACCOUNT_NAME = 'Inventory - Finished Jewelry'
+
+/**
+ * Returns the shared Finished Jewelry stock account (code 1215), creating it
+ * under Stock in Hand on first use. Idempotent: safe to call on every transfer.
+ */
+async function ensureFinishedJewelryLedgerAccount({ ChartOfAccount, user, session = null }) {
+  const existing = await withSession(
+    ChartOfAccount.findOne({ accountCode: FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE }),
+    session,
+  )
+  if (existing) return existing
+  const parent = await withSession(
+    ChartOfAccount.findOne({ accountCode: STOCK_IN_HAND_ACCOUNT_CODE }).select('_id currency').lean(),
+    session,
+  )
+  const [created] = await ChartOfAccount.create(
+    [
+      {
+        accountCode: FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE,
+        accountName: FINISHED_JEWELRY_LEDGER_ACCOUNT_NAME,
+        accountType: 'Asset',
+        parentAccountId: parent?._id || null,
+        currency: parent?.currency || 'USD',
+        description: 'Finished jewelry ready for sale (auto-created by Vault → Finished Jewelry transfer)',
+        createdBy: user?._id || null,
+      },
+    ],
+    writeOpts(session),
+  )
+  return created
+}
+
+/** Returns the WIP stock account (code 1205) if it exists, else null. */
+async function findWipLedgerAccount({ ChartOfAccount, session = null }) {
+  return withSession(
+    ChartOfAccount.findOne({ accountCode: WIP_LEDGER_ACCOUNT_CODE }).select('_id').lean(),
+    session,
+  )
+}
+
 /**
  * Vault Room only: transfer full or partial weight of an in-vault alloy mix batch
  * into a Finished Jewelry InventoryItem (existing or created inline), posting
@@ -2328,6 +2372,7 @@ async function transferVaultMixToFinishedJewelry({
   const InventoryItem = require('../../models/InventoryItem')
   const StockMovement = require('../../models/StockMovement')
   const Ledger = require('../../models/Ledger')
+  const ChartOfAccount = require('../../models/ChartOfAccount')
 
   const job = await withSession(AlloyMixJob.findById(mixId), session)
   if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
@@ -2375,6 +2420,7 @@ async function transferVaultMixToFinishedJewelry({
     if (existingByName) {
       targetItem = existingByName
     } else {
+      const finishedAccount = await ensureFinishedJewelryLedgerAccount({ ChartOfAccount, user, session })
       const [created] = await InventoryItem.create(
         [
           {
@@ -2385,6 +2431,7 @@ async function transferVaultMixToFinishedJewelry({
             unit: 'g',
             quantity: 0,
             pcs: 0,
+            ledgerAccountId: finishedAccount._id,
             createdBy: actorId,
             updatedBy: actorId,
           },
@@ -2412,6 +2459,10 @@ async function transferVaultMixToFinishedJewelry({
     const srcAfter = Math.max(0, toQty(srcBefore - transferGross))
     const unitCost = Number(sourceItem.unitCost || 0)
     transferValue = unitCost > 0 ? Number((unitCost * transferGross).toFixed(2)) : 0
+    if (!sourceItem.ledgerAccountId && sourceItem.type === 'wip') {
+      const wipAccount = await findWipLedgerAccount({ ChartOfAccount, session })
+      if (wipAccount) sourceItem.ledgerAccountId = wipAccount._id
+    }
     sourceItem.quantity = srcAfter
     sourceItem.updatedBy = actorId
     await sourceItem.save(writeOpts(session))
@@ -2473,27 +2524,23 @@ async function transferVaultMixToFinishedJewelry({
   const tgtAcctId = targetItem?.ledgerAccountId ? String(targetItem.ledgerAccountId) : ''
   if (srcAcctId && tgtAcctId && srcAcctId !== tgtAcctId && transferValue > 0) {
     try {
+      // Ledger is one row per double entry: debit the finished account, credit WIP.
+      // Same shape and referenceType ('inventory') as the alloy mix inventory JV.
       await Ledger.create(
         [
           {
             date: now,
-            accountId: targetItem.ledgerAccountId,
-            debit: transferValue,
-            credit: 0,
+            debitAccountId: targetItem.ledgerAccountId,
+            creditAccountId: sourceItem.ledgerAccountId,
+            amount: transferValue,
             description: reasonBase,
-            referenceType: 'adjustment',
+            referenceType: 'inventory',
             referenceId: job._id,
             createdBy: actorId,
-          },
-          {
-            date: now,
-            accountId: sourceItem.ledgerAccountId,
-            debit: 0,
-            credit: transferValue,
-            description: reasonBase,
-            referenceType: 'adjustment',
-            referenceId: job._id,
-            createdBy: actorId,
+            updatedBy: actorId,
+            department: user?.department || '',
+            currency: 'USD',
+            exchangeRate: 1,
           },
         ],
         writeOpts(session),
@@ -2558,12 +2605,30 @@ async function transferVaultMixToFinishedJewelry({
   if (job.stockLotId) {
     const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
     if (lot) {
+      const fromStatus = lot.status
       lot.grossWeight = remainingGross
       lot.netWeight = remainingGross
-      if (isFullTransfer) {
-        lot.status = 'CLOSED'
+      if (isFullTransfer && lot.status !== 'FINISHED') {
+        // 'CLOSED' is not a stock status; a fully transferred lot is now finished stock.
+        lot.status = 'FINISHED'
       }
       await lot.save(writeOpts(session))
+      if (isFullTransfer && fromStatus !== lot.status) {
+        await ProductionStockStatusEvent.create(
+          [
+            {
+              stockLotId: lot._id,
+              stockCode: lot.stockCode,
+              fromStatus,
+              toStatus: lot.status,
+              reason: `Finished jewelry transfer ${job.mixCode} → ${targetItem.name}`,
+              actorId,
+              actorName,
+            },
+          ],
+          writeOpts(session),
+        )
+      }
     }
   }
 
