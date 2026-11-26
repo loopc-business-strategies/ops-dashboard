@@ -70,7 +70,7 @@ export function useVoucherPendingOpen({
         if (!v) {
           const res = await axios.get(`${BASE}/transactions`, {
             ...cfg(),
-            params: { type: tnorm, limit: 500 },
+            params: { type: tnorm, limit: 200 },
           })
           const txs = latestRef.current.sortVouchers(
             (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),

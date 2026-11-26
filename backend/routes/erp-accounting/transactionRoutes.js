@@ -1467,6 +1467,39 @@ router.get('/transactions/source-by-ledger/:ledgerId', protect, async (req, res)
   }
 })
 
+router.get('/transactions/:id', protect, async (req, res) => {
+  try {
+    if (!canAccessOperationalTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const id = String(req.params.id || '').trim()
+    if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid transaction id' })
+    }
+    const allowedTypes = getRoleTransactionTypes(req.user, resolveRequestTenantKey(req))
+    const query = { _id: id, isDeleted: { $ne: true } }
+    if (Array.isArray(allowedTypes) && allowedTypes.length) {
+      query.type = allowedTypes.length === 1 ? allowedTypes[0] : { $in: allowedTypes }
+    }
+    const transaction = await Transaction.findOne(query)
+      .populate('customerId', 'name')
+      .populate('vendorId', 'name')
+      .populate('inventoryItemId', 'sku name')
+      .populate('debitAccountId', 'accountCode accountName')
+      .populate('creditAccountId', 'accountCode accountName')
+      .populate('mappingId', 'mappingType')
+      .populate('createdBy', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('postedBy', 'name email')
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' })
+    }
+    return res.json({ success: true, transaction })
+  } catch (err) {
+    return respondRouteError(res, err, { tag: 'erp-accounting/transactions/get-by-id' })
+  }
+})
+
 // ==========================================
 // REPORTS ENDPOINTS
 // ==========================================
