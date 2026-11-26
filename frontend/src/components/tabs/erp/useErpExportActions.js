@@ -4,6 +4,7 @@ import { buildReportExportPayload, getReportNotReadyMessage, isReportDataReady }
 import { buildTransactionExportPayload } from './transactionExportHelpers'
 import { buildReportPrintHtml, exportReportPdf, exportTransactionsPdf } from './reportPrintExport'
 import { exportStatementPdf } from './statementPdfExport'
+import { buildStatementExcelRows, buildStatementExportModel } from './statementExportModel'
 
 export function useErpExportActions({
   accountEnquiryData,
@@ -120,37 +121,66 @@ export function useErpExportActions({
     }
   }, [loadFullStatementForCurrentFilters, generateStatementHtml, setExportOptionsOpen, showNotification, setError])
 
+  // Full-range statement context for the current filters (shared by PDF and Excel exports).
+  const buildStatementExportCtx = useCallback(async () => {
+    const fullEnquiryData = await loadFullStatementForCurrentFilters()
+    const ctx = typeof getStatementExportCtx === 'function'
+      ? getStatementExportCtx({ screenPreview: false, fullEnquiryData })
+      : null
+    return ctx?.accountEnquiryData ? ctx : null
+  }, [loadFullStatementForCurrentFilters, getStatementExportCtx])
+
+  const statementFileBase = (ctx) => {
+    const stamp = new Date().toISOString().slice(0, 10)
+    const accountCode = String(ctx.accountEnquiryData?.account?.accountCode || 'Account').replace(/[^\w.-]+/g, '-')
+    return `Statement-${accountCode}-${stamp}`
+  }
+
   const handleDownloadStatementPdf = useCallback(async () => {
     try {
-      const fullEnquiryData = await loadFullStatementForCurrentFilters()
-      const ctx = typeof getStatementExportCtx === 'function'
-        ? getStatementExportCtx({ screenPreview: false, fullEnquiryData })
-        : null
-      if (!ctx?.accountEnquiryData) {
+      const ctx = await buildStatementExportCtx()
+      if (!ctx) {
         setError('Failed to prepare statement for PDF export.')
         return
       }
-      const stamp = new Date().toISOString().slice(0, 10)
-      const accountCode = String(
-        ctx.accountEnquiryData?.account?.accountCode || 'Account',
-      ).replace(/[^\w.-]+/g, '-')
-      const fileName = `Statement-${accountCode}-${stamp}.pdf`
-      await exportStatementPdf(ctx, fileName)
+      await exportStatementPdf(ctx, `${statementFileBase(ctx)}.pdf`)
       setExportOptionsOpen(false)
       showNotification('✅ Statement PDF downloaded')
     } catch (err) {
       console.error('PDF generation error:', err)
       setError('Failed to generate PDF. Please try again.')
     }
-  }, [loadFullStatementForCurrentFilters, getStatementExportCtx, setExportOptionsOpen, showNotification, setError])
+  }, [buildStatementExportCtx, setExportOptionsOpen, showNotification, setError])
 
+  const handleExportStatementExcel = useCallback(async () => {
+    try {
+      const ctx = await buildStatementExportCtx()
+      if (!ctx) {
+        setError('Failed to prepare statement for Excel export.')
+        return
+      }
+      const model = buildStatementExportModel(ctx)
+      const rows = buildStatementExcelRows(model)
+      if (!rows.length) {
+        setError('Statement data not ready for Excel export.')
+        return
+      }
+      await downloadXlsxRows(rows, `${statementFileBase(ctx)}.xlsx`, 'Statement')
+      showNotification('✅ Statement Excel downloaded')
+    } catch (err) {
+      console.error('Excel generation error:', err)
+      setError('Failed to generate Excel. Please try again.')
+    }
+  }, [buildStatementExportCtx, showNotification, setError])
+
+  // Footer/header "Export PDF" downloads directly (no chooser dialog).
   const handleExportEnquiryPdf = useCallback(() => {
     if (!accountEnquiryData) {
       setError('Load an account summary first to export')
       return
     }
-    setExportOptionsOpen(true)
-  }, [accountEnquiryData, setError, setExportOptionsOpen])
+    handleDownloadStatementPdf()
+  }, [accountEnquiryData, setError, handleDownloadStatementPdf])
 
   const handleExportTransactionsCsv = useCallback(() => {
     const payload = buildTransactionExportPayload({
@@ -333,6 +363,7 @@ export function useErpExportActions({
     handlePrintStatement,
     handleDownloadStatementPdf,
     handleExportEnquiryPdf,
+    handleExportStatementExcel,
     handleExportTransactionsCsv,
     handleExportTransactionsXlsx,
     handleExportTransactionsPdf,

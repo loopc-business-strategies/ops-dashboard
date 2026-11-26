@@ -409,3 +409,31 @@ export function buildStatementExportModel(ctx) {
     body: tableRows.map((row) => row.cells),
   }
 }
+
+/**
+ * Flatten a statement export model (from buildStatementExportModel) into sheet rows
+ * for Excel. Mirrors the PDF table: two header rows with spans flattened, then body rows.
+ */
+export function buildStatementExcelRows(model) {
+  if (!model?.head?.length || !Array.isArray(model.body)) return []
+  const [topHead, subHead = []] = model.head
+  const top = []
+  topHead.forEach((cell) => {
+    const span = Number(cell?.colSpan) || 1
+    top.push(String(cell?.content ?? ''))
+    for (let i = 1; i < span; i += 1) top.push('')
+  })
+  // Column-spanning header cells sit above the sub-labels; leading Doc No/Date/Narration
+  // cells are rowSpan=2 in the PDF, so the sub row is blank under them.
+  const leadingBlanks = top.length - subHead.length
+  const sub = [...Array(Math.max(0, leadingBlanks)).fill(''), ...subHead.map((c) => String(c ?? ''))]
+  const titleLine = [model.companyName, model.title, model.accountCode && `${model.accountCode} ${model.accountName || ''}`.trim(), `Doc Date From ${model.dateFromLabel || '-'} To ${model.dateToLabel || '-'}`]
+    .filter(Boolean)
+  return [
+    ...titleLine.map((line) => [line]),
+    [],
+    top,
+    sub,
+    ...model.body,
+  ]
+}

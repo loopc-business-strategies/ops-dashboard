@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { buildStatementExportModel } from './statementExportModel'
+import { buildStatementExcelRows, buildStatementExportModel } from './statementExportModel'
 
 const baseCtx = {
   accountEnquiryData: {
@@ -312,5 +312,46 @@ describe('buildStatementExportModel', () => {
     expect(model.logoPdfScale).toBeGreaterThan(0.65)
     expect(model.logoPdfMaxWidth).toBeGreaterThan(110)
     expect(model.logoPdfMaxHeight).toBeGreaterThan(72)
+  })
+})
+
+describe('buildStatementExcelRows', () => {
+  test('flattens the two-row PDF header and keeps body rows aligned', () => {
+    const model = {
+      companyName: 'MG',
+      title: 'Statement of Account',
+      accountCode: '101006',
+      accountName: 'NBU corporate card',
+      dateFromLabel: '01/01/2026',
+      dateToLabel: '11/26/2026',
+      head: [
+        [
+          { content: 'Doc No', rowSpan: 2 },
+          { content: 'Doc Date', rowSpan: 2 },
+          { content: 'Narration', rowSpan: 2 },
+          { content: 'Amount (UZS)', colSpan: 3 },
+          { content: 'Gold(GMS)', colSpan: 3 },
+        ],
+        ['Debit', 'Credit', 'Balance', 'Debit', 'Credit', 'Balance'],
+      ],
+      body: [['Pay/2026/0218', '11/26/2026', 'Bank charges', '-', '2,000', '15,545,416', '-', '-', '-']],
+    }
+
+    const rows = buildStatementExcelRows(model)
+
+    expect(rows[0]).toEqual(['MG'])
+    expect(rows[1]).toEqual(['Statement of Account'])
+    expect(rows[2]).toEqual(['101006 NBU corporate card'])
+    expect(rows[3]).toEqual(['Doc Date From 01/01/2026 To 11/26/2026'])
+    expect(rows[4]).toEqual([])
+    expect(rows[5]).toEqual(['Doc No', 'Doc Date', 'Narration', 'Amount (UZS)', '', '', 'Gold(GMS)', '', ''])
+    expect(rows[6]).toEqual(['', '', '', 'Debit', 'Credit', 'Balance', 'Debit', 'Credit', 'Balance'])
+    expect(rows[7]).toEqual(model.body[0])
+    expect(rows[5].length).toBe(rows[6].length)
+    expect(rows[7].length).toBe(rows[6].length)
+  })
+
+  test('returns no rows when the export model is missing', () => {
+    expect(buildStatementExcelRows(null)).toEqual([])
   })
 })

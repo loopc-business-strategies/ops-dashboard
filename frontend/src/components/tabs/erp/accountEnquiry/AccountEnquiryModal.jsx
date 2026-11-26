@@ -80,6 +80,8 @@ export default function AccountEnquiryModal({
   handleViewStatement,
   buildAccountEnquiryHref,
   handleExportEnquiryPdf,
+  handleExportStatementExcel,
+  handlePrintStatement,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
   resolveMarginEquityDirection,
@@ -534,6 +536,38 @@ export default function AccountEnquiryModal({
                           >
                             Export PDF
                           </button>
+                          <button
+                            type="button"
+                            onClick={handleExportStatementExcel}
+                            style={{
+                              padding: '0.45rem 0.9rem',
+                              background: AS.ctaBg,
+                              color: AS.ctaFg,
+                              border: 'none',
+                              borderRadius: '0.45rem',
+                              fontSize: '0.84rem',
+                              cursor: 'pointer',
+                              fontWeight: '700',
+                            }}
+                          >
+                            Export Excel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handlePrintStatement}
+                            style={{
+                              padding: '0.45rem 0.9rem',
+                              background: '#fff',
+                              color: AS.ctaBg,
+                              border: `1px solid ${AS.ctaBg}`,
+                              borderRadius: '0.45rem',
+                              fontSize: '0.84rem',
+                              cursor: 'pointer',
+                              fontWeight: '700',
+                            }}
+                          >
+                            Print
+                          </button>
                         </div>
                       )}
                     </div>
@@ -798,6 +832,8 @@ export default function AccountEnquiryModal({
                     👁 View Statement
                   </a>
                   <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
+                  <button onClick={handleExportStatementExcel} style={{ padding: '0.6rem 1.2rem', background: AS.ctaBg, color: AS.ctaFg, border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export Excel</button>
+                  <button onClick={handlePrintStatement} style={{ padding: '0.6rem 1.2rem', background: '#fff', color: AS.ctaBg, border: `1px solid ${AS.ctaBg}`, borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Print</button>
                 </>
               )}
               <button

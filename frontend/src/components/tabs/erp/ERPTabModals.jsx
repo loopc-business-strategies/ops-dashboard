@@ -1,6 +1,5 @@
 import AccountEnquiryModal from './accountEnquiry/AccountEnquiryModal'
 import StatementPreviewModal from './accountEnquiry/StatementPreviewModal'
-import StatementExportOptionsModal from './StatementExportOptionsModal'
 import ErpMappingTestModal from './ErpMappingTestModal'
 
 export default function ERPTabModals({
@@ -74,6 +73,7 @@ export default function ERPTabModals({
   handleViewStatement,
   buildAccountEnquiryHref,
   handleExportEnquiryPdf,
+  handleExportStatementExcel,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
   resolveMarginEquityDirection,
@@ -83,10 +83,7 @@ export default function ERPTabModals({
   statementPreviewTitle,
   statementPreviewHtml,
   statementPreviewLoading,
-  exportOptionsOpen,
-  setExportOptionsOpen,
   handlePrintStatement,
-  handleDownloadStatementPdf,
 }) {
   return (
     <>
@@ -165,6 +162,8 @@ export default function ERPTabModals({
         handleViewStatement={handleViewStatement}
         buildAccountEnquiryHref={buildAccountEnquiryHref}
         handleExportEnquiryPdf={handleExportEnquiryPdf}
+        handleExportStatementExcel={handleExportStatementExcel}
+        handlePrintStatement={handlePrintStatement}
         getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}
         resolveMarginEquityDirection={resolveMarginEquityDirection}
@@ -176,12 +175,6 @@ export default function ERPTabModals({
         title={statementPreviewTitle}
         html={statementPreviewHtml}
         loading={statementPreviewLoading}
-      />
-      <StatementExportOptionsModal
-        open={exportOptionsOpen}
-        onClose={() => setExportOptionsOpen(false)}
-        onPrint={handlePrintStatement}
-        onDownloadPdf={handleDownloadStatementPdf}
       />
     </>
   )
