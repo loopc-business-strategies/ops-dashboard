@@ -220,7 +220,7 @@ export default function JournalVoucherModal({
                     <Fragment key={`line-wrap-${line.id}`}>
                       <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
                         <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
-                        <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
+                        <td style={{ padding: '0.25rem 0.4rem', position: 'relative' }}>
                           <div data-jv-nav={`${10 + idx}-0-account`}>
                             <AccountCombobox
                               groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
