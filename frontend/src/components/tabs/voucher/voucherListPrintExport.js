@@ -1,4 +1,5 @@
 import { escapeHtml } from '../../../utils/safeHtml'
+import { downloadXlsxRows } from '../erp/exportHelpers'
 import { openPrintWindow } from '../erp/erpPrintHelpers'
 import { loadPdfTools } from '../erp/lazyExportLibs'
 import { buildVoucherListExportTable } from './voucherListExportHelpers'
@@ -50,6 +51,36 @@ export async function exportVoucherListPdf({
   })
   const stamp = new Date().toISOString().slice(0, 10)
   doc.save(`${safeFileSlug(voucherLabel)}-list-${stamp}.pdf`)
+  return { rowCount }
+}
+
+export async function exportVoucherListExcel({
+  vouchers = [],
+  voucherType = '',
+  voucherLabel = 'Voucher',
+  isSimpleMetalVoucher = false,
+  baseCurrencyCode = 'USD',
+  resolvePartyDisplayName = null,
+} = {}) {
+  const { head, body, rowCount } = buildVoucherListExportTable({
+    vouchers,
+    voucherType,
+    isSimpleMetalVoucher,
+    baseCurrencyCode,
+    resolvePartyDisplayName,
+  })
+  const title = `${voucherLabel} — List`
+  const stamp = new Date().toISOString().slice(0, 10)
+  const xlsxRows = [
+    [title],
+    ['Generated', new Date().toLocaleString()],
+    ['Rows', rowCount],
+    [],
+    head,
+    ...body,
+  ]
+  const sheetName = String(voucherLabel || 'Vouchers').slice(0, 31)
+  await downloadXlsxRows(xlsxRows, `${safeFileSlug(voucherLabel)}-list-${stamp}.xlsx`, sheetName)
   return { rowCount }
 }
 

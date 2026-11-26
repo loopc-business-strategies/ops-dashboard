@@ -3,7 +3,7 @@ import { btn, computeVoucherGrandTotal, fmt, formatVoucherWorkflowStatusLabel, i
 import ErpMonthYearFilter from '../erp/ErpMonthYearFilter'
 import { useVirtualTableRows } from '../../../hooks/useVirtualTableRows'
 import { canFixVoucher, resolveVoucherFixingBadge, resolveVoucherIndicativeTotalNote, summarizeVoucherFixing } from './voucherFixingHelpers'
-import { exportVoucherListPdf, printVoucherList } from './voucherListPrintExport'
+import { exportVoucherListExcel, exportVoucherListPdf, printVoucherList } from './voucherListPrintExport'
 import VoucherActivityLogModal from './VoucherActivityLogModal'
 
 /** Compact chevron pair — active direction solid, idle muted dual arrow. */
@@ -99,6 +99,7 @@ export default function VoucherListPanel({
   const [showActivityLog, setShowActivityLog] = useState(false)
   const [listSort, setListSort] = useState({ key: 'docNo', dir: 'asc' })
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   const toggleListSort = (key) => {
     setListSort((prev) => (
@@ -137,6 +138,20 @@ export default function VoucherListPanel({
       else window.alert(message)
     } finally {
       setExportingPdf(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    if (exportingExcel) return
+    setExportingExcel(true)
+    try {
+      await exportVoucherListExcel(exportArgs())
+    } catch (err) {
+      const message = err?.message || 'Failed to export voucher list Excel'
+      if (typeof onExportError === 'function') onExportError(message)
+      else window.alert(message)
+    } finally {
+      setExportingExcel(false)
     }
   }
 
@@ -228,6 +243,20 @@ export default function VoucherListPanel({
               title={`Export ${voucherLabel} list PDF`}
             >
               {exportingPdf ? 'Exporting…' : 'Export PDF'}
+            </button>
+            <button
+              type="button"
+              style={{
+                ...btn('gray'),
+                border: '1px solid #10B981',
+                background: '#ECFDF5',
+                color: '#065F46',
+              }}
+              disabled={exportingExcel || loadingList || sortedVouchers.length === 0}
+              onClick={handleExportExcel}
+              title={`Export ${voucherLabel} list Excel`}
+            >
+              {exportingExcel ? 'Exporting…' : 'Export Excel'}
             </button>
             <button
               type="button"
