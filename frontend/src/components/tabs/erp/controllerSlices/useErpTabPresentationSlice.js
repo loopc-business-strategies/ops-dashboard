@@ -352,6 +352,7 @@ export function useErpTabPresentationSlice(scope) {
     const { ledgerId, referenceId, docNo, sourceTransactionId, sourceTransactionType, referenceType } = voucher
     const refType = String(referenceType || '').toLowerCase()
     const txType = String(sourceTransactionType || '').toLowerCase()
+    setShowStatementPreview(false)
     setShowEnquiryModal(false)
     if ((refType === 'journal' || refType === 'bank_jv') && (ledgerId || referenceId || docNo)) {
       setActiveTabGuarded('ledger')
@@ -371,11 +372,11 @@ export function useErpTabPresentationSlice(scope) {
     if (sourceTransactionId && typeof handleJumpToTransaction === 'function') {
       void handleJumpToTransaction(sourceTransactionId)
     }
-  }, [handleJumpToTransaction, handleOpenJv, onOpenVoucher, setActiveTabGuarded, setShowEnquiryModal])
+  }, [handleJumpToTransaction, handleOpenJv, onOpenVoucher, setActiveTabGuarded, setShowEnquiryModal, setShowStatementPreview])
 
   useEffect(() => {
     const onMessage = (event) => {
-      if (event.origin !== window.location.origin) return
+      if (event.origin !== window.location.origin && event.origin !== 'null') return
       const payload = event.data
       if (!payload || payload.type !== 'erp-statement-open-voucher' || !payload.voucher) return
       handleOpenStatementVoucher(payload.voucher)

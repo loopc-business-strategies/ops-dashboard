@@ -153,6 +153,10 @@ export async function generateStatementHtml(ctx) {
     ? `
           <script>
             (function () {
+              if (window.parent && window.parent !== window) {
+                var bar = document.querySelector('.soa-toolbar');
+                if (bar) bar.style.display = 'none';
+              }
               document.addEventListener('click', function (ev) {
                 var btn = ev.target && ev.target.closest ? ev.target.closest('.doc-link') : null;
                 if (!btn) return;
@@ -161,7 +165,9 @@ export async function generateStatementHtml(ctx) {
                   var raw = btn.getAttribute('data-voucher');
                   var voucher = raw ? JSON.parse(raw) : null;
                   if (!voucher) return;
-                  if (window.opener && !window.opener.closed) {
+                  if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'erp-statement-open-voucher', voucher: voucher }, '*');
+                  } else if (window.opener && !window.opener.closed) {
                     window.opener.postMessage({ type: 'erp-statement-open-voucher', voucher: voucher }, window.location.origin);
                     try { window.opener.focus(); } catch (e) {}
                   }

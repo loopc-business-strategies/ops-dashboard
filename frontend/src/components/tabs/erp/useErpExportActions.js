@@ -13,6 +13,10 @@ export function useErpExportActions({
   fetchFullAccountStatement,
   generateStatementHtml,
   getStatementExportCtx,
+  setStatementPreviewHtml,
+  setStatementPreviewTitle,
+  setStatementPreviewLoading,
+  setShowStatementPreview,
   setExportOptionsOpen,
   setError,
   showNotification,
@@ -52,15 +56,10 @@ export function useErpExportActions({
       setError('Load an account summary first to view statement.')
       return
     }
-    // Open the new window synchronously inside the click handler so browsers do not block it.
-    const viewWin = window.open('', '_blank')
-    if (!viewWin) {
-      setError('Popup blocked. Please allow popups to open Statement of Account in a new window.')
-      return
-    }
-    viewWin.document.open()
-    viewWin.document.write(`<!doctype html><html><head><title>Loading Statement — ${code}</title><style>body{font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A}.box{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:24px 32px;text-align:center;box-shadow:0 8px 24px rgba(15,23,42,0.08)}h2{margin:0 0 8px;font-size:18px}p{margin:0;color:#64748B;font-size:13px}</style></head><body><div class="box"><h2>Loading Statement of Account (${code})...</h2><p>Fetching all entries for the selected filters.</p></div></body></html>`)
-    viewWin.document.close()
+    setStatementPreviewHtml('')
+    setStatementPreviewTitle(`Statement of Account — ${code}`)
+    setStatementPreviewLoading(true)
+    setShowStatementPreview(true)
 
     try {
       const fullEnquiryData = await loadFullStatementForCurrentFilters()
@@ -70,27 +69,29 @@ export function useErpExportActions({
         fullEnquiryData,
       })
       if (!htmlData?.html) {
-        viewWin.close()
+        setShowStatementPreview(false)
         setError('Failed to prepare statement.')
         return
       }
-      if (!viewWin.closed) {
-        viewWin.document.open()
-        viewWin.document.write(htmlData.html)
-        viewWin.document.close()
-        viewWin.focus()
-      }
-      showNotification('✅ Statement opened in new window')
+      setStatementPreviewHtml(htmlData.html)
+      setStatementPreviewTitle(`Statement of Account — ${htmlData.accountCode || code}`)
+      showNotification('✅ Statement opened')
     } catch (err) {
-      console.error('Statement view window error:', err)
-      if (!viewWin.closed) viewWin.close()
+      console.error('Statement view error:', err)
+      setShowStatementPreview(false)
       setError('Failed to load statement for selected filters.')
+    } finally {
+      setStatementPreviewLoading(false)
     }
   }, [
     accountEnquiryData,
     accountEnquiryCode,
     loadFullStatementForCurrentFilters,
     generateStatementHtml,
+    setStatementPreviewHtml,
+    setStatementPreviewTitle,
+    setStatementPreviewLoading,
+    setShowStatementPreview,
     setError,
     showNotification,
   ])
