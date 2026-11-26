@@ -17,6 +17,7 @@ const historyEntrySchema = new mongoose.Schema(
         'receive_approve',
         'receive_reject',
         'close',
+        'transfer_finished',
       ],
       required: true,
     },

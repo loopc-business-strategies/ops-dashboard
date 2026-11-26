@@ -2308,6 +2308,286 @@ async function addMetalToVaultMix({
   })
 }
 
+/**
+ * Vault Room only: transfer full or partial weight of an in-vault alloy mix batch
+ * into a Finished Jewelry InventoryItem (existing or created inline), posting
+ * balanced StockMovements (OUT from WIP/alloy product, IN to Finished Jewelry),
+ * updating/closing the open Vault Ops row & AlloyMixJob, and optionally posting
+ * a balanced WIP → Finished Goods Ledger entry when both items have ledger accounts.
+ */
+async function transferVaultMixToFinishedJewelry({
+  user,
+  mixId,
+  productId = '',
+  newProduct = null,
+  gross,
+  pcs = 0,
+  note = '',
+  session = null,
+} = {}) {
+  const InventoryItem = require('../../models/InventoryItem')
+  const StockMovement = require('../../models/StockMovement')
+  const Ledger = require('../../models/Ledger')
+
+  const job = await withSession(AlloyMixJob.findById(mixId), session)
+  if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
+  if (!(job.status === 'in_vault' && job.currentDepartment === VAULT)) {
+    throw httpError(400, 'Transfer to Finished Jewelry is only allowed while the mix is in Vault Room')
+  }
+  if (await hasOpenFloorDescendant(job._id, await loadOpenChildrenByParent(session))) {
+    throw httpError(400, 'Cannot transfer to Finished Jewelry while a split is still on the floor')
+  }
+
+  const availableGross = toQty(job.targetGross)
+  const transferGross = toQty(gross)
+  if (!(transferGross > QTY_EPS)) {
+    throw httpError(400, 'Transfer weight must be greater than zero')
+  }
+  if (transferGross > availableGross + QTY_EPS) {
+    throw httpError(400, `Transfer weight (${transferGross} g) exceeds vault available (${availableGross} g)`)
+  }
+  const transferPcs = Math.max(0, Math.round(Number(pcs) || 0))
+  const isFullTransfer = (availableGross - transferGross) <= QTY_EPS
+  const remainingGross = isFullTransfer ? 0 : toQty(availableGross - transferGross)
+  const now = new Date()
+  const actorId = user?._id || null
+  const actorName = String(user?.name || '').trim() || 'System'
+  const cleanNote = String(note || '').trim().slice(0, 300)
+
+  // 1. Resolve or create target Finished Jewelry InventoryItem
+  let targetItem = null
+  const targetId = String(productId || '').trim()
+  if (targetId) {
+    targetItem = await withSession(InventoryItem.findOne({ _id: targetId, isDeleted: { $ne: true } }), session)
+    if (!targetItem) throw httpError(404, 'Selected finished jewelry product not found')
+  } else if (newProduct && String(newProduct.name || '').trim()) {
+    const prodName = String(newProduct.name).trim()
+    const prodSku = String(newProduct.sku || '').trim()
+    const prodCategory = String(newProduct.category || 'Finished Jewelry').trim()
+    const escapedName = prodName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const existingByName = await withSession(
+      InventoryItem.findOne({
+        name: { $regex: `^${escapedName}$`, $options: 'i' },
+        isDeleted: { $ne: true },
+      }),
+      session,
+    )
+    if (existingByName) {
+      targetItem = existingByName
+    } else {
+      const [created] = await InventoryItem.create(
+        [
+          {
+            type: 'finished_good',
+            name: prodName,
+            sku: prodSku,
+            category: prodCategory,
+            unit: 'g',
+            quantity: 0,
+            pcs: 0,
+            createdBy: actorId,
+            updatedBy: actorId,
+          },
+        ],
+        writeOpts(session),
+      )
+      targetItem = created
+    }
+  } else {
+    throw httpError(400, 'Select a finished jewelry product or enter a new product name')
+  }
+
+  // 2. Deduct from source alloy/WIP InventoryItem (if linked and different from target)
+  let sourceItem = null
+  let transferValue = 0
+  if (job.finishedProductId && String(job.finishedProductId) !== String(targetItem._id)) {
+    sourceItem = await withSession(
+      InventoryItem.findOne({ _id: job.finishedProductId, isDeleted: { $ne: true } }),
+      session,
+    )
+  }
+  const reasonBase = `Finished jewelry transfer · ${job.mixCode} → ${targetItem.name}${cleanNote ? ` · ${cleanNote}` : ''}`
+  if (sourceItem) {
+    const srcBefore = toQty(sourceItem.quantity || 0)
+    const srcAfter = Math.max(0, toQty(srcBefore - transferGross))
+    const unitCost = Number(sourceItem.unitCost || 0)
+    transferValue = unitCost > 0 ? Number((unitCost * transferGross).toFixed(2)) : 0
+    sourceItem.quantity = srcAfter
+    sourceItem.updatedBy = actorId
+    await sourceItem.save(writeOpts(session))
+    await StockMovement.create(
+      [
+        {
+          itemId: sourceItem._id,
+          itemName: sourceItem.name,
+          change: -transferGross,
+          pcsChange: 0,
+          quantityBefore: srcBefore,
+          quantityAfter: srcAfter,
+          valueDelta: -transferValue,
+          carriesValue: transferValue > 0,
+          reason: reasonBase,
+          actorId,
+          actorName,
+        },
+      ],
+      writeOpts(session),
+    )
+  }
+
+  // 3. Add to target Finished Jewelry InventoryItem
+  const tgtBefore = toQty(targetItem.quantity || 0)
+  const tgtAfter = toQty(tgtBefore + transferGross)
+  targetItem.quantity = tgtAfter
+  targetItem.pcs = Math.max(0, Number(targetItem.pcs || 0) + transferPcs)
+  targetItem.lastRestockedAt = now
+  if (transferValue > 0 && tgtAfter > 0) {
+    const prevVal = Number(targetItem.unitCost || 0) * tgtBefore
+    targetItem.unitCost = Number(((prevVal + transferValue) / tgtAfter).toFixed(4))
+  }
+  targetItem.updatedBy = actorId
+  await targetItem.save(writeOpts(session))
+  await StockMovement.create(
+    [
+      {
+        itemId: targetItem._id,
+        itemName: targetItem.name,
+        change: transferGross,
+        pcsChange: transferPcs,
+        quantityBefore: tgtBefore,
+        quantityAfter: tgtAfter,
+        valueDelta: transferValue,
+        carriesValue: transferValue > 0,
+        reason: reasonBase,
+        actorId,
+        actorName,
+      },
+    ],
+    writeOpts(session),
+  )
+
+  // 4. Optional balanced WIP → Finished Goods Ledger entry (when both items have distinct ledger accounts)
+  let ledgerPosted = false
+  let accountingWarning = ''
+  const srcAcctId = sourceItem?.ledgerAccountId ? String(sourceItem.ledgerAccountId) : ''
+  const tgtAcctId = targetItem?.ledgerAccountId ? String(targetItem.ledgerAccountId) : ''
+  if (srcAcctId && tgtAcctId && srcAcctId !== tgtAcctId && transferValue > 0) {
+    try {
+      await Ledger.create(
+        [
+          {
+            date: now,
+            accountId: targetItem.ledgerAccountId,
+            debit: transferValue,
+            credit: 0,
+            description: reasonBase,
+            referenceType: 'adjustment',
+            referenceId: job._id,
+            createdBy: actorId,
+          },
+          {
+            date: now,
+            accountId: sourceItem.ledgerAccountId,
+            debit: 0,
+            credit: transferValue,
+            description: reasonBase,
+            referenceType: 'adjustment',
+            referenceId: job._id,
+            createdBy: actorId,
+          },
+        ],
+        writeOpts(session),
+      )
+      ledgerPosted = true
+    } catch (err) {
+      accountingWarning = `Ledger entry skipped: ${err?.message || err}`
+    }
+  } else {
+    accountingWarning = 'Inventory & Operations updated (link Ledger Accounts on both products to auto-post WIP → Finished Goods JV).'
+  }
+
+  // 5. Update open Vault Room OperationsProductionEntry
+  const code = String(job.mixCode || '').toUpperCase()
+  const openVaultRow = await withSession(
+    OperationsProductionEntry.findOne({
+      alloyMixCode: code,
+      departmentKey: VAULT,
+      $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
+    }).sort({ createdAt: -1 }),
+    session,
+  )
+  const noteLine = `Finished jewelry: ${targetItem.name} (${transferGross} g${transferPcs ? `, ${transferPcs} pcs` : ''})`
+  if (openVaultRow) {
+    const prevBreakdown = String(openVaultRow.breakdown || '').trim()
+    openVaultRow.breakdown = prevBreakdown ? `${prevBreakdown} · ${noteLine}` : noteLine
+    if (isFullTransfer) {
+      openVaultRow.metalOut = openVaultRow.metalIn != null ? openVaultRow.metalIn : transferGross
+      if (openVaultRow.purityOut == null && openVaultRow.purity != null) openVaultRow.purityOut = openVaultRow.purity
+      if (openVaultRow.fineGoldOut == null && openVaultRow.fineGold != null) openVaultRow.fineGoldOut = openVaultRow.fineGold
+      openVaultRow.metalLoss = 0
+      openVaultRow.batchOverAt = now
+      openVaultRow.transferToDepartment = 'finished_goods'
+    } else {
+      openVaultRow.metalIn = remainingGross
+      if (openVaultRow.purity != null) {
+        openVaultRow.fineGold = toFine(remainingGross * (Number(openVaultRow.purity) / 100))
+      }
+    }
+    await openVaultRow.save(writeOpts(session))
+  }
+
+  // 6. Update AlloyMixJob & ProductionStockLot
+  job.targetGross = remainingGross
+  if (isFullTransfer) {
+    job.status = 'closed'
+    job.currentDepartment = 'finished_goods'
+  }
+  job.history = Array.isArray(job.history) ? job.history : []
+  job.history.push({
+    action: 'transfer_finished',
+    fromDepartment: VAULT,
+    toDepartment: 'finished_goods',
+    weightGrams: transferGross,
+    note: noteLine,
+    at: now,
+    actorId,
+    actorName,
+  })
+  await job.save(writeOpts(session))
+
+  if (job.stockLotId) {
+    const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
+    if (lot) {
+      lot.grossWeight = remainingGross
+      lot.netWeight = remainingGross
+      if (isFullTransfer) {
+        lot.status = 'CLOSED'
+      }
+      await lot.save(writeOpts(session))
+    }
+  }
+
+  return {
+    job: serializeJob(job, {
+      childrenByParent: await loadOpenChildrenByParent(session),
+    }),
+    product: {
+      id: String(targetItem._id),
+      name: targetItem.name,
+      sku: targetItem.sku || '',
+      category: targetItem.category || '',
+      quantity: targetItem.quantity,
+      pcs: targetItem.pcs || 0,
+    },
+    transferGross,
+    transferPcs,
+    remainingGross,
+    isFullTransfer,
+    ledgerPosted,
+    accountingWarning,
+  }
+}
+
 module.exports = {
   VAULT,
   MIX_CODE_PREFIX,
@@ -2321,6 +2601,7 @@ module.exports = {
   allocateMixJob,
   receiveMixJob,
   addMetalToVaultMix,
+  transferVaultMixToFinishedJewelry,
   listMixJobs,
   serializeJob,
   serializeJobs,

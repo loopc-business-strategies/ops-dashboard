@@ -912,4 +912,45 @@ router.post(
   },
 )
 
+/** Vault Room only: transfer full or partial in-vault mix weight into Finished Jewelry & Inventory. */
+router.post(
+  '/alloy-mix-jobs/:id/transfer-finished',
+  ...mgProtect,
+  requireProductionPermission('createPass'),
+  validateParams(Joi.object({ id: Joi.string().trim().min(1).max(40).required() })),
+  validateBody(Joi.object({
+    productId: Joi.string().trim().allow('').max(40).optional(),
+    newProduct: Joi.object({
+      name: Joi.string().trim().min(1).max(160).required(),
+      sku: Joi.string().trim().allow('').max(80).optional(),
+      category: Joi.string().trim().allow('').max(80).optional(),
+    }).allow(null).optional(),
+    gross: Joi.number().positive().required(),
+    pcs: Joi.number().integer().min(0).max(100000).optional(),
+    note: Joi.string().trim().allow('').max(300).optional(),
+  })),
+  async (req, res) => {
+    try {
+      const { transferVaultMixToFinishedJewelry } = require('../services/erpAccounting/alloyMixFloorBridge')
+      const result = await transferVaultMixToFinishedJewelry({
+        user: req.user,
+        mixId: req.params.id,
+        productId: req.body.productId,
+        newProduct: req.body.newProduct,
+        gross: req.body.gross,
+        pcs: req.body.pcs,
+        note: req.body.note,
+      })
+      emitWorkbookUpdate(req, 'alloy-mix-transfer-finished', {
+        mixCode: result?.job?.mixCode,
+        department: result?.job?.currentDepartment || 'finished_goods',
+        targetGross: result?.remainingGross,
+      })
+      res.json({ success: true, ...result })
+    } catch (err) {
+      handleError(res, err)
+    }
+  },
+)
+
 module.exports = router

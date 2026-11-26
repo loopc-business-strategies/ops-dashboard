@@ -43,6 +43,15 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
   const [addMetalProductId, setAddMetalProductId] = useState('')
   const [addMetalGross, setAddMetalGross] = useState('')
   const [addMetalPurity, setAddMetalPurity] = useState('')
+  const [finishedJob, setFinishedJob] = useState(null)
+  const [finishedMode, setFinishedMode] = useState('existing')
+  const [finishedProductId, setFinishedProductId] = useState('')
+  const [finishedNewName, setFinishedNewName] = useState('')
+  const [finishedNewSku, setFinishedNewSku] = useState('')
+  const [finishedNewCategory, setFinishedNewCategory] = useState('Finished Jewelry')
+  const [finishedGross, setFinishedGross] = useState('')
+  const [finishedPcs, setFinishedPcs] = useState('')
+  const [finishedNote, setFinishedNote] = useState('')
 
   const pendingIncoming = useMemo(
     () => (jobs || []).filter((j) => j.status === 'pending_receive' || j.pendingReceive),
@@ -216,6 +225,90 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
       const msg = err?.response?.data?.message || err?.message || 'Add metal failed'
       setLocalError(msg)
       showToast?.('Add metal failed', msg)
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  const openFinishedTransfer = (job) => {
+    setAllocating(null)
+    setMetalOutJob(null)
+    setAddMetalJob(null)
+    setFinishedJob(job)
+    setFinishedMode('existing')
+    setFinishedProductId('')
+    setFinishedNewName('')
+    setFinishedNewSku('')
+    setFinishedNewCategory('Finished Jewelry')
+    setFinishedGross(job?.targetGross != null ? String(Number(job.targetGross)) : '')
+    setFinishedPcs('')
+    setFinishedNote('')
+    setLocalError('')
+  }
+
+  const closeFinishedTransfer = (force = false) => {
+    if (busyId && !force) return
+    setFinishedJob(null)
+    setLocalError('')
+  }
+
+  const submitFinishedTransfer = async () => {
+    if (!finishedJob) return
+    const gross = Number(String(finishedGross).replace(',', '.'))
+    if (!Number.isFinite(gross) || gross <= 0) {
+      setLocalError('Enter transfer weight (g) greater than 0')
+      return
+    }
+    const maxGross = Number(finishedJob.targetGross || 0)
+    if (maxGross > 0 && gross > maxGross + 0.0005) {
+      setLocalError(`Weight cannot exceed vault available (${maxGross} g)`)
+      return
+    }
+    const pcsNum = finishedPcs === '' ? 0 : Math.max(0, Math.round(Number(finishedPcs) || 0))
+    const payload = {
+      gross,
+      pcs: pcsNum,
+      note: finishedNote.trim(),
+    }
+    if (finishedMode === 'new') {
+      if (!finishedNewName.trim()) {
+        setLocalError('Enter a name for the new finished jewelry product')
+        return
+      }
+      payload.newProduct = {
+        name: finishedNewName.trim(),
+        sku: finishedNewSku.trim(),
+        category: finishedNewCategory.trim() || 'Finished Jewelry',
+      }
+    } else {
+      if (!finishedProductId) {
+        setLocalError('Select an existing finished jewelry product or switch to + Create New Product')
+        return
+      }
+      payload.productId = finishedProductId
+    }
+    const mixId = finishedJob.id
+    const mixCode = finishedJob.mixCode || 'MIX'
+    setBusyId(mixId)
+    setLocalError('')
+    try {
+      const res = await mgFloorAlloyMixApi.transferFinished(mixId, payload)
+      closeFinishedTransfer(true)
+      await refresh?.()
+      if (token) {
+        inventoryApi.getInventoryProducts(token, { limit: 500 })
+          .then((data) => setInventoryProducts(Array.isArray(data?.products) ? data.products : []))
+          .catch(() => {})
+      }
+      const prodName = res?.product?.name || payload.newProduct?.name || 'Finished Jewelry'
+      showToast?.(
+        'Transferred to Finished Jewelry',
+        `${mixCode} → ${prodName} (+${gross} g${pcsNum ? `, ${pcsNum} pcs` : ''})`,
+      )
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Transfer to Finished Jewelry failed'
+      setLocalError(msg)
+      showToast?.('Transfer failed', msg)
     } finally {
       setBusyId('')
     }
@@ -484,17 +577,30 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {dept.key === 'vault_room' ? (
-                          <button
-                            type="button"
-                            className={B.sec}
-                            disabled={Boolean(busyId) || Boolean(job.hasOpenFloorDescendants)}
-                            title={job.hasOpenFloorDescendants
-                              ? 'Cannot add metal while a split is still on the floor'
-                              : 'Add created stock metal onto this vault mix'}
-                            onClick={() => openAddMetal(job)}
-                          >
-                            Add metal
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className={B.sec}
+                              disabled={Boolean(busyId) || Boolean(job.hasOpenFloorDescendants)}
+                              title={job.hasOpenFloorDescendants
+                                ? 'Cannot add metal while a split is still on the floor'
+                                : 'Add created stock metal onto this vault mix'}
+                              onClick={() => openAddMetal(job)}
+                            >
+                              Add metal
+                            </button>
+                            <button
+                              type="button"
+                              className={B.sec}
+                              disabled={Boolean(busyId) || Boolean(job.hasOpenFloorDescendants)}
+                              title={job.hasOpenFloorDescendants
+                                ? 'Cannot transfer to finished jewelry while a split is still on the floor'
+                                : 'Transfer full or partial vault batch into Finished Jewelry & Inventory'}
+                              onClick={() => openFinishedTransfer(job)}
+                            >
+                              To Finished Jewelry
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
@@ -965,6 +1071,195 @@ export default function TabAllocate({ showToast, tenantKey = 'mg' }) {
                 {busyId === addMetalJob.id ? 'Saving…' : 'Save'}
               </button>
               <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={() => closeAddMetal()}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {finishedJob ? (
+        <div
+          role="dialog"
+          aria-label={`Transfer ${finishedJob.mixCode || 'mix'} to Finished Jewelry`}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}
+          onClick={() => closeFinishedTransfer()}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeFinishedTransfer() }}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 12, width: '100%', maxWidth: 480,
+              padding: 18, boxShadow: '0 20px 45px rgba(15,23,42,.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <strong style={{ color: C.t1 }}>To Finished Jewelry · {finishedJob.mixCode || 'MIX'}</strong>
+                <div style={{ fontSize: 12, color: C.t4, marginTop: 2 }}>
+                  Vault available: {Number(finishedJob.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
+                  {finishedJob.karat ? ` · ${finishedJob.karat}K` : ''}
+                </div>
+              </div>
+              <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={() => closeFinishedTransfer()}>Close</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <button
+                type="button"
+                className={finishedMode === 'existing' ? B.pri : B.ghost}
+                disabled={Boolean(busyId)}
+                onClick={() => { setFinishedMode('existing'); setLocalError('') }}
+              >
+                Existing Product
+              </button>
+              <button
+                type="button"
+                className={finishedMode === 'new' ? B.pri : B.ghost}
+                disabled={Boolean(busyId)}
+                onClick={() => { setFinishedMode('new'); setLocalError('') }}
+              >
+                + Create New Product
+              </button>
+            </div>
+
+            {finishedMode === 'existing' ? (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3, marginBottom: 10 }}>
+                Finished Jewelry Product
+                <select
+                  value={finishedProductId}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => setFinishedProductId(e.target.value)}
+                  style={{
+                    height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                    background: C.inp, fontWeight: 600,
+                  }}
+                >
+                  <option value="">Select product…</option>
+                  {inventoryProducts
+                    .filter((p) => !p.isDeleted && String(p._id || p.id) !== String(finishedJob.finishedProductId || ''))
+                    .map((p) => (
+                      <option key={p._id || p.id} value={p._id || p.id}>
+                        {p.name}{p.sku ? ` (${p.sku})` : ''}{p.type === 'finished_good' ? ' · Finished' : ''}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+                  Product Name
+                  <input
+                    type="text"
+                    value={finishedNewName}
+                    disabled={Boolean(busyId)}
+                    onChange={(e) => setFinishedNewName(e.target.value)}
+                    placeholder="e.g. 22K Gold Bangles"
+                    style={{
+                      height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                      background: C.inp, fontWeight: 600,
+                    }}
+                  />
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+                    SKU (optional)
+                    <input
+                      type="text"
+                      value={finishedNewSku}
+                      disabled={Boolean(busyId)}
+                      onChange={(e) => setFinishedNewSku(e.target.value)}
+                      placeholder="e.g. FJ-22K-BGL"
+                      style={{
+                        height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                        background: C.inp, fontWeight: 600,
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+                    Category
+                    <input
+                      type="text"
+                      value={finishedNewCategory}
+                      disabled={Boolean(busyId)}
+                      onChange={(e) => setFinishedNewCategory(e.target.value)}
+                      placeholder="Finished Jewelry"
+                      style={{
+                        height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                        background: C.inp, fontWeight: 600,
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+                Transfer Weight (g)
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={finishedGross}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => setFinishedGross(e.target.value)}
+                  style={{
+                    height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                    background: C.inp, fontWeight: 600,
+                  }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3 }}>
+                Pieces (optional)
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={finishedPcs}
+                  disabled={Boolean(busyId)}
+                  onChange={(e) => setFinishedPcs(e.target.value)}
+                  placeholder="0"
+                  style={{
+                    height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                    background: C.inp, fontWeight: 600,
+                  }}
+                />
+              </label>
+            </div>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: C.t3, marginBottom: 10 }}>
+              Note (optional)
+              <input
+                type="text"
+                value={finishedNote}
+                disabled={Boolean(busyId)}
+                onChange={(e) => setFinishedNote(e.target.value)}
+                placeholder="e.g. QC passed, ready for showroom"
+                style={{
+                  height: 36, borderRadius: 8, border: `1px solid ${C.border}`, padding: '0 10px',
+                  background: C.inp, fontWeight: 600,
+                }}
+              />
+            </label>
+
+            {localError ? (
+              <p role="alert" style={{ color: C.red, fontSize: 12, fontWeight: 600, marginTop: 8 }}>{localError}</p>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button
+                type="button"
+                className={B.pri}
+                disabled={Boolean(busyId)}
+                onClick={submitFinishedTransfer}
+              >
+                {busyId === finishedJob.id ? 'Transferring…' : 'Transfer to Inventory'}
+              </button>
+              <button type="button" className={B.ghost} disabled={Boolean(busyId)} onClick={() => closeFinishedTransfer()}>
                 Cancel
               </button>
             </div>

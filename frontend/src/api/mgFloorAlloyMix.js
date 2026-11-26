@@ -15,6 +15,10 @@ export const mgFloorAlloyMixApi = {
   addMetal: async (id, payload = {}) => (
     await axios.post(`${BASE}/${encodeURIComponent(id)}/add-metal`, payload || {})
   ).data,
+  /** Vault Room only: transfer full or partial in-vault mix into Finished Jewelry & Inventory. */
+  transferFinished: async (id, payload = {}) => (
+    await axios.post(`${BASE}/${encodeURIComponent(id)}/transfer-finished`, payload || {})
+  ).data,
   listInventoryProducts: async () => (
     await axios.get(`${API_ORIGIN}/api/mg-floor/inventory-products`)
   ).data,
