@@ -165,9 +165,9 @@ async function seedWipMixFixture() {
   return { user, fineGold, silver, wipItem, service, wipAcct, stockInHand }
 }
 
-describe('Vault → Finished Jewelry ledger linking', () => {
-  test('new product gets Inventory - Finished Jewelry (1215) and WIP source links to 1205 with a balanced JV', async () => {
-    const { user, fineGold, silver, wipItem, service, wipAcct } = await seedWipMixFixture()
+describe('Vault → Finished Jewelry metal transfer (no Ledger JV)', () => {
+  test('books posted metal_transfer voucher + StockMovements + FINISHED lot, and posts 0 Ledger rows', async () => {
+    const { user, fineGold, silver, wipItem, service } = await seedWipMixFixture()
 
     const posted = await service.postAlloyMix({
       user,
@@ -183,7 +183,6 @@ describe('Vault → Finished Jewelry ledger linking', () => {
     expect(posted.success).toBe(true)
     const mixId = posted.mixJob?.id || posted.mixJob?._id
 
-    // Give the WIP item a cost so the transfer carries value.
     await InventoryItem.updateOne({ _id: wipItem._id }, { $set: { unitCost: 50 } })
 
     const result = await transferVaultMixToFinishedJewelry({
@@ -192,37 +191,41 @@ describe('Vault → Finished Jewelry ledger linking', () => {
       newProduct: { name: 'Gold Chain Test', category: 'Finished Jewelry' },
       gross: 80,
       pcs: 4,
-      note: 'ledger test',
+      note: 'metal transfer test',
     })
     expect(result.success !== false).toBe(true)
-    expect(result.accountingWarning).toBe('')
-    expect(result.ledgerPosted).toBe(true)
+    expect(result.ledgerPosted).toBe(false)
+    expect(result.metalTransferId).toBeTruthy()
+    expect(result.metalTransferVocNo).toMatch(/^MT-BMG-/)
 
-    const fjAcct = await ChartOfAccount.findOne({ accountCode: '1215' }).lean()
-    expect(fjAcct).toBeTruthy()
-    expect(fjAcct.accountName).toBe('Inventory - Finished Jewelry')
-    expect(fjAcct.accountType).toBe('Asset')
+    // No Ledger JV should be booked for finished jewelry transfer.
+    const ledgerRows = await Ledger.find({ referenceId: mixId }).lean()
+    expect(ledgerRows).toHaveLength(0)
 
-    const newProduct = await InventoryItem.findOne({ name: 'Gold Chain Test' }).lean()
-    expect(newProduct).toBeTruthy()
-    expect(String(newProduct.ledgerAccountId)).toBe(String(fjAcct._id))
+    // Posted metal_transfer voucher with amount 0 and line item details.
+    const mt = await Transaction.findById(result.metalTransferId).lean()
+    expect(mt).toBeTruthy()
+    expect(mt.type).toBe('metal_transfer')
+    expect(mt.status).toBe('posted')
+    expect(Number(mt.amount)).toBe(0)
+    expect(mt.voucherMeta?.vocNo).toBe(result.metalTransferVocNo)
+    expect(mt.voucherMeta?.refNo).toMatch(/^BMG-/)
+    expect(mt.voucherMeta?.lineItems).toHaveLength(1)
+    expect(Number(mt.voucherMeta.lineItems[0].grossWeight)).toBe(80)
+    expect(Number(mt.voucherMeta.lineItems[0].pcs)).toBe(4)
 
-    const wipAfter = await InventoryItem.findById(wipItem._id).lean()
-    expect(String(wipAfter.ledgerAccountId)).toBe(String(wipAcct._id))
+    // Balanced StockMovement history lines (OUT from WIP, IN to Finished Jewelry).
+    const moves = await StockMovement.find({ reason: /Finished jewelry transfer/ }).lean()
+    expect(moves).toHaveLength(2)
+    expect(moves.some((m) => m.itemName === '22K Gold Alloy Mix' && Number(m.change) === -80)).toBe(true)
+    expect(moves.some((m) => m.itemName === 'Gold Chain Test' && Number(m.change) === 80 && Number(m.pcsChange) === 4)).toBe(true)
 
-    // Ledger is one row per double entry: Dr Finished Jewelry (1215), Cr WIP (1205).
-    const entries = await Ledger.find({ referenceType: 'inventory' }).lean()
-    expect(entries).toHaveLength(1)
-    expect(String(entries[0].debitAccountId)).toBe(String(fjAcct._id))
-    expect(String(entries[0].creditAccountId)).toBe(String(wipAcct._id))
-    expect(Number(entries[0].amount)).toBeGreaterThan(0)
-
-    // Full transfer closes the vault lot as FINISHED stock (CLOSED is not a valid status).
+    // Full transfer closes the vault lot as FINISHED stock.
     const lots = await ProductionStockLot.find({ inventoryItemId: wipItem._id }).lean()
     expect(lots.every((l) => l.status === 'FINISHED')).toBe(true)
   })
 
-  test('finished jewelry account is created once and reused for later new products', async () => {
+  test('partial transfers book one metal_transfer per transfer and close job on final transfer', async () => {
     const { user, fineGold, silver, wipItem, service } = await seedWipMixFixture()
 
     const posted = await service.postAlloyMix({
@@ -238,24 +241,28 @@ describe('Vault → Finished Jewelry ledger linking', () => {
     })
     const mixId = posted.mixJob?.id || posted.mixJob?._id
 
-    await transferVaultMixToFinishedJewelry({
+    const r1 = await transferVaultMixToFinishedJewelry({
       user,
       mixId,
       newProduct: { name: 'Bangle A' },
       gross: 40,
       pcs: 2,
     })
-    await transferVaultMixToFinishedJewelry({
+    expect(r1.isFullTransfer).toBe(false)
+    expect(r1.remainingGross).toBe(40)
+
+    const r2 = await transferVaultMixToFinishedJewelry({
       user,
       mixId,
       newProduct: { name: 'Bangle B' },
       gross: 40,
       pcs: 2,
     })
+    expect(r2.isFullTransfer).toBe(true)
+    expect(r2.remainingGross).toBe(0)
 
-    expect(await ChartOfAccount.countDocuments({ accountCode: '1215' })).toBe(1)
-    const a = await InventoryItem.findOne({ name: 'Bangle A' }).lean()
-    const b = await InventoryItem.findOne({ name: 'Bangle B' }).lean()
-    expect(String(a.ledgerAccountId)).toBe(String(b.ledgerAccountId))
+    const mts = await Transaction.find({ type: 'metal_transfer' }).lean()
+    expect(mts).toHaveLength(2)
+    expect(await Ledger.countDocuments({ referenceId: mixId })).toBe(0)
   })
 })

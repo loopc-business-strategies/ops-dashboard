@@ -2308,56 +2308,12 @@ async function addMetalToVaultMix({
   })
 }
 
-const WIP_LEDGER_ACCOUNT_CODE = '1205'
-const STOCK_IN_HAND_ACCOUNT_CODE = '1200'
-const FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE = '1215'
-const FINISHED_JEWELRY_LEDGER_ACCOUNT_NAME = 'Inventory - Finished Jewelry'
-
-/**
- * Returns the shared Finished Jewelry stock account (code 1215), creating it
- * under Stock in Hand on first use. Idempotent: safe to call on every transfer.
- */
-async function ensureFinishedJewelryLedgerAccount({ ChartOfAccount, user, session = null }) {
-  const existing = await withSession(
-    ChartOfAccount.findOne({ accountCode: FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE }),
-    session,
-  )
-  if (existing) return existing
-  const parent = await withSession(
-    ChartOfAccount.findOne({ accountCode: STOCK_IN_HAND_ACCOUNT_CODE }).select('_id currency').lean(),
-    session,
-  )
-  const [created] = await ChartOfAccount.create(
-    [
-      {
-        accountCode: FINISHED_JEWELRY_LEDGER_ACCOUNT_CODE,
-        accountName: FINISHED_JEWELRY_LEDGER_ACCOUNT_NAME,
-        accountType: 'Asset',
-        parentAccountId: parent?._id || null,
-        currency: parent?.currency || 'USD',
-        description: 'Finished jewelry ready for sale (auto-created by Vault → Finished Jewelry transfer)',
-        createdBy: user?._id || null,
-      },
-    ],
-    writeOpts(session),
-  )
-  return created
-}
-
-/** Returns the WIP stock account (code 1205) if it exists, else null. */
-async function findWipLedgerAccount({ ChartOfAccount, session = null }) {
-  return withSession(
-    ChartOfAccount.findOne({ accountCode: WIP_LEDGER_ACCOUNT_CODE }).select('_id').lean(),
-    session,
-  )
-}
-
 /**
  * Vault Room only: transfer full or partial weight of an in-vault alloy mix batch
  * into a Finished Jewelry InventoryItem (existing or created inline), posting
  * balanced StockMovements (OUT from WIP/alloy product, IN to Finished Jewelry),
- * updating/closing the open Vault Ops row & AlloyMixJob, and optionally posting
- * a balanced WIP → Finished Goods Ledger entry when both items have ledger accounts.
+ * updating/closing the open Vault Ops row & AlloyMixJob, and auto-booking a
+ * posted Metal Transfer voucher (amount 0, no Ledger JV).
  */
 async function transferVaultMixToFinishedJewelry({
   user,
@@ -2371,8 +2327,7 @@ async function transferVaultMixToFinishedJewelry({
 } = {}) {
   const InventoryItem = require('../../models/InventoryItem')
   const StockMovement = require('../../models/StockMovement')
-  const Ledger = require('../../models/Ledger')
-  const ChartOfAccount = require('../../models/ChartOfAccount')
+  const Transaction = require('../../models/Transaction')
 
   const job = await withSession(AlloyMixJob.findById(mixId), session)
   if (!job || job.isDeleted) throw httpError(404, 'Mix job not found')
@@ -2420,7 +2375,6 @@ async function transferVaultMixToFinishedJewelry({
     if (existingByName) {
       targetItem = existingByName
     } else {
-      const finishedAccount = await ensureFinishedJewelryLedgerAccount({ ChartOfAccount, user, session })
       const [created] = await InventoryItem.create(
         [
           {
@@ -2431,7 +2385,6 @@ async function transferVaultMixToFinishedJewelry({
             unit: 'g',
             quantity: 0,
             pcs: 0,
-            ledgerAccountId: finishedAccount._id,
             createdBy: actorId,
             updatedBy: actorId,
           },
@@ -2459,10 +2412,6 @@ async function transferVaultMixToFinishedJewelry({
     const srcAfter = Math.max(0, toQty(srcBefore - transferGross))
     const unitCost = Number(sourceItem.unitCost || 0)
     transferValue = unitCost > 0 ? Number((unitCost * transferGross).toFixed(2)) : 0
-    if (!sourceItem.ledgerAccountId && sourceItem.type === 'wip') {
-      const wipAccount = await findWipLedgerAccount({ ChartOfAccount, session })
-      if (wipAccount) sourceItem.ledgerAccountId = wipAccount._id
-    }
     sourceItem.quantity = srcAfter
     sourceItem.updatedBy = actorId
     await sourceItem.save(writeOpts(session))
@@ -2517,44 +2466,75 @@ async function transferVaultMixToFinishedJewelry({
     writeOpts(session),
   )
 
-  // 4. Optional balanced WIP → Finished Goods Ledger entry (when both items have distinct ledger accounts)
-  let ledgerPosted = false
-  let accountingWarning = ''
-  const srcAcctId = sourceItem?.ledgerAccountId ? String(sourceItem.ledgerAccountId) : ''
-  const tgtAcctId = targetItem?.ledgerAccountId ? String(targetItem.ledgerAccountId) : ''
-  if (srcAcctId && tgtAcctId && srcAcctId !== tgtAcctId && transferValue > 0) {
-    try {
-      // Ledger is one row per double entry: debit the finished account, credit WIP.
-      // Same shape and referenceType ('inventory') as the alloy mix inventory JV.
-      await Ledger.create(
-        [
-          {
-            date: now,
-            debitAccountId: targetItem.ledgerAccountId,
-            creditAccountId: sourceItem.ledgerAccountId,
-            amount: transferValue,
-            description: reasonBase,
-            referenceType: 'inventory',
-            referenceId: job._id,
-            createdBy: actorId,
-            updatedBy: actorId,
-            department: user?.department || '',
-            currency: 'USD',
-            exchangeRate: 1,
+  // 4. Auto-book posted Metal Transfer voucher (amount 0, no Ledger JV)
+  const code = String(job.mixCode || '').toUpperCase()
+  const rawPurity = Number(job.purity || 0)
+  const purityFraction = rawPurity > 1 ? Number((rawPurity / 100).toFixed(4)) : Number(rawPurity.toFixed(4))
+  const pureWeightTransferred = purityFraction > 0
+    ? Number((transferGross * purityFraction).toFixed(4))
+    : transferGross
+  const metalTransferVocNo = `MT-${code}-${String(now.getTime()).slice(-4)}`
+  let metalTransferId = ''
+  const ledgerPosted = false
+  const accountingWarning = ''
+  if (actorId) {
+    const [mtTx] = await Transaction.create(
+      [
+        {
+          type: 'metal_transfer',
+          amount: 0,
+          date: now,
+          description: reasonBase,
+          currency: 'USD',
+          exchangeRate: 1,
+          inventoryItemId: targetItem._id,
+          status: 'posted',
+          createdBy: actorId,
+          updatedBy: actorId,
+          postedBy: actorId,
+          voucherMeta: {
+            vocNo: metalTransferVocNo,
+            refNo: code,
+            mixCode: code,
+            transferDirection: 'vault_to_finished_jewelry',
+            sourceItemId: sourceItem ? String(sourceItem._id) : '',
+            sourceItemName: sourceItem?.name || job.finishedProductName || '',
+            targetItemId: String(targetItem._id),
+            targetItemName: targetItem.name,
+            fixingType: 'non-fixing',
+            hedge: false,
+            docDate: now,
+            valueDate: now,
+            postedDate: now,
+            lineItems: [
+              {
+                itemId: targetItem._id,
+                stockCode: targetItem.sku || targetItem.name,
+                description: targetItem.name,
+                grossWeight: transferGross,
+                purity: purityFraction,
+                pureWeight: pureWeightTransferred,
+                pcs: transferPcs,
+              },
+            ],
           },
-        ],
-        writeOpts(session),
-      )
-      ledgerPosted = true
-    } catch (err) {
-      accountingWarning = `Ledger entry skipped: ${err?.message || err}`
-    }
-  } else {
-    accountingWarning = 'Inventory & Operations updated (link Ledger Accounts on both products to auto-post WIP → Finished Goods JV).'
+          auditTrail: [
+            {
+              action: 'posted',
+              fromStatus: 'draft',
+              toStatus: 'posted',
+              comment: `Auto-booked Metal Transfer from Vault (${code} → ${targetItem.name}, no Ledger JV)`,
+              actorId,
+            },
+          ],
+        },
+      ],
+      writeOpts(session),
+    )
+    metalTransferId = String(mtTx._id)
   }
 
   // 5. Update open Vault Room OperationsProductionEntry
-  const code = String(job.mixCode || '').toUpperCase()
   const openVaultRow = await withSession(
     OperationsProductionEntry.findOne({
       alloyMixCode: code,
@@ -2648,6 +2628,8 @@ async function transferVaultMixToFinishedJewelry({
     transferPcs,
     remainingGross,
     isFullTransfer,
+    metalTransferId,
+    metalTransferVocNo,
     ledgerPosted,
     accountingWarning,
   }
