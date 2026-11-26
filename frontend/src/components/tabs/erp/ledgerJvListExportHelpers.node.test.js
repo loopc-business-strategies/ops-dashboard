@@ -34,7 +34,7 @@ describe('ledgerJvListExportHelpers', () => {
     expect(result.body[0][1]).toBe('Jv/2026/0226')
     expect(result.body[0][2]).toBe('SIM Card Payment For Office')
     expect(result.body[0][5]).toContain('15.95')
-    expect(result.body[0][6]).toBe('journal')
+    expect(result.body[0][6]).toBe('Normal JV')
     expect(result.xlsxRows[4]).toEqual(result.head)
     expect(result.xlsxRows[5]).toEqual(result.body[0])
   })

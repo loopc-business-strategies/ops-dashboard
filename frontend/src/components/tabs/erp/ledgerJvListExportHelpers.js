@@ -34,7 +34,7 @@ function formatJvAmountText(voucher = {}, baseCurrencyCode = 'USD') {
 
 function formatJvTypeText(voucher = {}) {
   const isBankJv = String(voucher?.referenceType || '').toLowerCase() === 'bank_jv'
-  const parts = [isBankJv ? 'Bank JV' : (voucher?.referenceType || 'journal')]
+  const parts = [isBankJv ? 'Bank JV' : 'Normal JV']
   if (voucher?.lineCount > 1) parts.push(`${voucher.lineCount} lines`)
   if (isBankJv && voucher?.autoTxNo) parts.push(voucher.autoTxNo)
   if (isBankJv && voucher?.chequeNo) parts.push(`Chq: ${voucher.chequeNo}`)

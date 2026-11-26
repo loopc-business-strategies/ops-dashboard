@@ -576,7 +576,7 @@ export default function ERPLedgerTab({
                           </div>
                         ) : (
                           <div>
-                            <span>{voucher.referenceType}</span>
+                            <span style={{ background: '#EDE9FE', color: '#5B21B6', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>Normal JV</span>
                             {voucher.lineCount > 1 && (
                               <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.lineCount} lines</div>
                             )}
