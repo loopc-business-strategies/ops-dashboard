@@ -567,7 +567,7 @@ export default function ERPLedgerTab({
                       <td style={{ padding: '0.75rem', color: C.t2 }}>
                         {isBankJv ? (
                           <div>
-                            <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
+                            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
                             {voucher.lineCount > 1 && (
                               <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.lineCount} lines</div>
                             )}
@@ -576,7 +576,7 @@ export default function ERPLedgerTab({
                           </div>
                         ) : (
                           <div>
-                            <span style={{ background: '#EDE9FE', color: '#5B21B6', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>Normal JV</span>
+                            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', background: '#EDE9FE', color: '#5B21B6', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>Normal JV</span>
                             {voucher.lineCount > 1 && (
                               <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.lineCount} lines</div>
                             )}
