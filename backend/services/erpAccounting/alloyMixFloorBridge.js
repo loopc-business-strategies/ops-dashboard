@@ -2530,7 +2530,7 @@ async function transferVaultMixToFinishedJewelry({
     } else {
       openVaultRow.metalIn = remainingGross
       if (openVaultRow.purity != null) {
-        openVaultRow.fineGold = toFine(remainingGross * (Number(openVaultRow.purity) / 100))
+        openVaultRow.fineGold = Number((remainingGross * (Number(openVaultRow.purity) / 100)).toFixed(4))
       }
     }
     await openVaultRow.save(writeOpts(session))
