@@ -7,6 +7,8 @@ import { ENQUIRY_HISTORY_STORAGE_KEY } from '../erpTabConstants'
 
 /** Initial statement page size — full history is fetched on demand for View Statement / Export PDF. */
 export const ACCOUNT_ENQUIRY_STATEMENT_LIMIT = 40
+/** Default inline statement preview on Account Summary (newest rows). */
+export const ACCOUNT_ENQUIRY_PREVIEW_LIMIT = 5
 export const ACCOUNT_ENQUIRY_EXPORT_PAGE_LIMIT = 500
 export const ACCOUNT_ENQUIRY_EXPORT_MAX_PAGES = 20
 
@@ -113,7 +115,7 @@ export function useErpAccountEnquiryController({
     const preserveFilters = Boolean(options.preserveFilters)
     const startDate = String(options.startDate || '').trim()
     const endDate = String(options.endDate || '').trim()
-    const statementLimit = Number(options.statementLimit) || ACCOUNT_ENQUIRY_STATEMENT_LIMIT
+    const statementLimit = Number(options.statementLimit) || ACCOUNT_ENQUIRY_PREVIEW_LIMIT
     const cacheWindow = { startDate, endDate, statementLimit, phase: 'summary' }
     if (!cleanCode) {
       setError('Please enter account number')
@@ -163,6 +165,32 @@ export function useErpAccountEnquiryController({
       writeAccountEnquiryCache(tenantKey, cleanCode, summaryData, cacheWindow)
       setEnquiryLoading(false)
       setEnquiryStatus({ type: 'success', message: `Account ${summaryData.account.accountCode} summary loaded successfully` })
+
+      // Default preview: newest few statement rows (honours Date From / Date To). Full history via View Statement / Export PDF.
+      const previewLimit = Number(options.statementLimit) || ACCOUNT_ENQUIRY_PREVIEW_LIMIT
+      const statementParams = {
+        statementLimit: previewLimit,
+        includeStatement: '1',
+        includeCount: '0',
+      }
+      if (startDate) statementParams.startDate = startDate
+      if (endDate) statementParams.endDate = endDate
+      if (forceRefresh) statementParams.refresh = '1'
+      const statementData = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, statementParams, { signal })
+      if (seq !== enquirySeqRef.current) return
+      markEnquiry('statement')
+      measureEnquiry('statement-paint', 'summary', 'statement')
+      const merged = {
+        ...summaryData,
+        ...statementData,
+        account: statementData.account || summaryData.account,
+        balances: statementData.balances || summaryData.balances,
+        metals: statementData.metals || summaryData.metals,
+        positions: statementData.positions || summaryData.positions,
+        statement: statementData.statement,
+      }
+      setAccountEnquiryData(merged)
+      writeAccountEnquiryCache(tenantKey, cleanCode, merged, { ...cacheWindow, phase: 'full' })
 
       if (!preserveFilters) {
         setStatementFilters({
@@ -366,7 +394,7 @@ export function useErpAccountEnquiryController({
       preserveFilters: true,
       startDate: String(startDate || '').trim(),
       endDate: String(endDate || '').trim(),
-      statementLimit: ACCOUNT_ENQUIRY_STATEMENT_LIMIT,
+      statementLimit: ACCOUNT_ENQUIRY_PREVIEW_LIMIT,
     })
   }, [accountEnquiryCode, accountEnquiryData?.account?.accountCode, fetchAccountEnquiryByCode])
 

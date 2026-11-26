@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE, ACCOUNT_SUMMARY_CHROME as AS } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { resolveExposureDirection } from '../statementHelpers'
+import { buildStatementNarration } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { parseAuthorizedPersons, serializeAuthorizedPersons } from '../authorizedPersons'
 import {
@@ -32,7 +34,7 @@ export default function AccountEnquiryModal({
   filteredGroupedSummaryAccounts,
   setEnquiryStatus,
   fetchAccountEnquiryByCode,
-  refetchEnquiryForDateRange: _refetchEnquiryForDateRange,
+  refetchEnquiryForDateRange,
   loadMoreStatementEntries: _loadMoreStatementEntries,
   enquiryStatus,
   accountEnquiryData,
@@ -41,7 +43,7 @@ export default function AccountEnquiryModal({
   getSignedColor,
   formatDirectionalBalance,
   unfixedMetalEntries: _unfixedMetalEntries,
-  formatStatementDate: _formatStatementDate,
+  formatStatementDate,
   modalTotalFundsDisplay,
   modalRevaluationDisplay,
   modalNetEquityDisplay,
@@ -54,9 +56,9 @@ export default function AccountEnquiryModal({
   hasMetalExposure = false,
   baseCurrencyCode,
   statementDisplayCurrencyOptions,
-  filteredStatementEntries: _filteredStatementEntries,
+  filteredStatementEntries,
   recentPaymentReceiptEntry: _recentPaymentReceiptEntry,
-  resolveStatementReceiptNo: _resolveStatementReceiptNo,
+  resolveStatementReceiptNo,
   statementFilters,
   setStatementFilters,
   statementReferenceTypes,
@@ -69,7 +71,7 @@ export default function AccountEnquiryModal({
   showStatementAuditIds: _showStatementAuditIds,
   setShowStatementAuditIds: _setShowStatementAuditIds,
   statementTableRef: _statementTableRef,
-  convertStatementDisplayAmount: _convertStatementDisplayAmount,
+  convertStatementDisplayAmount,
   resolveMetalCode: _resolveMetalCode,
   statementSelectedMetalCode: _statementSelectedMetalCode,
   pureWeightRunningByEntryKey: _pureWeightRunningByEntryKey,
@@ -83,6 +85,46 @@ export default function AccountEnquiryModal({
   resolveMarginEquityDirection,
   isMetalStatementEntry: _isMetalStatementEntry,
 }) {
+  const statementMeta = accountEnquiryData?.statement?.meta || null
+  const dateRangeRefetchTimerRef = useRef(null)
+  const dateRangeInFlightKeyRef = useRef('')
+
+  useEffect(() => {
+    if (!open || !accountEnquiryData?.account?.accountCode || typeof refetchEnquiryForDateRange !== 'function') {
+      return undefined
+    }
+    const startDate = String(statementFilters?.startDate || '').trim()
+    const endDate = String(statementFilters?.endDate || '').trim()
+    const serverStart = String(statementMeta?.startDate || '').trim()
+    const serverEnd = String(statementMeta?.endDate || '').trim()
+    const rangeKey = `${startDate}|${endDate}`
+    if (startDate === serverStart && endDate === serverEnd) {
+      dateRangeInFlightKeyRef.current = ''
+      return undefined
+    }
+    if (dateRangeInFlightKeyRef.current === rangeKey) return undefined
+    if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
+    dateRangeRefetchTimerRef.current = setTimeout(() => {
+      dateRangeInFlightKeyRef.current = rangeKey
+      Promise.resolve(refetchEnquiryForDateRange(startDate, endDate))
+        .catch(() => {})
+        .finally(() => {
+          if (dateRangeInFlightKeyRef.current === rangeKey) dateRangeInFlightKeyRef.current = ''
+        })
+    }, 400)
+    return () => {
+      if (dateRangeRefetchTimerRef.current) clearTimeout(dateRangeRefetchTimerRef.current)
+    }
+  }, [
+    open,
+    accountEnquiryData?.account?.accountCode,
+    refetchEnquiryForDateRange,
+    statementFilters?.startDate,
+    statementFilters?.endDate,
+    statementMeta?.startDate,
+    statementMeta?.endDate,
+  ])
+
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const totalBalancePreferredDirection = isCashOnHandEnquiry
     ? resolveExposureDirection(modalTotalFundsDisplay)
@@ -668,6 +710,63 @@ export default function AccountEnquiryModal({
                           </div>
                         )
                       })()}
+                    </div>
+                    <div style={{ padding: '0.5rem 0.75rem 0.75rem', borderTop: '1px solid #E5E7EB' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                          {(filteredStatementEntries || []).length === 0
+                            ? 'No statement entries for the selected dates.'
+                            : `Latest ${Math.min(5, filteredStatementEntries.length)} entries for the selected filters. Use View Statement for the full list.`}
+                        </span>
+                      </div>
+                      {(filteredStatementEntries || []).length > 0 && (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                            <thead>
+                              <tr style={{ background: '#F9FAFB', color: '#374151', textAlign: 'left' }}>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Date</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Doc No</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Narration</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Debit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Credit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Balance</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredStatementEntries.slice(0, 5).map((entry, index) => {
+                                const debitValue = entry.displayDebitAmount ?? (typeof convertStatementDisplayAmount === 'function' ? convertStatementDisplayAmount(entry.debitAmount) : entry.debitAmount)
+                                const creditValue = entry.displayCreditAmount ?? (typeof convertStatementDisplayAmount === 'function' ? convertStatementDisplayAmount(entry.creditAmount) : entry.creditAmount)
+                                const balanceValue = entry.displayRunningBalance ?? entry.runningBalance
+                                const docNo = typeof resolveStatementReceiptNo === 'function'
+                                  ? resolveStatementReceiptNo(entry)
+                                  : (entry.docNo || entry.referenceNo || '')
+                                return (
+                                  <tr key={entry._id || `${entry.date}-${index}`} style={{ borderTop: '1px solid #F3F4F6' }}>
+                                    <td style={{ padding: '0.35rem 0.5rem', whiteSpace: 'nowrap' }}>
+                                      {typeof formatStatementDate === 'function' ? formatStatementDate(entry.date) : entry.date}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', whiteSpace: 'nowrap' }}>{docNo || '-'}</td>
+                                    <td style={{ padding: '0.35rem 0.5rem', maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {buildStatementNarration(entry) || '-'}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                      {Number(debitValue) ? formatStatementValue(debitValue, 2) : '-'}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                      {Number(creditValue) ? formatStatementValue(creditValue, 2) : '-'}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600, color: typeof getSignedColor === 'function' ? getSignedColor(balanceValue) : undefined }}>
+                                      {typeof formatDirectionalBalance === 'function'
+                                        ? formatDirectionalBalance(balanceValue, { currencyCode: statementDisplayCurrency })
+                                        : formatStatementValue(balanceValue, 2)}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
