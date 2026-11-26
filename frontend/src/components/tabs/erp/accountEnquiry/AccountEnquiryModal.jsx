@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE, ACCOUNT_SUMMARY_CHROME as AS } from '../erpTabPresentation'
 import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
 import { resolveExposureDirection } from '../statementHelpers'
-import { buildStatementNarration } from '../statementExportModel'
+import { buildStatementNarration, buildStatementVoucherPayload } from '../statementExportModel'
 import { isMarginPercentDisplayable, MARGIN_PERCENT_HIDDEN_TITLE } from '../marginFormatters'
 import { parseAuthorizedPersons, serializeAuthorizedPersons } from '../authorizedPersons'
 import {
@@ -81,6 +81,7 @@ export default function AccountEnquiryModal({
   buildAccountEnquiryHref,
   handleExportEnquiryPdf,
   handleExportStatementExcel,
+  handleOpenStatementVoucher,
   handlePrintStatement,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
@@ -774,12 +775,39 @@ export default function AccountEnquiryModal({
                                 const docNo = typeof resolveStatementReceiptNo === 'function'
                                   ? resolveStatementReceiptNo(entry)
                                   : (entry.docNo || entry.referenceNo || '')
+                                const voucherPayload = buildStatementVoucherPayload(entry, docNo)
+                                const canOpenVoucher = Boolean(
+                                  docNo
+                                  && docNo !== '-'
+                                  && (voucherPayload.sourceTransactionId || voucherPayload.ledgerId)
+                                  && typeof handleOpenStatementVoucher === 'function'
+                                )
                                 return (
                                   <tr key={entry._id || `${entry.date}-${index}`} style={{ borderTop: '1px solid #F3F4F6' }}>
                                     <td style={{ padding: '0.35rem 0.5rem', whiteSpace: 'nowrap' }}>
                                       {typeof formatStatementDate === 'function' ? formatStatementDate(entry.date) : entry.date}
                                     </td>
-                                    <td style={{ padding: '0.35rem 0.5rem', whiteSpace: 'nowrap' }}>{docNo || '-'}</td>
+                                    <td style={{ padding: '0.35rem 0.5rem', whiteSpace: 'nowrap' }}>
+                                      {canOpenVoucher ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenStatementVoucher(voucherPayload)}
+                                          title={`Open voucher ${docNo}`}
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            color: '#1D4ED8',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            textDecoration: 'underline',
+                                            font: 'inherit',
+                                          }}
+                                        >
+                                          {docNo}
+                                        </button>
+                                      ) : (docNo || '-')}
+                                    </td>
                                     <td style={{ padding: '0.35rem 0.5rem', maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                       {buildStatementNarration(entry) || '-'}
                                     </td>

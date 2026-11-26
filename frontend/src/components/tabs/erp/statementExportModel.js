@@ -31,6 +31,19 @@ const DEFAULT_STATEMENT_PDF_LOGO_MAX_HEIGHT = 72
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+export function buildStatementVoucherPayload(entry, docNo = '-') {
+  const rawLedgerId = Array.isArray(entry?.statementRowIds) && entry.statementRowIds.length
+    ? String(entry.statementRowIds[0] || '').trim()
+    : String(entry?._id || '').replace(/^row:/, '').trim()
+  return {
+    ledgerId: rawLedgerId,
+    sourceTransactionId: String(entry?.sourceTransactionId || '').trim(),
+    sourceTransactionType: String(entry?.sourceTransactionType || entry?.metalDealType || '').trim().toLowerCase(),
+    referenceType: String(entry?.referenceType || '').trim().toLowerCase(),
+    docNo: docNo || '-',
+  }
+}
+
 export function formatStatementDocDate(value) {
   if (!value) return ''
   const raw = String(value).trim()
@@ -220,18 +233,9 @@ export function buildStatementExportModel(ctx) {
     runningDisplayBalance += displayAmountOf(entry, 'displaySignedAmount', resolveStatementSignedAmount(entry))
     if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
     const docNo = resolveStatementReceiptNo(entry) || '-'
-    const rawLedgerId = Array.isArray(entry?.statementRowIds) && entry.statementRowIds.length
-      ? String(entry.statementRowIds[0] || '').trim()
-      : String(entry?._id || '').replace(/^row:/, '').trim()
     return {
       kind: 'entry',
-      voucher: {
-        ledgerId: rawLedgerId,
-        sourceTransactionId: String(entry?.sourceTransactionId || '').trim(),
-        sourceTransactionType: String(entry?.sourceTransactionType || entry?.metalDealType || '').trim().toLowerCase(),
-        referenceType: String(entry?.referenceType || '').trim().toLowerCase(),
-        docNo,
-      },
+      voucher: buildStatementVoucherPayload(entry, docNo),
       cells: [
         docNo,
         formatStatementDocDate(entry.date) || formatStatementDate(entry.date) || '-',

@@ -74,6 +74,7 @@ export default function ERPTabModals({
   buildAccountEnquiryHref,
   handleExportEnquiryPdf,
   handleExportStatementExcel,
+  handleOpenStatementVoucher,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
   resolveMarginEquityDirection,
@@ -163,6 +164,7 @@ export default function ERPTabModals({
         buildAccountEnquiryHref={buildAccountEnquiryHref}
         handleExportEnquiryPdf={handleExportEnquiryPdf}
         handleExportStatementExcel={handleExportStatementExcel}
+        handleOpenStatementVoucher={handleOpenStatementVoucher}
         handlePrintStatement={handlePrintStatement}
         getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}

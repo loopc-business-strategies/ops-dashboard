@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { resolveErpUserTenantBranding } from '../resolveErpUserTenant'
 import erpAccountingAPI from '../../../../api/erp-accounting'
 import { useJournalVoucher } from '../useJournalVoucher'
@@ -338,7 +338,8 @@ export function useErpTabPresentationSlice(scope) {
     // handleJumpToTransaction is stable enough for this one-shot deep link; omit to avoid re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpToTransactionId, onJumpToTransactionConsumed])
-  useEffect(() => {
+  const handleOpenStatementVoucher = useCallback((voucher) => {
+    if (!voucher) return
     const VOUCHER_TYPES = new Set([
       'payment',
       'receipt',
@@ -348,31 +349,35 @@ export function useErpTabPresentationSlice(scope) {
       'metal_payment',
       'metal_transfer',
     ])
+    const { ledgerId, sourceTransactionId, sourceTransactionType, referenceType } = voucher
+    const refType = String(referenceType || '').toLowerCase()
+    const txType = String(sourceTransactionType || '').toLowerCase()
+    setShowEnquiryModal(false)
+    if ((refType === 'journal' || refType === 'bank_jv') && ledgerId) {
+      setActiveTabGuarded('ledger')
+      void handleOpenJv({ _id: ledgerId, referenceType: refType })
+      return
+    }
+    const voucherType = VOUCHER_TYPES.has(txType) ? txType : (VOUCHER_TYPES.has(refType) ? refType : '')
+    if (sourceTransactionId && voucherType && typeof onOpenVoucher === 'function') {
+      onOpenVoucher({ id: sourceTransactionId, type: voucherType })
+      return
+    }
+    if (sourceTransactionId && typeof handleJumpToTransaction === 'function') {
+      void handleJumpToTransaction(sourceTransactionId)
+    }
+  }, [handleJumpToTransaction, handleOpenJv, onOpenVoucher, setActiveTabGuarded, setShowEnquiryModal])
+
+  useEffect(() => {
     const onMessage = (event) => {
       if (event.origin !== window.location.origin) return
       const payload = event.data
       if (!payload || payload.type !== 'erp-statement-open-voucher' || !payload.voucher) return
-      const { ledgerId, sourceTransactionId, sourceTransactionType, referenceType } = payload.voucher
-      const refType = String(referenceType || '').toLowerCase()
-      const txType = String(sourceTransactionType || '').toLowerCase()
-      setShowEnquiryModal(false)
-      if ((refType === 'journal' || refType === 'bank_jv') && ledgerId) {
-        setActiveTabGuarded('ledger')
-        void handleOpenJv({ _id: ledgerId, referenceType: refType })
-        return
-      }
-      const voucherType = VOUCHER_TYPES.has(txType) ? txType : (VOUCHER_TYPES.has(refType) ? refType : '')
-      if (sourceTransactionId && voucherType && typeof onOpenVoucher === 'function') {
-        onOpenVoucher({ id: sourceTransactionId, type: voucherType })
-        return
-      }
-      if (sourceTransactionId && typeof handleJumpToTransaction === 'function') {
-        void handleJumpToTransaction(sourceTransactionId)
-      }
+      handleOpenStatementVoucher(payload.voucher)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [handleJumpToTransaction, handleOpenJv, onOpenVoucher, setActiveTabGuarded, setShowEnquiryModal])
+  }, [handleOpenStatementVoucher])
 
   useEnquiryDeepLinkEffects({
     activeTab,
@@ -438,6 +443,7 @@ export function useErpTabPresentationSlice(scope) {
     handleEditJv,
     handleExportEnquiryPdf,
     handleExportStatementExcel,
+    handleOpenStatementVoucher,
     handleExportReportCsv,
     handleExportReportPdf,
     handleExportReportXlsx,

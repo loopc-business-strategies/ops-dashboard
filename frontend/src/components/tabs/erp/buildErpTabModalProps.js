@@ -71,6 +71,7 @@ export function buildErpTabModalProps(scope) {
     buildAccountEnquiryHref: scope.buildAccountEnquiryHref,
     handleExportEnquiryPdf: scope.handleExportEnquiryPdf,
     handleExportStatementExcel: scope.handleExportStatementExcel,
+    handleOpenStatementVoucher: scope.handleOpenStatementVoucher,
     getAccountEnquirySignedMetricColor: scope.getAccountEnquirySignedMetricColor,
     formatAccountEnquiryExcessDisplay: scope.formatAccountEnquiryExcessDisplay,
     resolveExposureDirection: scope.resolveExposureDirection,
