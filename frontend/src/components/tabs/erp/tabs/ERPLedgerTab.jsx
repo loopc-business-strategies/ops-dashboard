@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
@@ -12,6 +12,11 @@ import { isVoucherKeyboardNavEnabled } from '../../../../config/tenantBranding'
 import { useAccountingPeriodLocks } from '../useAccountingPeriodLocks'
 import { formatAmount, formatMoney } from '../../../../utils/money'
 import { useVirtualTableRows } from '../../../../hooks/useVirtualTableRows'
+import {
+  exportLedgerJvListExcel,
+  exportLedgerJvListPdf,
+  printLedgerJvList,
+} from '../ledgerJvListPrintExport'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -115,6 +120,55 @@ export default function ERPLedgerTab({
     })
   }, [filteredGroupedJvVouchers, sorting.ledger.by, sorting.ledger.asc])
 
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
+
+  const handleExportJvPdf = async () => {
+    if (exportingPdf || sortedLedgerEntries.length === 0) return
+    setExportingPdf(true)
+    try {
+      await exportLedgerJvListPdf({
+        vouchers: sortedLedgerEntries,
+        ledgerVoucherTab,
+        baseCurrencyCode,
+      })
+    } catch (err) {
+      window.alert(err?.message || 'Failed to export JV PDF')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const handleExportJvExcel = async () => {
+    if (exportingExcel || sortedLedgerEntries.length === 0) return
+    setExportingExcel(true)
+    try {
+      await exportLedgerJvListExcel({
+        vouchers: sortedLedgerEntries,
+        ledgerVoucherTab,
+        baseCurrencyCode,
+      })
+    } catch (err) {
+      window.alert(err?.message || 'Failed to export JV Excel')
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
+  const handlePrintJvList = () => {
+    if (sortedLedgerEntries.length === 0) return
+    try {
+      printLedgerJvList({
+        vouchers: sortedLedgerEntries,
+        ledgerVoucherTab,
+        baseCurrencyCode,
+        setError: (msg) => window.alert(msg),
+      })
+    } catch (err) {
+      window.alert(err?.message || 'Failed to open JV print')
+    }
+  }
+
   const ledgerColCount = 8
   const {
     scrollRef: ledgerScrollRef,
@@ -167,6 +221,63 @@ export default function ERPLedgerTab({
                 style={{ padding: '0.45rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}
               >
                 ↺ Refresh
+              </button>
+              <button
+                type="button"
+                disabled={exportingPdf || sortedLedgerEntries.length === 0}
+                onClick={handleExportJvPdf}
+                title={`Export ${ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Normal JV'} list PDF`}
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  background: '#FEF2F2',
+                  color: '#991B1B',
+                  border: '1px solid #EF4444',
+                  borderRadius: '0.45rem',
+                  cursor: exportingPdf || sortedLedgerEntries.length === 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: '700',
+                  fontSize: '0.8rem',
+                  opacity: exportingPdf || sortedLedgerEntries.length === 0 ? 0.55 : 1,
+                }}
+              >
+                {exportingPdf ? 'Exporting…' : 'Export PDF'}
+              </button>
+              <button
+                type="button"
+                disabled={exportingExcel || sortedLedgerEntries.length === 0}
+                onClick={handleExportJvExcel}
+                title={`Export ${ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Normal JV'} list Excel`}
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  background: '#ECFDF5',
+                  color: '#065F46',
+                  border: '1px solid #10B981',
+                  borderRadius: '0.45rem',
+                  cursor: exportingExcel || sortedLedgerEntries.length === 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: '700',
+                  fontSize: '0.8rem',
+                  opacity: exportingExcel || sortedLedgerEntries.length === 0 ? 0.55 : 1,
+                }}
+              >
+                {exportingExcel ? 'Exporting…' : 'Export Excel'}
+              </button>
+              <button
+                type="button"
+                disabled={sortedLedgerEntries.length === 0}
+                onClick={handlePrintJvList}
+                title={`Print ${ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Normal JV'} list`}
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  background: '#E5E7EB',
+                  color: C.ink,
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.45rem',
+                  cursor: sortedLedgerEntries.length === 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.8rem',
+                  opacity: sortedLedgerEntries.length === 0 ? 0.55 : 1,
+                }}
+              >
+                Print
               </button>
             </div>
             {isFinance && (
