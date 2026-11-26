@@ -597,7 +597,7 @@ describe('MG Floor approvals fill the Operations → Production workbook', () =>
       metalLoss: 10.2,
       purity: 93.48,
       purityOut: 99.5,
-      fineGoldOut: 1313.898,
+      fineGoldOut: 1313.8975,
     })
     expect(new Date(rows[0].batchOverAt).toISOString()).toBe('2026-09-28T12:05:00.000Z')
     expect(rows[0].floorOutEntryId).toBe(sentOut.body.entry.entryId)

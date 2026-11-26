@@ -303,6 +303,7 @@ async function decideBatchEntry(req, id, decision, reason = '') {
     throw new ProductionError('A reason is required to reject', 400)
   }
 
+  const { isAlloyMixBatchCode } = require('../erpAccounting/alloyMixBatchCode')
   const update = {
     $set: {
       status: decision,
@@ -311,9 +312,11 @@ async function decideBatchEntry(req, id, decision, reason = '') {
       decidedByName: user?.name || '',
       rejectReason: approve ? '' : rejectReason,
     },
-    // Free day|dept|direction|batch so a later visit can send Metal Out again same day
-    // (e.g. return to vault → re-allocate → Metal Out with + Add metal).
-    $unset: { activeKey: 1 },
+  }
+  // Free day|dept|direction|batch on rejection, or for alloy-mix batches so a later visit
+  // can send Metal Out again same day (return to vault → re-allocate → Metal Out with + Add metal).
+  if (!approve || isAlloyMixBatchCode(current.batchLabel)) {
+    update.$unset = { activeKey: 1 }
   }
 
   const updated = await FloorBatchEntry.findOneAndUpdate({ _id: id, status: 'PENDING' }, update, {
@@ -596,7 +599,10 @@ async function undoApproval(req, id, reason = '') {
   }
   if (current.direction === 'IN') {
     const outApproved = await FloorBatchEntry.exists({
-      activeKey: activeKeyFor({ ...current, direction: 'OUT' }),
+      entryDate: current.entryDate,
+      department: current.department,
+      direction: 'OUT',
+      batchLabel: current.batchLabel,
       status: 'APPROVED',
     })
     if (outApproved) {

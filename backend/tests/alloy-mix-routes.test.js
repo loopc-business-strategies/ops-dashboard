@@ -354,13 +354,15 @@ describe('alloy-mix HTTP routes', () => {
     expect(bangleKept[0].metalOut).toBe(bangleKept[0].metalIn)
     expect(bangleKept[0].batchOverAt).toBeTruthy()
 
-    const vaultOpenGone = await OperationsProductionEntry.find({
+    // Vault return from a floor department (bangle_area) stays open so Updated Mix can promote it.
+    const vaultOpenReturn = await OperationsProductionEntry.find({
       alloyMixCode: 'BMG-0001',
       departmentKey: 'vault_room',
       source: 'gold_alloy',
       $or: [{ metalOut: null }, { metalOut: { $exists: false } }],
     }).lean()
-    expect(vaultOpenGone).toHaveLength(0)
+    expect(vaultOpenReturn).toHaveLength(1)
+    expect(vaultOpenReturn[0].transferFromDepartment).toBe('bangle_area')
 
     const clearRes = await request(app)
       .post('/api/erp-accounting/inventory/alloy-mix/clear-history')
