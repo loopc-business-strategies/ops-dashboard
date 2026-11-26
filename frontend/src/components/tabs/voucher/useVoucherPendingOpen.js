@@ -37,7 +37,7 @@ export function useVoucherPendingOpen({
       try {
         const res = await axios.get(`${BASE}/transactions`, {
           ...cfg(),
-          params: { type: tnorm, limit: 200 },
+          params: { type: tnorm, limit: 500 },
         })
         const txs = sortVouchers(
           (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
@@ -46,7 +46,20 @@ export function useVoucherPendingOpen({
         if (cancelled) return
         setVoucherType(tnorm)
         setVouchers(txs)
-        const v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
+        let v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
+        if (!v) {
+          try {
+            const singleRes = await axios.get(`${BASE}/transactions/${encodeURIComponent(pendingOpenTransactionId)}`, cfg())
+            const fetched = singleRes?.data?.transaction || singleRes?.data?.data || singleRes?.data
+            if (fetched && String(fetched._id) === String(pendingOpenTransactionId)) {
+              v = fetched
+              setVouchers((prev) => (prev.some((row) => String(row._id) === String(fetched._id)) ? prev : [...prev, fetched]))
+            }
+          } catch {
+            // Fall through to not-found message below.
+          }
+        }
+        if (cancelled) return
         if (v) {
           openVoucherRef.current?.(v)
         } else {
