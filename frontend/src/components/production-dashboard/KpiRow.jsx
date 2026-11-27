@@ -103,6 +103,19 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
   const underValue = activeBatches != null
     ? `${activeBatches} Batch${Number(activeBatches) === 1 ? '' : 'es'}`
     : '—'
+  const underGrams = k.underProduction != null && Number(k.underProduction) > 0
+    ? formatGrams(k.underProduction)
+    : null
+
+  const totalBatches = model.productionTodayKpi?.totalBatches ?? model.header?.totalBatches
+  const totalBatchesHint = totalBatches != null && Number(totalBatches) > 0
+    ? `${totalBatches} Batch${Number(totalBatches) === 1 ? '' : 'es'}`
+    : null
+
+  const completedBatches = model.productionTodayKpi?.completedBatches
+  const completedBatchesHint = completedBatches != null && Number(completedBatches) > 0
+    ? `${completedBatches} Batch${Number(completedBatches) === 1 ? '' : 'es'}`
+    : null
 
   const out = k.totalOutput
   const prod = k.totalProductionToday
@@ -135,19 +148,21 @@ export default function KpiRow({ model, hideDemoKpis = false }) {
         iconTone="green"
         label="Total Production Today"
         value={prod != null ? formatGrams(prod) : '—'}
-        hint={day.tone !== 'muted' ? day.text : null}
+        hint={totalBatchesHint || (day.tone !== 'muted' ? day.text : null)}
       />
       <CompactKpi
         icon={<IconUnderProduction />}
         iconTone="green"
         label="Under Production"
         value={underValue}
+        hint={underGrams}
       />
       <CompactKpi
         icon={<IconOutput />}
         iconTone="green"
         label="Total Output"
         value={out != null ? formatGrams(out) : '—'}
+        hint={completedBatchesHint}
       />
       <CompactKpi
         icon={<IconTrendUp />}

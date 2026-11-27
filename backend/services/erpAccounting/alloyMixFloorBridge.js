@@ -2584,6 +2584,51 @@ async function transferVaultMixToFinishedJewelry({
     await openVaultRow.save(writeOpts(session))
   }
 
+  // 5b. Record a completed Finished Goods row in Operations so the batch moves
+  // into Finished Goods (Completed) when transferred from Vault Room to Inventory.
+  const fgPurity = openVaultRow?.purity != null
+    ? Number(openVaultRow.purity)
+    : (job.purity != null ? Number(job.purity) : null)
+  const fgFineGold = fgPurity != null
+    ? Number((transferGross * (fgPurity / 100)).toFixed(4))
+    : null
+  const fgBatchKey = opsKey(
+    code,
+    'finished_goods',
+    `fg-${now.getTime()}-${Math.random().toString(36).slice(2, 6)}`,
+  )
+  await OperationsProductionEntry.create(
+    [
+      {
+        source: 'gold_alloy',
+        date: dubaiDateKey(now),
+        departmentKey: 'finished_goods',
+        batchNumber: code,
+        alloyMixCode: code,
+        metalIn: transferGross,
+        metalOut: transferGross,
+        metalLoss: 0,
+        purity: fgPurity,
+        purityOut: fgPurity,
+        fineGold: fgFineGold,
+        fineGoldOut: fgFineGold,
+        batchStartedAt: now,
+        batchOverAt: now,
+        transferFromDepartment: VAULT,
+        transferToDepartment: 'inventory',
+        breakdown: noteLine,
+        employeeName: actorName || '',
+        departmentManagerName: actorName || '',
+        createdById: actorId || null,
+        createdByName: actorName || '',
+        floorBatchKey: fgBatchKey,
+        floorInEntryId: fgBatchKey,
+        floorOutEntryId: fgBatchKey,
+      },
+    ],
+    writeOpts(session),
+  )
+
   // 6. Update AlloyMixJob & ProductionStockLot
   job.targetGross = remainingGross
   if (isFullTransfer) {

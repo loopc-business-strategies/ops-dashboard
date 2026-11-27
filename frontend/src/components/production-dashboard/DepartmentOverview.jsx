@@ -55,7 +55,6 @@ function LossRow({ row }) {
           {row.alloyMetalRows.map((m, i) => (
             <div key={`${row.label}-m-${i}`} className="pd-dept-loss-table-row" role="row">
               <span role="cell">{m.name}</span>
-              <span role="cell">{m.gross != null ? `${formatLoss(m.gross)} g` : '—'}</span>
               <span role="cell" className="pd-dept-loss-table-loss">{m.loss != null ? `${formatLoss(m.loss)} g` : '—'}</span>
             </div>
           ))}
@@ -678,6 +677,24 @@ function DeptCard({
           <span>Metal Loss (g)</span>
           <LossLimitChip card={card} />
         </div>
+        {(() => {
+          const lossVals = lossRows.map((r) => Number(r.loss)).filter((n) => Number.isFinite(n))
+          const totalLossToday = lossVals.length
+            ? Math.round(lossVals.reduce((sum, n) => sum + n, 0) * 1e4) / 1e4
+            : null
+          return (
+            <div className="pd-dept-loss-summary">
+              <div className="pd-dept-loss-summary-item">
+                <span>Total Today</span>
+                <strong>{totalLossToday != null ? `${formatLoss(totalLossToday)} g` : '—'}</strong>
+              </div>
+              <div className="pd-dept-loss-summary-item">
+                <span>Avg</span>
+                <strong>{ui.lossTodayAvg != null ? `${formatLoss(ui.lossTodayAvg)} g` : '—'}</strong>
+              </div>
+            </div>
+          )
+        })()}
         <ul className="pd-dept-loss-list">
           {loopcMode ? (
             lossRows.length || ui.lossTodayAvg != null || ui.lossTotalAvg != null ? (
