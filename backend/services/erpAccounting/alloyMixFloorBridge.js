@@ -1211,16 +1211,14 @@ async function allocateMixJob({
           await sourceItem.save(writeOpts(session))
           await StockMovement.create(
             [{
-              inventoryItemId: sourceItem._id,
+              itemId: sourceItem._id,
               itemName: sourceItem.name || job.finishedProductName || '',
-              type: 'out',
-              quantity: remainWeight,
-              previousQuantity: prevSrc,
-              newQuantity: nextSrc,
+              change: -remainWeight,
+              quantityBefore: prevSrc,
+              quantityAfter: nextSrc,
               reason: moveReason,
-              date: new Date(),
-              createdBy: user._id,
-              createdByName: user.name || '',
+              actorId: user._id,
+              actorName: user.name || '',
             }],
             writeOpts(session),
           )
@@ -1231,16 +1229,14 @@ async function allocateMixJob({
         await balanceItem.save(writeOpts(session))
         await StockMovement.create(
           [{
-            inventoryItemId: balanceItem._id,
+            itemId: balanceItem._id,
             itemName: balanceItem.name,
-            type: 'in',
-            quantity: remainWeight,
-            previousQuantity: prevBal,
-            newQuantity: nextBal,
+            change: remainWeight,
+            quantityBefore: prevBal,
+            quantityAfter: nextBal,
             reason: moveReason,
-            date: new Date(),
-            createdBy: user._id,
-            createdByName: user.name || '',
+            actorId: user._id,
+            actorName: user.name || '',
           }],
           writeOpts(session),
         )
