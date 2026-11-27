@@ -485,7 +485,7 @@ function cellDisplay(row, key, lossLimitPct = null) {
                 {`#${moveSeq}`}
               </span>
             ) : null}
-            <span style={batchText}>{mixLabel}</span>
+            <span style={batchText}>{row.batch || mixLabel}</span>
           </span>
           {row.alloyCurrentHere ? (
             <span style={nowHereBadge}>Now here</span>

@@ -265,6 +265,23 @@ function opsKey(mixCode, departmentKey, stamp) {
   return `alloy:${String(mixCode).toUpperCase()}:${departmentKey}:${stamp}`
 }
 
+/**
+ * Ops batch label: a split child shows its root parent's BMG code (e.g. BMG-0002),
+ * so a partial move reads as the same batch. Matching still uses alloyMixCode.
+ */
+async function rootMixCodeOf(job, session = null) {
+  let current = job
+  for (let i = 0; i < 20 && current?.parentJobId; i += 1) {
+    const parent = await withSession(
+      AlloyMixJob.findById(current.parentJobId).select('mixCode parentJobId').lean(),
+      session,
+    )
+    if (!parent) break
+    current = parent
+  }
+  return String(current?.mixCode || job?.mixCode || '').trim()
+}
+
 /** Open gold_alloy visit in a department: has Metal IN, still waiting for Metal OUT. */
 async function findOpenAlloyOpsVisit({ session, mixCode, departmentKey }) {
   const code = String(mixCode || '').toUpperCase()
@@ -1141,6 +1158,7 @@ async function allocateMixJob({
   }
   const isPartial = moveWeight + QTY_EPS < available
   const remainWeight = toQty(available - moveWeight)
+  const opsBatchCode = await rootMixCodeOf(job, session)
 
   const purityPct = job.purity != null ? Number(job.purity) : null
   const fineGoldOverride = fineGoldRaw != null && fineGoldRaw !== '' ? toQty(fineGoldRaw) : null
@@ -1289,7 +1307,7 @@ async function allocateMixJob({
       mixCode: job.mixCode,
       departmentKey: from,
       date,
-      batchNumber: job.mixCode,
+      batchNumber: opsBatchCode,
       side: 'out',
       weight: moveWeight,
       purity: purityPct,
@@ -1304,7 +1322,7 @@ async function allocateMixJob({
       mixCode: job.mixCode,
       departmentKey: from,
       date,
-      batchNumber: job.mixCode,
+      batchNumber: opsBatchCode,
       side: 'in',
       weight: remainWeight,
       purity: purityPct,
@@ -1319,7 +1337,7 @@ async function allocateMixJob({
       mixCode: child.mixCode,
       departmentKey: dest,
       date,
-      batchNumber: child.mixCode,
+      batchNumber: opsBatchCode,
       side: 'in',
       weight: moveWeight,
       purity: purityPct,

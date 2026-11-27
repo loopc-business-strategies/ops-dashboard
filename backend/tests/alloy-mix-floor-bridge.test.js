@@ -472,6 +472,16 @@ describe('alloy mix floor bridge', () => {
     expect(Number(movedVisit.metalLoss)).toBe(0)
     const remainderVisit = vaultOps.find((r) => r.metalOut == null && r.metalIn != null)
     expect(Number(remainderVisit.metalIn)).toBe(50)
+
+    // Ops label: the split child's rows show the parent batch code (same batch).
+    const childOps = await OperationsProductionEntry.find({
+      source: 'gold_alloy',
+      alloyMixCode: String(split.child.mixCode).toUpperCase(),
+    }).lean()
+    expect(childOps.length).toBeGreaterThan(0)
+    for (const r of childOps) {
+      expect(r.batchNumber).toBe(String(split.parent.mixCode).toUpperCase())
+    }
   })
 
   test('partial allocate blocks ERP reverse until child returns to vault', async () => {
