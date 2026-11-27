@@ -257,6 +257,14 @@ export default function ERPGoldAlloyTab({
     return computeCalculatedGrossFromGoldWeight(goldLine?.gross, goldRatio)
   }, [goldInput, lines, goldRatio])
 
+  // Current (latest, not replaced) posted row shows live product on hand; history rows keep their step balance.
+  const liveOnHandForRow = (row) => {
+    if (row?.linkedPrior) return row.finishedQtyAfter
+    const live = stockOptions.find((opt) => String(opt.id) === String(row?.finishedProductId || ''))
+    const qty = live ? Number(live.quantity) : NaN
+    return Number.isFinite(qty) ? qty : row?.finishedQtyAfter
+  }
+
   // While editing a posted mix, credit back its consumed qty for the stock check
   // (reverse will restore that stock before the new post).
   const stockOptionsForPost = useMemo(() => {
@@ -1440,7 +1448,7 @@ export default function ERPGoldAlloyTab({
                             <div style={{ fontWeight: 700 }}>{row.finishedName || '—'}</div>
                             {!isHistory && row.finishedQtyAfter != null ? (
                               <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>
-                                on hand {formatAlloyGramsDisplay(row.finishedQtyAfter)} g
+                                on hand {formatAlloyGramsDisplay(liveOnHandForRow(row))} g
                               </div>
                             ) : null}
                             {row.linkedPrior ? (
