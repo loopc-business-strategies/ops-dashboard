@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 /**
  * Relabel Gold Alloy Ops rows for split child mixes so batchNumber shows the root parent code.
  *
