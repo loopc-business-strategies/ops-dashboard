@@ -141,9 +141,16 @@ export default function ERPGoldAlloyTab({
   }
 
   const enrichPostedWithFloorJobs = (rows = [], jobsByReason = {}) => (
-    (Array.isArray(rows) ? rows : []).map((row) => (
-      mergePostedMixWithFloorJob(row, jobsByReason[String(row?.reason || '').trim()] || null)
-    ))
+    (Array.isArray(rows) ? rows : []).map((row) => {
+      const job = jobsByReason[String(row?.reason || '').trim()] || null
+      const merged = mergePostedMixWithFloorJob(row, job)
+      if (!job) return merged
+      return {
+        ...merged,
+        mixCode: merged.mixCode || job.mixCode || '',
+        batchNumber: merged.batchNumber || job.batchNumber || job.mixCode || '',
+      }
+    })
   )
 
   const reloadPostedMixes = async () => {
@@ -1180,6 +1187,7 @@ export default function ERPGoldAlloyTab({
               ) : null}
               {postedMixGroups.map((group) => {
                 const groupTitle = [
+                  group.batchCode || null,
                   group.karat ? `${group.karat}K` : null,
                   group.finishedName || 'Alloy mix',
                 ].filter(Boolean).join(' · ')
