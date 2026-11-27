@@ -182,13 +182,20 @@ function deriveStatementUnfixedMetalBalances(entries) {
   }, { gold: 0, silver: 0, copper: 0, other: 0 })
 }
 
-function buildPureWeightRunningBalancesByEntryKey(entries, selectedMetalCode) {
+/**
+ * Pure WT running grams per metal row (newest-first list). `apiClosing` = full-account metal
+ * balance after the newest row. Without it, the closing is the sum of the visible rows only,
+ * which is wrong for the 5-row preview.
+ */
+function buildPureWeightRunningBalancesByEntryKey(entries, selectedMetalCode, { apiClosing = null } = {}) {
   const selected = String(selectedMetalCode || '').trim().toUpperCase()
   const isMetalRowForPureWt = (entry) => isMetalStatementEntry(entry) && resolveStatementMetalCode(entry) === selected
-  let closing = entries.reduce((sum, entry) => {
-    if (!isMetalRowForPureWt(entry)) return sum
-    return sum + Number(entry.metalSignedWeight || 0)
-  }, 0)
+  let closing = Number.isFinite(apiClosing)
+    ? apiClosing
+    : entries.reduce((sum, entry) => {
+      if (!isMetalRowForPureWt(entry)) return sum
+      return sum + Number(entry.metalSignedWeight || 0)
+    }, 0)
   const map = new Map()
   for (const entry of entries) {
     if (!isMetalRowForPureWt(entry)) continue
@@ -666,7 +673,15 @@ export function useAccountEnquiryStatement({
     })
     : []
 
-  const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(statementEntries, statementSelectedMetalCode)
+  // Default view (no end date): closing grams = full-account metal balance, not just the preview rows.
+  const pureWeightApiClosing = (!statementFilters?.endDate && accountEnquiryData?.metals)
+    ? Number(resolveStatementMetalBalance(accountEnquiryData.metals, statementSelectedMetalCode, statementEntries))
+    : null
+  const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(
+    statementEntries,
+    statementSelectedMetalCode,
+    { apiClosing: pureWeightApiClosing },
+  )
   const statementReferenceTypes = Array.from(new Set([
     ...DEFAULT_STATEMENT_REFERENCE_TYPES,
     ...statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean),

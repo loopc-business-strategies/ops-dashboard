@@ -72,9 +72,9 @@ export default function AccountEnquiryModal({
   setShowStatementAuditIds: _setShowStatementAuditIds,
   statementTableRef: _statementTableRef,
   convertStatementDisplayAmount,
-  resolveMetalCode: _resolveMetalCode,
-  statementSelectedMetalCode: _statementSelectedMetalCode,
-  pureWeightRunningByEntryKey: _pureWeightRunningByEntryKey,
+  resolveMetalCode,
+  statementSelectedMetalCode,
+  pureWeightRunningByEntryKey,
   formatStatementNullableValue,
   canExportAccountSummary,
   handleViewStatement,
@@ -86,7 +86,7 @@ export default function AccountEnquiryModal({
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
   resolveMarginEquityDirection,
-  isMetalStatementEntry: _isMetalStatementEntry,
+  isMetalStatementEntry,
 }) {
   const statementMeta = accountEnquiryData?.statement?.meta || null
   const dateRangeRefetchTimerRef = useRef(null)
@@ -759,12 +759,19 @@ export default function AccountEnquiryModal({
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                             <thead>
                               <tr style={{ background: '#F9FAFB', color: '#374151', textAlign: 'left' }}>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Date</th>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Doc No</th>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Narration</th>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Debit</th>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Credit</th>
-                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Balance</th>
+                                <th rowSpan={2} style={{ padding: '0.35rem 0.5rem', fontWeight: 600, verticalAlign: 'bottom' }}>Date</th>
+                                <th rowSpan={2} style={{ padding: '0.35rem 0.5rem', fontWeight: 600, verticalAlign: 'bottom' }}>Doc No</th>
+                                <th rowSpan={2} style={{ padding: '0.35rem 0.5rem', fontWeight: 600, verticalAlign: 'bottom' }}>Narration</th>
+                                <th colSpan={3} style={{ padding: '0.35rem 0.5rem', fontWeight: 800, textAlign: 'center', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
+                                <th colSpan={3} style={{ padding: '0.35rem 0.5rem', fontWeight: 800, textAlign: 'center', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
+                              </tr>
+                              <tr style={{ background: '#F9FAFB', color: '#374151', textAlign: 'right' }}>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, borderLeft: '1px solid #CBD5E0' }}>Debit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Credit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Balance</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600, borderLeft: '1px solid #CBD5E0' }}>Debit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Credit</th>
+                                <th style={{ padding: '0.35rem 0.5rem', fontWeight: 600 }}>Balance</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -775,6 +782,15 @@ export default function AccountEnquiryModal({
                                 const docNo = typeof resolveStatementReceiptNo === 'function'
                                   ? resolveStatementReceiptNo(entry)
                                   : (entry.docNo || entry.referenceNo || '')
+                                const entryMetalCode = typeof resolveMetalCode === 'function' ? resolveMetalCode(entry) : '-'
+                                const isMetalRow = (typeof isMetalStatementEntry === 'function' ? isMetalStatementEntry(entry) : false)
+                                  && entryMetalCode === statementSelectedMetalCode
+                                const signedPureWeight = Number(entry.metalSignedWeight || 0)
+                                const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
+                                const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
+                                const balancePureWeight = isMetalRow && pureWeightRunningByEntryKey?.has?.(entry._id)
+                                  ? pureWeightRunningByEntryKey.get(entry._id)
+                                  : null
                                 const voucherPayload = buildStatementVoucherPayload(entry, docNo)
                                 const canOpenVoucher = Boolean(
                                   docNo
@@ -821,6 +837,23 @@ export default function AccountEnquiryModal({
                                       {typeof formatDirectionalBalance === 'function'
                                         ? formatDirectionalBalance(balanceValue, { currencyCode: statementDisplayCurrency })
                                         : formatStatementValue(balanceValue, 2)}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: '#065F46', fontWeight: 600, borderLeft: '1px solid #E5E7EB' }}>
+                                      {typeof formatStatementNullableValue === 'function'
+                                        ? formatStatementNullableValue(debitPureWeight, 2, { exactGrams: true })
+                                        : (debitPureWeight ?? '-')}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: '#B91C1C', fontWeight: 600 }}>
+                                      {typeof formatStatementNullableValue === 'function'
+                                        ? formatStatementNullableValue(creditPureWeight, 2, { exactGrams: true })
+                                        : (creditPureWeight ?? '-')}
+                                    </td>
+                                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: typeof getSignedColor === 'function' ? getSignedColor(balancePureWeight) : undefined }}>
+                                      {balancePureWeight === null || balancePureWeight === undefined
+                                        ? '-'
+                                        : (typeof formatDirectionalBalance === 'function'
+                                          ? formatDirectionalBalance(balancePureWeight, { asWeight: true, minDigits: 0, maxDigits: 6 })
+                                          : formatStatementValue(balancePureWeight, 6))}
                                     </td>
                                   </tr>
                                 )
