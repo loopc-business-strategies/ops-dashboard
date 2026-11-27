@@ -458,6 +458,20 @@ describe('alloy mix floor bridge', () => {
     const parentRow = annotated.find((j) => j.id === String(split.parent._id))
     expect(parentRow.hasOpenFloorDescendants).toBe(true)
     expect(parentRow.canUpdateMix).toBe(false)
+
+    // Ops: the moved visit is closed at the moved weight (no false loss), and the
+    // remainder stays open in the source department.
+    const vaultOps = await OperationsProductionEntry.find({
+      source: 'gold_alloy',
+      alloyMixCode: String(split.parent.mixCode).toUpperCase(),
+      departmentKey: 'vault_room',
+    }).lean()
+    const movedVisit = vaultOps.find((r) => r.metalOut != null)
+    expect(Number(movedVisit.metalIn)).toBe(30)
+    expect(Number(movedVisit.metalOut)).toBe(30)
+    expect(Number(movedVisit.metalLoss)).toBe(0)
+    const remainderVisit = vaultOps.find((r) => r.metalOut == null && r.metalIn != null)
+    expect(Number(remainderVisit.metalIn)).toBe(50)
   })
 
   test('partial allocate blocks ERP reverse until child returns to vault', async () => {

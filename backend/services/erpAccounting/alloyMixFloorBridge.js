@@ -1272,6 +1272,18 @@ async function allocateMixJob({
       writeOpts(session),
     )
 
+    // Partial: only moveWeight leaves this visit. Trim the open IN row to that weight so the
+    // untouched remainder is not booked as loss, then the remainder gets its own open row.
+    const openFrom = await findOpenAlloyOpsVisit({ session, mixCode: job.mixCode, departmentKey: from })
+    if (openFrom && openFrom.metalIn != null && Number(openFrom.metalIn) > moveWeight + QTY_EPS) {
+      const oldIn = Number(openFrom.metalIn)
+      openFrom.metalIn = moveWeight
+      if (openFrom.fineGold != null && Number.isFinite(Number(openFrom.fineGold)) && oldIn > QTY_EPS) {
+        openFrom.fineGold = toQty(Number(openFrom.fineGold) * (moveWeight / oldIn))
+      }
+      await openFrom.save(writeOpts(session))
+    }
+
     await upsertOpsRow({
       session,
       mixCode: job.mixCode,
@@ -1285,6 +1297,20 @@ async function allocateMixJob({
       actor: user,
       stamp,
       toDepartment: dest,
+    })
+    // Remainder still sits in the source department as its own open visit (IN only).
+    await upsertOpsRow({
+      session,
+      mixCode: job.mixCode,
+      departmentKey: from,
+      date,
+      batchNumber: job.mixCode,
+      side: 'in',
+      weight: remainWeight,
+      purity: purityPct,
+      fineGold: remainFineGold,
+      actor: user,
+      stamp: `${stamp}-rem`,
     })
     // Dest Metal IN always — every department keeps a visit row (Vault, Melting, Bangle…).
     // Floor still waits for receive Approve before status becomes in_department.
