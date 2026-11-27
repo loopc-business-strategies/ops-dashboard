@@ -42,7 +42,7 @@ function isGoldAlloyEntry(entry) {
 }
 
 function mixCodeOf(entry) {
-  return String(entry?.alloyMixCode || entry?.batchNumber || '').trim().toUpperCase()
+  return String(entry?.batchNumber || entry?.alloyMixCode || '').trim().toUpperCase()
 }
 
 function byBatchStartAsc(a, b) {

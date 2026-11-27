@@ -223,7 +223,7 @@ function AlloyMixChip({ jobs = [] }) {
   const grams = jobs.reduce((sum, j) => sum + (Number(j.targetGross) || 0), 0)
   const title = jobs
     .map((j) => {
-      const base = `${j.mixCode || 'MIX'} · ${j.karat || '?'}K · ${j.targetGross ?? '—'} g`
+      const base = `${j.batchNumber || j.mixCode || 'MIX'} · ${j.karat || '?'}K · ${j.targetGross ?? '—'} g`
       const aml = formatAlloyMetalLossLabel(j)
       return aml ? `${base}\n${aml}` : base
     })
@@ -336,7 +336,7 @@ function AlloyMixList({
                     Live
                   </span>
                 ) : null}
-                <span className="pd-alloy-mix-code-id">{job.mixCode || 'MIX'}</span>
+                <span className="pd-alloy-mix-code-id">{job.batchNumber || job.mixCode || 'MIX'}</span>
                 {awaitingReceive
                   ? <span className="pd-alloy-mix-wait">awaiting receive</span>
                   : job.hasOpenFloorDescendants
@@ -836,6 +836,8 @@ export default function DepartmentOverview({
       for (const job of Array.isArray(jobs) ? jobs : []) {
         const code = String(job?.mixCode || '').trim().toUpperCase()
         if (code) map[code] = job
+        const batch = String(job?.batchNumber || '').trim().toUpperCase()
+        if (batch && !map[batch]) map[batch] = job
       }
     })
     return map

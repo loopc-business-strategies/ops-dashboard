@@ -1642,6 +1642,7 @@ function hasOpenFloorDescendant(rootId, childrenByParent) {
 function serializeJob(job, {
   hasOpenFloorDescendants = false,
   childrenByParent = null,
+  rootMixCode = '',
 } = {}) {
   if (!job) return null
   const row = typeof job.toObject === 'function' ? job.toObject() : job
@@ -1650,11 +1651,13 @@ function serializeJob(job, {
     : Boolean(hasOpenFloorDescendants)
   const inVault = row.status === 'in_vault' && row.currentDepartment === VAULT && !row.isDeleted
   const pendingReceive = row.status === 'pending_receive' && !row.isDeleted
+  const batchCode = String(rootMixCode || row.mixCode || '').trim()
   return {
     id: String(row._id),
     mixCode: row.mixCode,
-    /** Canonical batch id for Floor / Ops — same as mixCode for every alloy mix. */
-    batchNumber: row.mixCode,
+    /** Canonical batch id for Floor / Ops — root parent mixCode for split children. */
+    batchNumber: batchCode,
+    rootMixCode: batchCode,
     reasonBase: row.reasonBase,
     karat: row.karat,
     targetGross: row.targetGross,
@@ -1837,32 +1840,39 @@ async function serializeJobs(jobs, session = null) {
       .map((job) => syncOpenVaultOpsWeightFromJob(job, session).catch(() => false)),
   )
   const childrenByParent = await loadOpenChildrenByParent(session)
-  return list.map((job) => serializeJob(job, { childrenByParent }))
+  const rootCodes = await Promise.all(
+    list.map((job) => (job?.parentJobId ? rootMixCodeOf(job, session) : Promise.resolve(job?.mixCode || ''))),
+  )
+  return list.map((job, i) => serializeJob(job, { childrenByParent, rootMixCode: rootCodes[i] }))
 }
 
 async function serializeAllocateResult(result, session = null) {
   if (result?.partial && result.parent && result.child) {
     const childrenByParent = await loadOpenChildrenByParent(session)
+    const rootMixCode = await rootMixCodeOf(result.parent, session)
     return {
       partial: true,
       pendingReceive: Boolean(result.pendingReceive),
-      job: serializeJob(result.child, { childrenByParent }),
-      parentJob: serializeJob(result.parent, { childrenByParent }),
-      childJob: serializeJob(result.child, { childrenByParent }),
+      job: serializeJob(result.child, { childrenByParent, rootMixCode }),
+      parentJob: serializeJob(result.parent, { childrenByParent, rootMixCode }),
+      childJob: serializeJob(result.child, { childrenByParent, rootMixCode }),
     }
   }
+  const rootMixCode = result?.parentJobId ? await rootMixCodeOf(result, session) : (result?.mixCode || '')
   return {
     partial: false,
     pendingReceive: result?.status === 'pending_receive',
-    job: serializeJob(result),
+    job: serializeJob(result, { rootMixCode }),
   }
 }
 
 async function serializeReceiveResult(result, session = null) {
+  const rootMixCode = result?.job?.parentJobId ? await rootMixCodeOf(result.job, session) : (result?.job?.mixCode || '')
   return {
     decision: result?.decision || null,
     job: serializeJob(result?.job, {
       childrenByParent: await loadOpenChildrenByParent(session),
+      rootMixCode,
     }),
     metalInEntryId: result?.metalInEntry?.entryId || result?.metalInEntry?._id
       ? String(result.metalInEntry.entryId || result.metalInEntry._id)
