@@ -1373,7 +1373,7 @@ async function allocateMixJob({
     mixCode: job.mixCode,
     departmentKey: from,
     date,
-    batchNumber: job.mixCode,
+    batchNumber: opsBatchCode,
     side: 'out',
     weight: moveWeight,
     purity: purityPct,
@@ -1389,7 +1389,7 @@ async function allocateMixJob({
     mixCode: job.mixCode,
     departmentKey: dest,
     date,
-    batchNumber: job.mixCode,
+    batchNumber: opsBatchCode,
     side: 'in',
     weight: moveWeight,
     purity: purityPct,
@@ -1515,12 +1515,13 @@ async function receiveMixJob({
     departmentKey: dest,
   })
   if (!openDestVisit) {
+    const opsBatchCode = await rootMixCodeOf(job, session)
     await upsertOpsRow({
       session,
       mixCode: job.mixCode,
       departmentKey: dest,
       date,
-      batchNumber: job.mixCode,
+      batchNumber: opsBatchCode,
       side: 'in',
       weight,
       purity: purityPct,
@@ -1789,12 +1790,13 @@ async function syncOpenVaultOpsWeightFromJob(job, session = null) {
     departmentKey: VAULT,
   })
   if (!openVault) {
+    const opsBatchCode = await rootMixCodeOf(job, session)
     await upsertOpsRow({
       session,
       mixCode: job.mixCode,
       departmentKey: VAULT,
       date: dubaiDateKey(),
-      batchNumber: job.mixCode,
+      batchNumber: opsBatchCode,
       side: 'in',
       weight: target,
       purity: purityJob,
