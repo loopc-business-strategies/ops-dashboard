@@ -960,13 +960,16 @@ export function groupPostedAlloyMixes(mixes = []) {
   const groups = new Map()
 
   for (const row of list) {
+    const rawCode = String(row?.mixCode || row?.batchNumber || '').trim().toUpperCase()
+    const batchKey = rawCode.replace(/__REV__.*$/i, '')
     const finishedKey = String(row?.finishedProductId || row?.finishedName || 'unknown')
     const karatKey = row?.karat != null && row?.karat !== '' ? String(row.karat) : 'any'
-    const key = `${finishedKey}::${karatKey}`
+    const key = batchKey ? `batch:${batchKey}` : `${finishedKey}::${karatKey}`
     if (!groups.has(key)) {
       groups.set(key, {
         id: `group-${key}`,
         key,
+        batchCode: batchKey || '',
         finishedProductId: String(row?.finishedProductId || ''),
         finishedName: row?.finishedName || '',
         karat: row?.karat ?? null,
