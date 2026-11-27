@@ -5244,6 +5244,13 @@
   font-size: 11px;
 }
 
+.pd-dept-loss-batch-total {
+  margin-left: auto;
+  font-size: 12px !important;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
 /* Whole Metal Loss section inside one warm orange/amber card box */
 .pd-dept-loss-block,
 .pd-layout--control-center .pd-dept-loss-block {

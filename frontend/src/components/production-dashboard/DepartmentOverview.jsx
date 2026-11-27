@@ -45,10 +45,12 @@ function LossRow({ row }) {
     >
       <div className="pd-dept-loss-item-head">
         <span className="pd-dept-loss-batch-code">{row.label}</span>
-        <strong>
-          {formatLoss(row.loss)}
-          {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
-        </strong>
+        {!hasMetals ? (
+          <strong>
+            {formatLoss(row.loss)}
+            {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+          </strong>
+        ) : null}
       </div>
       {hasMetals ? (
         <div className="pd-dept-loss-table" role="table" aria-label={`${row.label} metal breakdown`}>
@@ -58,6 +60,10 @@ function LossRow({ row }) {
               <span role="cell" className="pd-dept-loss-table-loss">{m.loss != null ? `${formatLoss(m.loss)} g` : '—'}</span>
             </div>
           ))}
+          <strong className="pd-dept-loss-batch-total">
+            {formatLoss(row.loss)}
+            {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+          </strong>
         </div>
       ) : null}
     </li>
