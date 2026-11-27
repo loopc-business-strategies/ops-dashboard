@@ -1187,6 +1187,149 @@ async function allocateMixJob({
   const childStatus = dest === VAULT ? 'in_vault' : 'pending_receive'
 
   if (isPartial) {
+    // If a "Balance <Karat>K Alloy" vault product exists when splitting from Vault,
+    // transfer the leftover remainder there and move the batch itself (no child split).
+    if (from === VAULT && job.karat && job.finishedProductId) {
+      const InventoryItem = require('../../models/InventoryItem')
+      const StockMovement = require('../../models/StockMovement')
+      const karatNum = Number(job.karat)
+      const balanceRx = new RegExp(`^balance\\s*${karatNum}\\s*k\\s*alloy\\b`, 'i')
+      const balanceItem = await withSession(
+        InventoryItem.findOne({ name: balanceRx, isDeleted: { $ne: true } }),
+        session,
+      )
+      if (balanceItem && String(balanceItem._id) !== String(job.finishedProductId)) {
+        const sourceItem = await withSession(
+          InventoryItem.findById(job.finishedProductId),
+          session,
+        )
+        const moveReason = `Alloy split balance · ${opsBatchCode} → ${balanceItem.name} (${remainWeight} g)`
+        if (sourceItem) {
+          const prevSrc = Number(sourceItem.quantity || 0)
+          const nextSrc = Math.max(0, toQty(prevSrc - remainWeight))
+          sourceItem.quantity = nextSrc
+          await sourceItem.save(writeOpts(session))
+          await StockMovement.create(
+            [{
+              inventoryItemId: sourceItem._id,
+              itemName: sourceItem.name || job.finishedProductName || '',
+              type: 'out',
+              quantity: remainWeight,
+              previousQuantity: prevSrc,
+              newQuantity: nextSrc,
+              reason: moveReason,
+              date: new Date(),
+              createdBy: user._id,
+              createdByName: user.name || '',
+            }],
+            writeOpts(session),
+          )
+        }
+        const prevBal = Number(balanceItem.quantity || 0)
+        const nextBal = toQty(prevBal + remainWeight)
+        balanceItem.quantity = nextBal
+        await balanceItem.save(writeOpts(session))
+        await StockMovement.create(
+          [{
+            inventoryItemId: balanceItem._id,
+            itemName: balanceItem.name,
+            type: 'in',
+            quantity: remainWeight,
+            previousQuantity: prevBal,
+            newQuantity: nextBal,
+            reason: moveReason,
+            date: new Date(),
+            createdBy: user._id,
+            createdByName: user.name || '',
+          }],
+          writeOpts(session),
+        )
+
+        // Trim open Vault Ops visit to moveWeight so remainWeight is NOT booked as loss.
+        const openFromVisit = await findOpenAlloyOpsVisit({
+          session,
+          mixCode: job.mixCode,
+          departmentKey: from,
+        })
+        if (openFromVisit) {
+          const priorIn = openFromVisit.metalIn != null ? Number(openFromVisit.metalIn) : available
+          openFromVisit.metalIn = moveWeight
+          if (openFromVisit.fineGold != null && priorIn > QTY_EPS) {
+            openFromVisit.fineGold = toQty(Number(openFromVisit.fineGold) * (moveWeight / priorIn))
+          }
+          await openFromVisit.save(writeOpts(session))
+        }
+
+        await upsertOpsRow({
+          session,
+          mixCode: job.mixCode,
+          departmentKey: from,
+          date,
+          batchNumber: opsBatchCode,
+          side: 'out',
+          weight: moveWeight,
+          purity: purityPct,
+          fineGold,
+          actor: user,
+          stamp,
+          toDepartment: dest,
+        })
+        await upsertOpsRow({
+          session,
+          mixCode: job.mixCode,
+          departmentKey: dest,
+          date,
+          batchNumber: opsBatchCode,
+          side: 'in',
+          weight: moveWeight,
+          purity: purityPct,
+          fineGold,
+          actor: user,
+          stamp,
+          fromDepartment: from,
+        })
+
+        if (job.stockLotId) {
+          const lot = await withSession(ProductionStockLot.findById(job.stockLotId), session)
+          if (lot) {
+            lot.grossWeight = moveWeight
+            lot.netWeight = moveWeight
+            lot.remarks = `Alloy ${opsBatchCode} → ${dest} (${remainWeight} g → ${balanceItem.name})`
+            await lot.save(writeOpts(session))
+          }
+          await touchLotDepartment({
+            session,
+            lotId: job.stockLotId,
+            mixCode: job.mixCode,
+            dest,
+            actorId: user._id,
+            actorName: user.name || '',
+          })
+        }
+
+        job.targetGross = moveWeight
+        job.fineGold = fineGold
+        job.inputComponents = scaleInputComponents(job.inputComponents, moveWeight / available)
+        job.status = childStatus
+        job.currentDepartment = dest
+        job.pendingFromDepartment = offerReceive ? from : ''
+        job.history.push({
+          at: new Date(),
+          action,
+          fromDepartment: from,
+          toDepartment: dest,
+          note: noteText || `Moved ${moveWeight} g → ${dest}; balance ${remainWeight} g → ${balanceItem.name}`,
+          actorId: user._id,
+          actorName: user.name || '',
+        })
+        job.updatedById = user._id
+        job.updatedByName = user.name || ''
+        await job.save(writeOpts(session))
+
+        return job
+      }
+    }
+
     const childCode = await nextMixCode(session)
     let childLot = null
     if (job.stockLotId) {
