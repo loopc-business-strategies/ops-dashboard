@@ -516,32 +516,103 @@ export function buildLoopcOpsDashboardOverlay(
     }
   })
 
-  // KPI metals/batches: today's workbook only (carry-over stays on cards, not in today totals),
-  // collapsed per dept so Gold Alloy Vault hops are not triple-counted.
+  // KPI metals/batches: today's workbook only (carry-over stays on cards, not in today totals).
+  // Gold Alloy batches are counted ONCE across departments (Post Mix IN, latest floor OUT,
+  // sum of floor losses) so a batch moving Vault → Melting → Rolling → Assembly is not
+  // multiplied by every hop.
+  const summarizeAlloyGroup = (group) => {
+    const isVault = (e) => String(e?.departmentKey || '').trim().toLowerCase() === 'vault_room'
+    const fromKey = (e) => String(e?.transferFromDepartment || '').trim().toLowerCase()
+    const post = group.find((e) => fromKey(e) === 'post_mix')
+    const vaults = group.filter(isVault).sort(byBatchStartAsc)
+    const floor = group.filter((e) => e?.departmentKey && !isVault(e))
+
+    let inn = numOrNull(post?.metalIn)
+    if (inn == null && vaults.length) inn = numOrNull(vaults[0]?.metalIn)
+    if (inn == null) {
+      const ins = group.map((e) => numOrNull(e.metalIn)).filter((v) => v != null)
+      inn = ins.length ? Math.max(...ins) : null
+    }
+
+    let loss = 0
+    floor.forEach((e) => {
+      const l = metalLossOf(e)
+      if (l != null && l > 0) loss += l
+    })
+
+    const floorOuts = floor
+      .filter((e) => numOrNull(e.metalOut) != null)
+      .sort((a, b) => {
+        const ta = a?.batchOverAt ? new Date(a.batchOverAt).getTime()
+          : (a?.batchStartedAt ? new Date(a.batchStartedAt).getTime() : 0)
+        const tb = b?.batchOverAt ? new Date(b.batchOverAt).getTime()
+          : (b?.batchStartedAt ? new Date(b.batchStartedAt).getTime() : 0)
+        return ta - tb
+      })
+    let out = floorOuts.length ? numOrNull(floorOuts[floorOuts.length - 1].metalOut) : null
+    if (out == null && loss > 0 && inn != null) {
+      out = Math.max(0, Math.round((inn - loss) * 1e4) / 1e4)
+    }
+
+    const openRows = group.filter((e) => entryStatus(e) === 'Running')
+    const isRunning = openRows.length > 0
+    const openGrams = openRows.reduce((s, e) => s + (numOrNull(e.metalIn) || 0), 0)
+    return {
+      inn,
+      out,
+      loss: Math.round(loss * 1e4) / 1e4,
+      isRunning,
+      openGrams: Math.round(openGrams * 1e4) / 1e4,
+    }
+  }
+
   let totalIn = 0
   let totalOut = 0
   let totalLoss = 0
+  let underGrams = 0
   let hasAny = false
   let totalBatches = 0
   let completed = 0
-  DASHBOARD_DEPARTMENTS.forEach((dept) => {
-    const collapsed = collapseGoldAlloyDeptRows(
-      todayList.filter((e) => String(e?.departmentKey || '') === dept.key),
-    )
-    totalBatches += collapsed.length
-    completed += collapsed.filter((e) => entryStatus(e) === 'Completed').length
-    collapsed.forEach((e) => {
-      const inn = numOrNull(e.metalIn)
-      const out = numOrNull(e.metalOut)
-      const loss = metalLossOf(e)
-      if (inn != null) { totalIn += inn; hasAny = true }
-      if (out != null) { totalOut += out; hasAny = true }
-      // Vault Gold Alloy path loss is display-only (floor depts already count Melting/Rolling).
-      if (loss != null && !(dept.key === 'vault_room' && isGoldAlloyEntry(e))) {
-        totalLoss += loss
-      }
-    })
+
+  const alloyTodayByCode = new Map()
+  const otherToday = []
+  todayList.forEach((e) => {
+    if (isGoldAlloyEntry(e)) {
+      const code = mixCodeOf(e) || `row-${e?._id || e?.id || alloyTodayByCode.size}`
+      if (!alloyTodayByCode.has(code)) alloyTodayByCode.set(code, [])
+      alloyTodayByCode.get(code).push(e)
+    } else {
+      otherToday.push(e)
+    }
   })
+
+  alloyTodayByCode.forEach((group) => {
+    const m = summarizeAlloyGroup(group)
+    totalBatches += 1
+    if (!m.isRunning) completed += 1
+    else underGrams += m.openGrams
+    if (m.inn != null) { totalIn += m.inn; hasAny = true }
+    if (m.out != null) { totalOut += m.out; hasAny = true }
+    totalLoss += m.loss
+  })
+
+  otherToday.forEach((e) => {
+    totalBatches += 1
+    const st = entryStatus(e)
+    if (st === 'Completed') completed += 1
+    const inn = numOrNull(e.metalIn)
+    const out = numOrNull(e.metalOut)
+    const loss = metalLossOf(e)
+    if (inn != null) { totalIn += inn; hasAny = true }
+    if (out != null) { totalOut += out; hasAny = true }
+    if (loss != null) totalLoss += loss
+    if (st === 'Running' && inn != null) underGrams += inn - (out || 0)
+  })
+
+  totalIn = Math.round(totalIn * 1e4) / 1e4
+  totalOut = Math.round(totalOut * 1e4) / 1e4
+  totalLoss = Math.round(totalLoss * 1e4) / 1e4
+  underGrams = Math.round(underGrams * 1e4) / 1e4
 
   const empSet = new Set()
   list.forEach((e) => {
@@ -550,22 +621,40 @@ export function buildLoopcOpsDashboardOverlay(
   })
   const managers = list.map((e) => String(e.departmentManagerName || '').trim()).filter(Boolean)
   const floorManager = managers[0] || null
-  const running = list.filter((e) => entryStatus(e) === 'Running').length
+  const runningAlloyCodes = new Set()
+  let runningOther = 0
+  list.forEach((e) => {
+    if (entryStatus(e) !== 'Running') return
+    if (isGoldAlloyEntry(e)) {
+      const code = mixCodeOf(e) || `row-${e?._id || e?.id || runningAlloyCodes.size}`
+      runningAlloyCodes.add(code)
+    } else {
+      runningOther += 1
+    }
+  })
+  const running = runningAlloyCodes.size + runningOther
 
   const yesterday = dayKey(addDays(new Date(), -1))
   let yesterdayOutput = null
-  const yByDept = new Map()
+  const yAlloyByCode = new Map()
+  const yOther = []
   allList.forEach((e) => {
     if (String(e?.date || '').trim() !== yesterday) return
-    const key = String(e?.departmentKey || '').trim() || '_none'
-    if (!yByDept.has(key)) yByDept.set(key, [])
-    yByDept.get(key).push(e)
+    if (isGoldAlloyEntry(e)) {
+      const code = mixCodeOf(e) || `row-${e?._id || e?.id || yAlloyByCode.size}`
+      if (!yAlloyByCode.has(code)) yAlloyByCode.set(code, [])
+      yAlloyByCode.get(code).push(e)
+    } else {
+      yOther.push(e)
+    }
   })
-  yByDept.forEach((rows) => {
-    collapseGoldAlloyDeptRows(rows).forEach((e) => {
-      const out = numOrNull(e.metalOut)
-      if (out != null) yesterdayOutput = (yesterdayOutput || 0) + out
-    })
+  yAlloyByCode.forEach((group) => {
+    const m = summarizeAlloyGroup(group)
+    if (m.out != null) yesterdayOutput = (yesterdayOutput || 0) + m.out
+  })
+  yOther.forEach((e) => {
+    const out = numOrNull(e.metalOut)
+    if (out != null) yesterdayOutput = (yesterdayOutput || 0) + out
   })
 
   return {
@@ -574,7 +663,7 @@ export function buildLoopcOpsDashboardOverlay(
     batchMonitorRows,
     kpis: {
       totalProductionToday: hasAny ? (totalIn || totalOut) : null,
-      underProduction: running > 0 ? totalIn - totalOut : null,
+      underProduction: running > 0 ? underGrams : null,
       totalOutput: hasAny ? totalOut : null,
       employees: empSet.size || null,
       floorManager,
