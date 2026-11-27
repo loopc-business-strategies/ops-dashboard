@@ -907,7 +907,33 @@ function createAlloyMixService({
     })
   }
 
-  return { postAlloyMix, reverseAlloyMix }
+  /**
+   * Post incremental Metal Loss (AML) vouchers for a split child job returning from a floor
+   * department (split children have no standalone StockMovement to reverse/re-post).
+   */
+  async function postSplitChildMetalLoss({
+    user,
+    reasonBase = '',
+    mixCode = '',
+    lossDepartment = '',
+    lossLines = [],
+    stockDate = new Date(),
+  } = {}) {
+    const metalLossMapping = await resolveAlloyMetalLossMapping(null)
+    if (!metalLossMapping?.debitAccountId) return null
+    return postMetalLossPositionVoucher({
+      user,
+      session: null,
+      stockDate,
+      reasonBase: String(reasonBase || '').trim(),
+      metalLossMapping,
+      lossLines,
+      mixCode,
+      lossDepartment,
+    })
+  }
+
+  return { postAlloyMix, reverseAlloyMix, postSplitChildMetalLoss }
 }
 
 module.exports = {

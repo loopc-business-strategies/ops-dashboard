@@ -2000,6 +2000,98 @@ async function autoUpdateAlloyMixAfterMetalOut({
 
   const karat = Number(job.karat) || 18
   const tenantKey = String(tenant || user?.company || 'mg').trim().toLowerCase() || 'mg'
+
+  // Split children share the parent's StockMovement — do not reverse the parent.
+  // Book only this step's incremental Metal Loss (AML) under the root batch code and shrink child weight.
+  if (job.parentJobId) {
+    const rootCode = await rootMixCodeOf(job)
+    const lossLines = lines
+      .filter((row) => Number(row.lossGross) > QTY_EPS)
+      .map((row) => ({
+        itemId: row.itemId,
+        name: row.name,
+        label: row.label,
+        stockCode: row.stockCode || '',
+        lossGross: toQty(row.lossGross),
+      }))
+    const stepLoss = toQty(lossLines.reduce((s, r) => s + r.lossGross, 0))
+    if (lossLines.length && typeof svc.postSplitChildMetalLoss === 'function') {
+      await svc.postSplitChildMetalLoss({
+        user,
+        reasonBase: job.reasonBase,
+        mixCode: rootCode,
+        lossDepartment,
+        lossLines,
+      })
+    }
+    const nextComponents = lines
+      .map((row) => ({
+        itemId: row.itemId,
+        name: row.name,
+        role: row.role || 'alloy',
+        label: row.label || row.name,
+        gross: toQty(row.gross),
+      }))
+      .filter((row) => row.gross > QTY_EPS)
+    const byKey = new Map()
+    for (const prev of Array.isArray(job.metalLossByMetal) ? job.metalLossByMetal : []) {
+      const k = String(prev.itemId || prev.name || '').toLowerCase()
+      if (k) byKey.set(k, { ...prev, lossGross: toQty(prev.lossGross) })
+    }
+    for (const ln of lossLines) {
+      const k = String(ln.itemId || ln.name || '').toLowerCase()
+      if (!k) continue
+      const cur = byKey.get(k) || { itemId: ln.itemId, name: ln.name, label: ln.label, stockCode: ln.stockCode, lossGross: 0 }
+      cur.lossGross = toQty(cur.lossGross + ln.lossGross)
+      byKey.set(k, cur)
+    }
+    job.targetGross = plan.nextTarget
+    if (plan.fineGold != null && plan.fineGold >= 0) job.fineGold = plan.fineGold
+    job.inputComponents = nextComponents
+    job.metalLossGross = toQty((Number(job.metalLossGross) || 0) + stepLoss)
+    job.metalLossByMetal = [...byKey.values()].filter((c) => c.lossGross > QTY_EPS)
+    job.updatedById = user?._id || job.updatedById
+    job.updatedByName = user?.name || job.updatedByName || ''
+    job.history.push({
+      at: new Date(),
+      action: 'update',
+      fromDepartment: VAULT,
+      toDepartment: VAULT,
+      note: `Metal Out ${plan.nextTarget} g — split child loss ${stepLoss} g (${lossDepartment || 'floor'})`,
+      actorId: user?._id || null,
+      actorName: user?.name || '',
+    })
+    await job.save()
+    if (job.stockLotId) {
+      const lot = await ProductionStockLot.findById(job.stockLotId)
+      if (lot) {
+        lot.grossWeight = plan.nextTarget
+        lot.netWeight = plan.nextTarget
+        await lot.save()
+      }
+    }
+    const openVault = await findOpenAlloyOpsVisit({
+      session: null,
+      mixCode: code,
+      departmentKey: VAULT,
+    })
+    if (openVault) {
+      openVault.metalIn = plan.nextTarget
+      openVault.fineGold = plan.fineGold != null ? plan.fineGold : openVault.fineGold
+      if (openVault.purity == null && purityPct != null) openVault.purity = purityPct
+      await openVault.save()
+    }
+    return {
+      updated: true,
+      splitChildLoss: true,
+      targetGross: plan.nextTarget,
+      fineGold: plan.fineGold,
+      metalLossGross: stepLoss,
+      reason: job.reasonBase,
+      mixJob: serializeJob(job, { rootMixCode: rootCode }),
+    }
+  }
+
   await svc.reverseAlloyMix({
     user,
     tenant: tenantKey,
