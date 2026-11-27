@@ -187,7 +187,7 @@ const roundGrams = (n) => Math.round(n * 10000) / 10000
 /** Unique batch identity within one department table (Gold Alloy mix = one batch across visits). */
 export function departmentBatchIdentity(row) {
   if (row?.fromGoldAlloy) {
-    const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+    const code = String(row.batch || row.alloyMixCode || '').trim().toUpperCase()
     if (code && code !== '—') return `alloy:${code}`
   }
   const id = String(row?.id || '').trim()
@@ -199,7 +199,7 @@ export function departmentBatchIdentity(row) {
 /** Unique batch identity for workbook summary (Gold Alloy counted once across departments). */
 export function summaryBatchIdentity(row) {
   if (row?.fromGoldAlloy) {
-    const code = String(row.alloyMixCode || row.batch || '').trim().toUpperCase()
+    const code = String(row.batch || row.alloyMixCode || '').trim().toUpperCase()
     if (code && code !== '—') return `alloy:${code}`
   }
   const batch = String(row?.batch || '').trim()
