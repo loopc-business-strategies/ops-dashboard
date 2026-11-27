@@ -345,7 +345,7 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
   }
 
   let lossAvg = mean(lossRows.map((r) => r.loss))
-  const lossTodayAvg = hasNum(card.lossTodayAvg) ? Number(card.lossTodayAvg) : (loopcMode ? lossAvg : null)
+  const lossTodayAvg = hasNum(card.lossTodayAvg) ? Number(card.lossTodayAvg) : lossAvg
   const lossTotalAvg = hasNum(card.lossTotalAvg) ? Number(card.lossTotalAvg) : null
 
   let employeeCount = hasNum(card.employeeCount)
@@ -433,8 +433,8 @@ export function resolveDeptCardDisplay(card = {}, batchMonitorRows = [], employe
     metalOut,
     lossRows,
     lossAvg,
-    lossTodayAvg: loopcMode ? lossTodayAvg : null,
-    lossTotalAvg: loopcMode ? lossTotalAvg : null,
+    lossTodayAvg,
+    lossTotalAvg,
     batchStartedLabel: suppressDemo
       ? (batchStartedLabel || '—')
       : (batchStartedLabel || DEMO_PROGRESS.batchStartedLabel),

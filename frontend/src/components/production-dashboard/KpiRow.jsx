@@ -27,8 +27,10 @@ function CompactKpi({ icon, label, value, hint, className = '', iconTone = '' })
       </div>
       <div className="pd-kpi-compact-body">
         <span className="pd-kpi-compact-label">{label}</span>
-        <strong className="pd-kpi-compact-value">{value}</strong>
-        {hint ? <span className="pd-kpi-compact-hint">{hint}</span> : null}
+        <div className="pd-kpi-compact-row">
+          <strong className="pd-kpi-compact-value">{value}</strong>
+          {hint ? <span className="pd-kpi-compact-hint">{hint}</span> : null}
+        </div>
       </div>
     </article>
   )

@@ -289,13 +289,16 @@ export function buildLoopcOpsDashboardOverlay(
   entriesAll = null,
   { carryOverOpen = false, timeAverages = null, lossLimits = null, departmentManagers = null } = {},
 ) {
-  const todayList = Array.isArray(entries) ? entries : []
   const now = new Date()
+  const today = dayKey(now)
+  const todayList = (Array.isArray(entries) ? entries : []).filter((e) => {
+    const entryDate = String(e?.date || '').trim()
+    return !entryDate || entryDate === today
+  })
   const openPrior = carryOverOpen ? openPriorRunning(entriesAll, now) : []
   const pathPrior = carryOverOpen ? pathCompanionsForOpenMixes(entriesAll, openPrior, now) : []
   const carried = [...openPrior, ...pathPrior].map((e) => ({ ...e, carriedOver: true }))
   const list = carried.length ? [...carried, ...todayList] : todayList
-  const today = dayKey(now)
   // Total Avg must never include today — previous days only
   const allList = (Array.isArray(entriesAll) ? entriesAll : [])
     .filter((e) => String(e?.date || '').trim() !== today)
@@ -317,7 +320,7 @@ export function buildLoopcOpsDashboardOverlay(
     byDeptAll.get(key).push(e)
   })
 
-  const pathLossByMix = buildAlloyPathLossByMix(list)
+  const pathLossByMix = buildAlloyPathLossByMix(todayList)
   const pathLossByMixAll = buildAlloyPathLossByMix(allList)
 
   const deptCards = DASHBOARD_DEPARTMENTS.map((dept) => {
@@ -335,8 +338,10 @@ export function buildLoopcOpsDashboardOverlay(
     let metalIn = 0
     let lossMetalIn = 0
     let metalOut = 0
+    let metalInOpen = 0
     let metalLossSum = 0
     let hasIn = false
+    let hasOpenIn = false
     let hasOut = false
     let hasLoss = false
     const lossRows = []
@@ -357,7 +362,10 @@ export function buildLoopcOpsDashboardOverlay(
       const batchLabel = e.carriedOver ? `${baseLabel} (${carriedOverLabel(e, now)})` : baseLabel
       if (inn != null) { metalIn += inn; hasIn = true }
       if (out != null) { metalOut += out; hasOut = true }
-      if (loss != null) {
+      if (inn != null && entryStatus(e) === 'Running') { metalInOpen += inn; hasOpenIn = true }
+      const entryDate = String(e.date || '').trim()
+      const isTodayEntry = !e.carriedOver && (!entryDate || entryDate === today)
+      if (loss != null && isTodayEntry) {
         metalLossSum += loss
         hasLoss = true
         const pct = inn > 0 ? roundOrNull((loss / inn) * 100, 2) : null
@@ -454,6 +462,7 @@ export function buildLoopcOpsDashboardOverlay(
       metalIn: metalInVal,
       metalOut: metalOutVal,
       metalBalance,
+      metalInOpen: hasOpenIn ? metalInOpen : null,
       metalLoss: metalLossVal,
       lossRows,
       timeRows,

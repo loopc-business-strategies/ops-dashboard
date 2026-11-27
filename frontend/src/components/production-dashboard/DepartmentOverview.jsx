@@ -9,8 +9,6 @@ import {
 } from '../tabs/operations/alloyMetalLossDisplay'
 import {
   DeptIcon,
-  IconEmployees,
-  IconManager,
   IconBriefcase,
   IconMetalIn,
   IconMetalOut,
@@ -39,23 +37,30 @@ function formatLoss(v) {
 
 /** One batch's loss in grams; above the department's loss limit it turns red and shows its %. */
 function LossRow({ row }) {
+  const hasMetals = Array.isArray(row.alloyMetalRows) && row.alloyMetalRows.length > 0
   return (
-    <li className={row.overLimit ? 'pd-dept-loss-row--over' : undefined}>
-      <span>{row.label}</span>
-      <strong title={row.lossPct != null ? `${row.lossPct}% of Metal In` : undefined}>
-        <span className="pd-dept-loss-value-stack">
-          <span>
-            {formatLoss(row.loss)}
-            {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
-          </span>
-          {row.alloyLossHead ? (
-            <span className="pd-dept-loss-alloy" title={row.alloyLossLabel || row.alloyLossHead}>
-              <span>{row.alloyLossHead}</span>
-              {row.alloyLossMetals ? <span>{row.alloyLossMetals}</span> : null}
-            </span>
-          ) : null}
-        </span>
-      </strong>
+    <li
+      className={`pd-dept-loss-item${row.overLimit ? ' pd-dept-loss-row--over' : ''}${hasMetals ? ' pd-dept-loss-item--detailed' : ''}`}
+      title={row.alloyLossLabel || (row.lossPct != null ? `${row.lossPct}% of Metal In` : undefined)}
+    >
+      <div className="pd-dept-loss-item-head">
+        <span className="pd-dept-loss-batch-code">{row.label}</span>
+        <strong>
+          {formatLoss(row.loss)}
+          {row.overLimit ? <small className="pd-dept-loss-pct">{row.lossPct}%</small> : null}
+        </strong>
+      </div>
+      {hasMetals ? (
+        <div className="pd-dept-loss-table" role="table" aria-label={`${row.label} metal breakdown`}>
+          {row.alloyMetalRows.map((m, i) => (
+            <div key={`${row.label}-m-${i}`} className="pd-dept-loss-table-row" role="row">
+              <span role="cell">{m.name}</span>
+              <span role="cell">{m.gross != null ? `${formatLoss(m.gross)} g` : '—'}</span>
+              <span role="cell" className="pd-dept-loss-table-loss">{m.loss != null ? `${formatLoss(m.loss)} g` : '—'}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </li>
   )
 }
@@ -116,19 +121,6 @@ function BatchProgressBar({ startedLabel, overLabel, percent }) {
           <strong className="pd-batch-progress-time">{displayOrDash(overLabel)}</strong>
         </div>
       </div>
-    </div>
-  )
-}
-
-function VaultBalanceStrip() {
-  return (
-    <div className="pd-vault-balance">
-      {['Metal Out', 'Metal Process', 'Balance'].map((label) => (
-        <div key={label} className="pd-vault-balance-item">
-          <span>{label}</span>
-          <strong>—</strong>
-        </div>
-      ))}
     </div>
   )
 }
@@ -326,8 +318,6 @@ function AlloyMixList({
             const canAlloc = typeof onAllocateMix === 'function'
               && !awaitingReceive
               && job.canAllocate !== false
-            const alloyParts = formatAlloyMetalLossParts(job)
-            const alloyLoss = formatAlloyMetalLossLabel(job)
             return (
             <li
               key={job.id || job.mixCode}
@@ -353,14 +343,6 @@ function AlloyMixList({
                   {job.karat ? `${job.karat}K ` : ''}
                   {Number(job.targetGross || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} g
                 </strong>
-                {alloyParts?.head ? (
-                  <span className="pd-alloy-mix-inputs" title={alloyLoss || alloyParts.head}>
-                    <span className="pd-alloy-mix-loss-stack">
-                      <span>{alloyParts.head}</span>
-                      {alloyParts.metalsLine ? <span>{alloyParts.metalsLine}</span> : null}
-                    </span>
-                  </span>
-                ) : null}
               </div>
               {canAlloc ? (
                 <button
@@ -450,9 +432,6 @@ function DeptCard({
   const ui = resolveDeptCardDisplay(card, batchMonitorRows, employeeRatings, { suppressDemo, loopcMode, currentBatchTimes })
   const isVault = ui.key === 'vault_room'
   const tone = statusClass(ui.status)
-  const employeeLabel = ui.employeeCount != null && ui.employeeCount > 0
-    ? `EMPLOYEES (${ui.employeeCount})`
-    : (suppressDemo ? 'EMPLOYEES (—)' : 'EMPLOYEES')
   const mixes = Array.isArray(alloyMixJobs) ? alloyMixJobs : []
   const hasLiveMix = mixes.some((job) => {
     const awaiting = job.status === 'pending_receive' || job.pendingReceive
@@ -468,18 +447,79 @@ function DeptCard({
     if (!job) return row
     const jobGross = Number(job.metalLossGross)
     const rowLoss = Number(row.loss)
-    // Au/Cu stack only on path-total rows (Vault BMG 0.794), not Melting 0.694 alone.
-    if (!(Number.isFinite(jobGross) && jobGross > 0 && Number.isFinite(rowLoss)
-      && Math.abs(rowLoss - jobGross) <= 0.0005)) {
-      return row
+    if (!(Number.isFinite(rowLoss) && rowLoss > 0)) return row
+
+    let effectiveJob = job
+    const isExactJobLoss = Number.isFinite(jobGross) && jobGross > 0 && Math.abs(rowLoss - jobGross) <= 0.0005
+    if (!isExactJobLoss) {
+      // Proportionally split this department's loss across the batch's metals (inputComponents or metalLossByMetal).
+      const basis = Array.isArray(job.inputComponents) && job.inputComponents.length
+        ? job.inputComponents.map((c) => ({
+            stockCode: c.stockCode || '',
+            name: c.name || c.label || c.role || c.metalType || 'Metal',
+            label: c.label || c.name || '',
+            weight: Number(c.gross) || 0,
+          }))
+        : Array.isArray(job.metalLossByMetal) && job.metalLossByMetal.length
+          ? job.metalLossByMetal.map((m) => ({
+              stockCode: m.stockCode || '',
+              name: m.name || m.label || m.metalType || 'Metal',
+              label: m.label || m.name || '',
+              weight: Number(m.lossGross) || 0,
+            }))
+          : []
+      const totalBasis = basis.reduce((s, b) => s + Math.max(0, b.weight), 0)
+      if (totalBasis > 0) {
+        effectiveJob = {
+          ...job,
+          metalLossGross: rowLoss,
+          metalLossByMetal: basis
+            .filter((b) => b.weight > 0)
+            .map((b) => ({
+              stockCode: b.stockCode,
+              name: b.name,
+              label: b.label,
+              lossGross: Number(((rowLoss * b.weight) / totalBasis).toFixed(4)),
+            })),
+        }
+      }
     }
-    const parts = formatAlloyMetalLossParts(job)
+    const parts = formatAlloyMetalLossParts(effectiveJob)
     if (!parts?.head) return row
+    const grossByKey = new Map()
+    if (Array.isArray(job.inputComponents)) {
+      for (const c of job.inputComponents) {
+        const g = Number(c.gross) || 0
+        for (const k of [c.stockCode, c.name, c.role]) {
+          const norm = String(k || '').trim().toUpperCase()
+          if (norm) grossByKey.set(norm, g)
+        }
+      }
+    }
+    const alloyMetalRows = Array.isArray(effectiveJob.metalLossByMetal)
+      ? effectiveJob.metalLossByMetal
+          .filter((m) => Number(m?.lossGross) > 0)
+          .map((m) => {
+            const keys = [m.name, m.label, m.stockCode].map((k) => String(k || '').trim().toUpperCase()).filter(Boolean)
+            const matchedKey = keys.find((k) => grossByKey.has(k))
+            const gross = matchedKey ? grossByKey.get(matchedKey) : null
+            return {
+              name: String(m.name || m.label || m.stockCode || 'Metal').trim(),
+              gross,
+              loss: Number(m.lossGross),
+            }
+          })
+      : []
+    const grossMixLine = Array.isArray(job.inputComponents) && job.inputComponents.length
+      ? `Gross: ${job.inputComponents.map((c) => `${c.name || c.metalType} ${Number(c.gross || 0)}g`).join(' · ')}`
+      : ''
     return {
       ...row,
       alloyLossHead: parts.head,
       alloyLossMetals: parts.metalsLine,
-      alloyLossLabel: formatAlloyMetalLossLabel(job),
+      alloyGrossLine: grossMixLine,
+      alloyMetalRows,
+      alloyLossLabel: [formatAlloyMetalLossLabel(effectiveJob), grossMixLine].filter(Boolean).join(' — '),
     }
   })
 
@@ -529,13 +569,23 @@ function DeptCard({
             <span className="pd-status-dot" aria-hidden />
             MACHINE DOWN
           </span>
+        ) : !isVault && mixes.length > 0 ? (
+          <AlloyMixList
+            jobs={mixes}
+            departmentKey={ui.key}
+            onAllocateMix={onAllocateMix}
+          />
         ) : (
-          <span className={`pd-status-pill pd-status-pill--${tone}`}>
-            <span className="pd-status-dot" aria-hidden />
-            {ui.status || 'Idle'}
-          </span>
+          <>
+            {String(ui.status || '').trim().toLowerCase() !== 'completed' ? (
+              <span className={`pd-status-pill pd-status-pill--${tone}`}>
+                <span className="pd-status-dot" aria-hidden />
+                {ui.status || 'Idle'}
+              </span>
+            ) : null}
+            <AlloyMixChip jobs={mixes} />
+          </>
         )}
-        <AlloyMixChip jobs={mixes} />
       </div>
 
       {down ? (
@@ -559,24 +609,6 @@ function DeptCard({
 
       {/* Scrollable mid section — keeps footer (batch / vault balance) from being clipped */}
       <div className="pd-dept-card-body">
-      <div className="pd-dept-people">
-        <div className="pd-dept-people-side">
-          <span className="pd-dept-people-ico" aria-hidden>
-            <IconEmployees size={14} />
-          </span>
-          <span className="pd-dept-people-label">{employeeLabel}</span>
-        </div>
-        <div className="pd-dept-people-divider" aria-hidden />
-        <div className="pd-dept-people-side pd-dept-people-side--manager">
-          <span className="pd-dept-people-ico" aria-hidden>
-            <IconManager size={14} />
-          </span>
-          <span className="pd-dept-people-manager">{displayOrDash(ui.managerName)}</span>
-        </div>
-      </div>
-
-      {isVault ? <VaultStock inventory={vaultInventory} /> : null}
-
       {/* Metal IN/OUT + batch history on every dept card (incl. Vault) for gold-alloy visits. */}
       <div className="pd-dept-metrics">
         <div className="pd-dept-metric pd-dept-metric--in">
@@ -610,28 +642,31 @@ function DeptCard({
             <strong className="pd-dept-batches-count">{displayOrDash(ui.batches)}</strong>
           </div>
           {loopcMode && ui.timeRows?.length ? (
-            ui.timeRows.map((r) => (
-              <div key={`${ui.key}-time-${r.index}`} className="pd-dept-batches-row">
-                <span>{r.label}</span>
-                <strong>{displayOrDash(r.timeLabel)}</strong>
+            <>
+              {ui.timeRows.map((r) => (
+                <div key={`${ui.key}-time-${r.index}`} className="pd-dept-batches-row">
+                  <span>{r.label}</span>
+                  <strong>{displayOrDash(r.timeLabel)}</strong>
+                </div>
+              ))}
+              <div className="pd-dept-batches-row">
+                <span>Avg. Time</span>
+                <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
               </div>
-            ))
+              <div className="pd-dept-batches-row">
+                <span>Total Avg Time</span>
+                <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
+              </div>
+            </>
           ) : (
-            <div className="pd-dept-batches-row">
+            <div className="pd-dept-batches-row pd-dept-batches-row--inline">
               <span>Time / Batch</span>
               <strong>{displayOrDash(ui.timePerBatchLabel)}</strong>
+              <span className="pd-dept-batches-sep" aria-hidden>·</span>
+              <span>Avg. Time</span>
+              <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
             </div>
           )}
-          <div className="pd-dept-batches-row">
-            <span>Avg. Time</span>
-            <strong>{displayOrDash(ui.avgTimeLabel)}</strong>
-          </div>
-          {loopcMode ? (
-            <div className="pd-dept-batches-row">
-              <span>Total Avg Time</span>
-              <strong>{displayOrDash(ui.timeTotalAvgLabel)}</strong>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -666,13 +701,6 @@ function DeptCard({
           ) : lossRows.length ? (
             <>
               {lossRows.map((r) => <LossRow key={`${ui.key}-loss-${r.index}`} row={r} />)}
-              <li className={`pd-dept-loss-avg${card.lossTodayOverLimit ? ' pd-dept-loss-row--over' : ''}`}>
-                <span>Avg</span>
-                <strong>
-                  {formatLoss(ui.lossAvg)}
-                  {card.lossTodayOverLimit ? <small className="pd-dept-loss-pct">{card.lossTodayPct}%</small> : null}
-                </strong>
-              </li>
             </>
           ) : (
             <li>
@@ -683,21 +711,27 @@ function DeptCard({
         </ul>
       </div>
 
-      <AlloyMixList
-        jobs={mixes}
-        departmentKey={ui.key}
-        onAllocateMix={onAllocateMix}
-      />
+      {isVault ? <VaultStock inventory={vaultInventory} /> : null}
+      </div>
 
-      {card.longRunning ? (
+      {!isVault && card.longRunning ? (
         <p className="pd-dept-long-batch" role="status">
           Batch {card.longRunning.batchNumber} running long · {formatMinutes(card.longRunning.elapsedMin)}
           {' '}(usual {formatMinutes(card.longRunning.usualMin)})
         </p>
       ) : null}
+
+      <div className="pd-dept-avg-footer">
+        <div className="pd-dept-avg-item">
+          <span>Today&apos;s Avg</span>
+          <strong>{ui.lossTodayAvg != null ? `${formatLoss(ui.lossTodayAvg)} g` : '—'}</strong>
+        </div>
+        <div className="pd-dept-avg-item">
+          <span>Overall Avg</span>
+          <strong>{ui.lossTotalAvg != null ? `${formatLoss(ui.lossTotalAvg)} g` : '—'}</strong>
+        </div>
       </div>
 
-      {isVault ? <VaultBalanceStrip /> : null}
       <BatchProgressBar
         startedLabel={card.currentBatchCarriedOver && ui.batchStartedLabel ? `${ui.batchStartedLabel} (yesterday)` : ui.batchStartedLabel}
         overLabel={ui.batchOverLabel}
@@ -801,7 +835,6 @@ export default function DepartmentOverview({
     onAllocateMix,
   }
   const vaultCard = list.find((card) => card.key === 'vault_room') || null
-  const stampingCard = list.find((card) => card.key === 'stamping') || null
   const productionCards = list.filter(
     (card) => card.key !== 'vault_room' && card.key !== 'stamping',
   )
@@ -831,9 +864,6 @@ export default function DepartmentOverview({
           <div className="pd-dept-grid pd-dept-grid--top3">
             {topProduction.map((card) => renderDeptCard(card, cardProps))}
           </div>
-          <div className="pd-stamp-slot">
-            {stampingCard ? renderDeptCard(stampingCard, cardProps) : null}
-          </div>
           <div className="pd-dept-grid pd-dept-grid--bottom3">
             {bottomProduction.map((card) => renderDeptCard(card, cardProps))}
           </div>
@@ -847,7 +877,7 @@ export default function DepartmentOverview({
       <div className="pd-panel pd-dept-status">
         {kpi}
         <div className="pd-dept-grid">
-          {list.map((card) => renderDeptCard(card, cardProps))}
+          {list.filter((card) => card.key !== 'stamping').map((card) => renderDeptCard(card, cardProps))}
         </div>
       </div>
     </section>

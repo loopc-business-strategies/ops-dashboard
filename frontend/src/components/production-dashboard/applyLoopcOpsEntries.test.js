@@ -86,6 +86,20 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
     expect(next.compactKpis.underProduction).toBe(525)
   })
 
+  test('department metalInOpen counts only the Metal IN of batches still running', () => {
+    const next = applyLoopcOpsEntriesToModel(
+      baseModel(),
+      [
+        mgFloorRow({ _id: 'open', metalIn: 300, metalOut: null, metalLoss: null, batchStartedAt: new Date().toISOString(), batchOverAt: null }),
+        mgFloorRow({ _id: 'done', batchNumber: '2', metalIn: 200, metalOut: 198, metalLoss: 2, batchStartedAt: new Date().toISOString(), batchOverAt: new Date().toISOString() }),
+      ],
+      null,
+      { keepModelWhenEmpty: true },
+    )
+    expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({ metalIn: 500, metalInOpen: 300 })
+    expect(next.deptCards.find((c) => c.key === 'melting')).toMatchObject({ metalInOpen: null })
+  })
+
   test('Yesterday vs Today compares today\'s output with yesterday\'s workbook output', () => {
     const yesterday = dayKey(addDays(new Date(), -1))
     const older = dayKey(addDays(new Date(), -2))
@@ -117,7 +131,7 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
 
     expect(next.hasLiveProduction).toBe(true)
     expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({ status: 'Running', metalIn: 525, currentBatchCarriedOver: true })
-    expect(next.deptCards.find((c) => c.key === 'melting').lossRows).toEqual([expect.objectContaining({ label: '3 (yesterday)' })])
+    expect(next.deptCards.find((c) => c.key === 'melting').lossRows).toEqual([])
     expect(next.deptCards.find((c) => c.key === 'wire')?.hasData ?? false).toBe(false)
     expect(next.header).toMatchObject({ activeBatches: 1, totalBatches: null })
     expect(next.underProductionKpi.activeBatches).toBe(1)
@@ -202,20 +216,23 @@ describe('applyLoopcOpsEntriesToModel (Production Dashboard from the Operations 
       status: 'Completed',
       metalIn: 552.304,
       metalOut: 551.61,
-      metalLoss: 0.694,
+      metalLoss: null,
+      lossRows: [],
       hasData: true,
     })
     expect(next.deptCards.find((c) => c.key === 'rolling')).toMatchObject({
       status: 'Completed',
       metalIn: 551.61,
       metalOut: 551.51,
-      metalLoss: 0.1,
+      metalLoss: null,
+      lossRows: [],
       hasData: true,
     })
     expect(next.deptCards.find((c) => c.key === 'vault_room')).toMatchObject({
       status: 'Completed',
       hasData: true,
-      metalLoss: 0.794,
+      metalLoss: null,
+      lossRows: [],
     })
     expect(next.header.activeBatches).toBe(1)
     expect(next.underProductionKpi.activeBatches).toBe(1)

@@ -162,7 +162,7 @@ export function useProductionDashboard({ refreshMs = 240000 } = {}) {
         payload.opsEntriesAll || null,
         {
           keepModelWhenEmpty: isMg,
-          carryOverOpen: isMg,
+          carryOverOpen: false,
           timeAverages: isMg ? payload.timeAverages || null : null,
           lossLimits: isMg ? payload.lossLimits || null : null,
           departmentManagers: isMg ? payload.departmentManagers || null : null,
